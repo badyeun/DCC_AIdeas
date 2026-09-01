@@ -8,6 +8,8 @@
 2. 각 미션은 `notebooks/`의 노트북에서 실험합니다.
 3. 필요한 패키지가 생기면 `requirements.txt`에 추가합니다.
 
+Mission 1 baseline의 학습 및 주최 측 규격 추론 명령은 [Mission 1 안내](src/mission1/mission1.md)를 참고합니다.
+
 ## 노트북
 
 - `mission1_gender.ipynb`: 신고자 성별 분류

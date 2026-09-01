@@ -1,6 +1,7 @@
 # Data and generated results
 data/
 models/
+saved_models/
 outputs/
 
 # Jupyter
