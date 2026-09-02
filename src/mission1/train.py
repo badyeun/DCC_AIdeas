@@ -14,6 +14,7 @@ from tqdm import tqdm
 
 from common import (
     GENDER_TO_INDEX,
+    INDEX_TO_GENDER,
     MAX_FRAMES,
     SimpleCNN,
     annotation_path_for,
@@ -121,6 +122,15 @@ def main() -> None:
             f"accuracy={correct / len(dataset):.4f}"
         )
 
+    # 추론이 실패한 파일에 채워 넣을 기본값으로 다수 클래스를 저장합니다.
+    label_array = np.asarray([gender for _, _, gender in dataset.samples])
+    majority_index = int(np.bincount(label_array, minlength=len(GENDER_TO_INDEX)).argmax())
+    fallback_gender = INDEX_TO_GENDER[majority_index]
+    print(
+        f"다수 클래스: {fallback_gender} ({(label_array == majority_index).mean():.4f}) "
+        "<- 검증 정확도가 이 값을 넘어야 의미가 있습니다"
+    )
+
     args.ckpt_path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(
         {
@@ -128,6 +138,7 @@ def main() -> None:
             "max_frames": args.max_frames,
             "timestamp_unit": args.timestamp_unit,
             "gender_to_index": GENDER_TO_INDEX,
+            "fallback_gender": fallback_gender,
         },
         args.ckpt_path,
     )

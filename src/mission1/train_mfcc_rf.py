@@ -11,6 +11,7 @@ from sklearn.ensemble import RandomForestClassifier
 
 from common import (
     GENDER_TO_INDEX,
+    INDEX_TO_GENDER,
     annotation_path_for,
     load_annotation,
     load_caller_audio,
@@ -28,6 +29,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max_depth", type=int, default=None)
     parser.add_argument(
         "--timestamp_unit", choices=("auto", "seconds", "milliseconds"), default="auto"
+    )
+    parser.add_argument(
+        "--no_f0",
+        action="store_true",
+        help="F0(기본주파수) 특징을 빼고 학습합니다. F0 추출은 느리므로 비교 실험용입니다.",
     )
     parser.add_argument("--seed", type=int, default=42)
     return parser.parse_args()
@@ -55,7 +61,9 @@ def main() -> None:
         waveform = load_caller_audio(
             audio_path, annotation, timestamp_unit=args.timestamp_unit
         )
-        features.append(waveform_to_mfcc_feature(waveform, args.n_mfcc))
+        features.append(
+            waveform_to_mfcc_feature(waveform, args.n_mfcc, use_f0=not args.no_f0)
+        )
         labels.append(GENDER_TO_INDEX[gender])
 
     feature_matrix = np.vstack(features)
@@ -67,7 +75,21 @@ def main() -> None:
         n_jobs=-1,
     )
     classifier.fit(feature_matrix, labels)
-    print(f"학습 정확도: {classifier.score(feature_matrix, labels):.4f}")
+
+    # 주의: 아래 값은 학습에 쓴 데이터를 그대로 채점한 결과입니다. max_depth 제한이
+    # 없으면 사실상 항상 1.0에 가깝게 나오므로 성능 지표가 아닙니다. 실제 성능은
+    # 별도 검증셋으로 측정해야 합니다.
+    print(
+        f"[참고] 학습 데이터 재현 정확도: {classifier.score(feature_matrix, labels):.4f} "
+        "(성능 지표가 아님)"
+    )
+    print(f"특징 차원: {feature_matrix.shape[1]} (F0 사용: {not args.no_f0})")
+
+    # 추론이 실패한 파일에 채워 넣을 기본값으로 다수 클래스를 저장합니다.
+    label_array = np.asarray(labels)
+    majority_index = int(np.bincount(label_array, minlength=len(GENDER_TO_INDEX)).argmax())
+    fallback_gender = INDEX_TO_GENDER[majority_index]
+    print(f"다수 클래스: {fallback_gender} ({(label_array == majority_index).mean():.4f})")
 
     args.ckpt_path.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(
@@ -75,8 +97,10 @@ def main() -> None:
             "model_type": "mfcc_random_forest",
             "classifier": classifier,
             "n_mfcc": args.n_mfcc,
+            "use_f0": not args.no_f0,
             "timestamp_unit": args.timestamp_unit,
             "gender_to_index": GENDER_TO_INDEX,
+            "fallback_gender": fallback_gender,
         },
         args.ckpt_path,
     )
