@@ -2,3 +2,5 @@ torch
 librosa
 numpy
 tqdm
+scikit-learn
+joblib

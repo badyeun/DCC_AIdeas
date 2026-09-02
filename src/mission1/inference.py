@@ -6,6 +6,7 @@ import argparse
 import csv
 from pathlib import Path
 
+import joblib
 import torch
 
 from common import (
@@ -15,6 +16,7 @@ from common import (
     annotation_path_for,
     load_annotation,
     load_caller_audio,
+    waveform_to_mfcc_feature,
     waveform_to_mel,
 )
 
@@ -49,6 +51,18 @@ def load_checkpoint(path: Path, device: torch.device) -> tuple[SimpleCNN, int, s
     )
 
 
+def load_mfcc_rf_checkpoint(path: Path) -> tuple[object, int, str]:
+    """MFCC-랜덤 포레스트 체크포인트와 전처리 설정을 불러옵니다."""
+    checkpoint = joblib.load(path)
+    if not isinstance(checkpoint, dict) or checkpoint.get("model_type") != "mfcc_random_forest":
+        raise ValueError("MFCC-랜덤 포레스트 체크포인트 형식이 올바르지 않습니다.")
+    return (
+        checkpoint["classifier"],
+        int(checkpoint.get("n_mfcc", 20)),
+        str(checkpoint.get("timestamp_unit", "auto")),
+    )
+
+
 def main() -> None:
     args = parse_args()
     if not args.audio_dir.is_dir() or not args.label_dir.is_dir():
@@ -56,8 +70,12 @@ def main() -> None:
     if not args.ckpt_path.is_file():
         raise FileNotFoundError(f"Checkpoint not found: {args.ckpt_path}")
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model, max_frames, timestamp_unit = load_checkpoint(args.ckpt_path, device)
+    is_mfcc_rf = args.ckpt_path.suffix.lower() == ".joblib"
+    if is_mfcc_rf:
+        model, n_mfcc, timestamp_unit = load_mfcc_rf_checkpoint(args.ckpt_path)
+    else:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model, max_frames, timestamp_unit = load_checkpoint(args.ckpt_path, device)
     audio_files = sorted(args.audio_dir.rglob("*.wav"))
     if not audio_files:
         raise ValueError(f"No .wav files found in {args.audio_dir}")
@@ -70,9 +88,13 @@ def main() -> None:
         waveform = load_caller_audio(
             audio_path, load_annotation(json_path), timestamp_unit=timestamp_unit
         )
-        feature = waveform_to_mel(waveform, max_frames).unsqueeze(0).to(device)
-        with torch.inference_mode():
-            gender = INDEX_TO_GENDER[model(feature).argmax(dim=1).item()]
+        if is_mfcc_rf:
+            feature = waveform_to_mfcc_feature(waveform, n_mfcc).reshape(1, -1)
+            gender = INDEX_TO_GENDER[int(model.predict(feature)[0])]
+        else:
+            feature = waveform_to_mel(waveform, max_frames).unsqueeze(0).to(device)
+            with torch.inference_mode():
+                gender = INDEX_TO_GENDER[model(feature).argmax(dim=1).item()]
         rows.append((audio_path.name, gender))
 
     if args.output.parent != Path("."):

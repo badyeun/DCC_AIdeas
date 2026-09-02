@@ -111,6 +111,28 @@ def waveform_to_mel(waveform: np.ndarray, max_frames: int = MAX_FRAMES) -> torch
     return torch.from_numpy(mel_db.astype(np.float32)).unsqueeze(0)
 
 
+def waveform_to_mfcc_feature(waveform: np.ndarray, n_mfcc: int = 20) -> np.ndarray:
+    """MFCC와 1·2차 변화량의 시간 통계치를 RandomForest 입력으로 만듭니다."""
+    mfcc = librosa.feature.mfcc(y=waveform, sr=SAMPLE_RATE, n_mfcc=n_mfcc)
+    frame_count = mfcc.shape[1]
+    if frame_count < 3:
+        delta = np.zeros_like(mfcc)
+        delta2 = np.zeros_like(mfcc)
+    else:
+        delta_width = min(9, frame_count if frame_count % 2 else frame_count - 1)
+        delta = librosa.feature.delta(mfcc, width=delta_width)
+        delta2 = librosa.feature.delta(mfcc, width=delta_width, order=2)
+    stacked = np.concatenate((mfcc, delta, delta2), axis=0)
+    return np.concatenate(
+        (
+            stacked.mean(axis=1),
+            stacked.std(axis=1),
+            np.percentile(stacked, 25, axis=1),
+            np.percentile(stacked, 75, axis=1),
+        )
+    ).astype(np.float32)
+
+
 class SimpleCNN(nn.Module):
     """입력 길이에 독립적인 풀링을 사용하는 경량 CNN 베이스라인입니다."""
 
