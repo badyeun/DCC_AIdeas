@@ -20,7 +20,7 @@ from common import (
     annotation_path_for,
     load_annotation,
     load_caller_audio,
-    waveform_to_mel,
+    waveform_to_mel_windows,
 )
 
 
@@ -30,11 +30,13 @@ class CallerGenderDataset(Dataset):
         audio_dir: Path,
         label_dir: Path,
         max_frames: int,
+        window_hop_frames: int,
         timestamp_unit: str,
     ) -> None:
         self.audio_dir = audio_dir
         self.label_dir = label_dir
         self.max_frames = max_frames
+        self.window_hop_frames = window_hop_frames
         self.timestamp_unit = timestamp_unit
         self.samples: list[tuple[Path, Path, int]] = []
 
@@ -58,7 +60,13 @@ class CallerGenderDataset(Dataset):
         waveform = load_caller_audio(
             audio_path, load_annotation(json_path), timestamp_unit=self.timestamp_unit
         )
-        return waveform_to_mel(waveform, self.max_frames), torch.tensor(gender, dtype=torch.long)
+        windows = waveform_to_mel_windows(
+            waveform, self.max_frames, self.window_hop_frames
+        )
+        # 긴 통화는 epoch마다 임의의 창 하나를 학습해 긴 샘플이 과도하게
+        # 가중되지 않으면서도 여러 위치의 신고자 발화를 활용합니다.
+        selected_window = windows[torch.randint(len(windows), (1,)).item()]
+        return selected_window, torch.tensor(gender, dtype=torch.long)
 
 
 def parse_args() -> argparse.Namespace:
@@ -70,6 +78,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--learning_rate", type=float, default=1e-3)
     parser.add_argument("--max_frames", type=int, default=MAX_FRAMES)
+    parser.add_argument("--window_hop_frames", type=int, default=150)
     parser.add_argument(
         "--timestamp_unit", choices=("auto", "seconds", "milliseconds"), default="auto"
     )
@@ -88,12 +97,21 @@ def set_seed(seed: int) -> None:
 
 def main() -> None:
     args = parse_args()
-    if args.epochs < 1 or args.batch_size < 1 or args.max_frames < 1:
-        raise ValueError("epochs, batch_size, and max_frames must be positive")
+    if (
+        args.epochs < 1
+        or args.batch_size < 1
+        or args.max_frames < 1
+        or args.window_hop_frames < 1
+    ):
+        raise ValueError("학습 횟수, 배치 크기, 창 길이, 창 간격은 모두 양수여야 합니다.")
     set_seed(args.seed)
 
     dataset = CallerGenderDataset(
-        args.audio_dir, args.label_dir, args.max_frames, args.timestamp_unit
+        args.audio_dir,
+        args.label_dir,
+        args.max_frames,
+        args.window_hop_frames,
+        args.timestamp_unit,
     )
     dataloader = DataLoader(
         dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers
@@ -136,6 +154,7 @@ def main() -> None:
         {
             "model_state_dict": model.state_dict(),
             "max_frames": args.max_frames,
+            "window_hop_frames": args.window_hop_frames,
             "timestamp_unit": args.timestamp_unit,
             "gender_to_index": GENDER_TO_INDEX,
             "fallback_gender": fallback_gender,

@@ -56,7 +56,9 @@ outputs/
                                            └→ 제출 CSV: audio file name,gender
 ```
 
-`common.py`는 JSON에서 `speaker=1`인 신고자의 `startAt`~`endAt` 구간을 찾아 WAV에서 잘라낸 뒤 이어 붙입니다. 이후 CNN에는 Mel-spectrogram을, RandomForest에는 MFCC와 그 변화량의 통계 특징을 전달합니다.
+`common.py`는 JSON에서 `speaker=1`인 신고자의 `startAt`~`endAt` 구간을 찾아 WAV에서 잘라낸 뒤 이어 붙입니다. 이후 CNN에는 Mel-spectrogram을, RandomForest에는 MFCC와 그 변화량의 통계 특징을 전달합니다. `Speaker`처럼 대문자로 기록된 필드도 인식합니다.
+
+CNN은 300프레임보다 짧은 입력을 padding하고, 긴 입력은 150프레임 간격의 sliding window로 모두 처리합니다. 학습에서는 통화마다 창 하나를 무작위로 골라 긴 통화가 과도하게 학습에 반영되는 것을 막고, 추론에서는 모든 창의 성별 확률을 평균내어 최종 결과를 정합니다.
 
 ## 사전 준비
 

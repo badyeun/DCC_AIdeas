@@ -106,10 +106,12 @@ def timestamp_to_samples(value: Any, *, timestamp_unit: str) -> int:
 def detect_timestamp_unit(annotation: dict[str, Any], duration_seconds: float) -> str:
     """``startAt``/``endAt``의 단위를 판별합니다.
 
-    신고자 발화만 보면 신고자가 통화 앞부분에서만 말한 경우 통화 길이의 1% 안에
-    끝나 ``seconds``로 오판할 수 있습니다. 그래서 화자를 가리지 않고 **모든 발화**와
-    최상위 ``endAt``까지 함께 봅니다. 이 값들의 최댓값은 통화 길이에 가까우므로
-    밀리초라면 초 단위 길이의 약 1000배가 되어 안전하게 구분됩니다.
+    신고자 발화만 보면 신고자가 통화 앞부분에서만 말한 경우 마지막 발화가 통화
+    길이에 한참 못 미쳐 단위를 오판할 수 있습니다. 그래서 화자를 가리지 않고
+    **모든 발화**와 최상위 ``endAt``까지 후보로 삼습니다.
+
+    그 최댓값을 초로 읽었을 때와 밀리초로 읽었을 때 중 실제 통화 길이에 더
+    가까운 쪽을 고릅니다.
     """
     candidates = [annotation.get("endAt")]
     candidates.extend(utterance.get("endAt") for utterance in get_utterances(annotation))
@@ -121,7 +123,13 @@ def detect_timestamp_unit(annotation: dict[str, Any], duration_seconds: float) -
         except (TypeError, ValueError):
             continue
 
-    return "milliseconds" if largest_end > duration_seconds * 10 else "seconds"
+    if largest_end <= 0:
+        # 판단 근거가 없으면 이 데이터셋의 실제 단위인 밀리초로 둡니다.
+        return "milliseconds"
+
+    seconds_error = abs(largest_end - duration_seconds)
+    milliseconds_error = abs(largest_end / 1_000 - duration_seconds)
+    return "milliseconds" if milliseconds_error < seconds_error else "seconds"
 
 
 def load_caller_audio(
@@ -133,7 +141,12 @@ def load_caller_audio(
     """통화에서 신고자(``speaker=1``) 발화 구간만 이어 붙여 불러옵니다."""
     waveform, _ = librosa.load(audio_path, sr=SAMPLE_RATE, mono=True)
     duration_seconds = len(waveform) / SAMPLE_RATE
-    utterances = [utterance for utterance in get_utterances(annotation) if is_caller(utterance.get("speaker"))]
+    all_utterances = get_utterances(annotation)
+    utterances = [
+        utterance
+        for utterance in all_utterances
+        if is_caller(utterance.get("speaker", utterance.get("Speaker")))
+    ]
     if timestamp_unit == "auto":
         timestamp_unit = detect_timestamp_unit(annotation, duration_seconds)
     segments: list[np.ndarray] = []
@@ -156,17 +169,37 @@ def load_caller_audio(
     return np.concatenate(segments)
 
 
-def waveform_to_mel(waveform: np.ndarray, max_frames: int = MAX_FRAMES) -> torch.Tensor:
+def waveform_to_mel_windows(
+    waveform: np.ndarray,
+    max_frames: int = MAX_FRAMES,
+    hop_frames: int | None = None,
+) -> torch.Tensor:
+    """Mel-spectrogram을 padding 또는 sliding window로 고정 길이 창으로 나눕니다."""
+    if max_frames < 1:
+        raise ValueError("max_frames는 양수여야 합니다.")
+    if hop_frames is None:
+        hop_frames = max_frames // 2
+    if hop_frames < 1:
+        raise ValueError("hop_frames는 양수여야 합니다.")
+
     mel = librosa.feature.melspectrogram(
         y=waveform, sr=SAMPLE_RATE, n_mels=N_MELS, hop_length=512
     )
     mel_db = librosa.power_to_db(mel, ref=np.max)
-    if mel_db.shape[1] >= max_frames:
-        mel_db = mel_db[:, :max_frames]
-    else:
+    frame_count = mel_db.shape[1]
+    if frame_count <= max_frames:
         padding = np.full((N_MELS, max_frames - mel_db.shape[1]), mel_db.min())
         mel_db = np.concatenate((mel_db, padding), axis=1)
-    return torch.from_numpy(mel_db.astype(np.float32)).unsqueeze(0)
+        return torch.from_numpy(mel_db.astype(np.float32)).unsqueeze(0).unsqueeze(0)
+
+    starts = list(range(0, frame_count - max_frames + 1, hop_frames))
+    final_start = frame_count - max_frames
+    if starts[-1] != final_start:
+        starts.append(final_start)
+    windows = np.stack(
+        [mel_db[:, start : start + max_frames] for start in starts], axis=0
+    )
+    return torch.from_numpy(windows.astype(np.float32)).unsqueeze(1)
 
 
 def waveform_to_f0_feature(waveform: np.ndarray) -> np.ndarray:

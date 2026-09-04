@@ -23,12 +23,13 @@ from common import (
     load_annotation,
     load_caller_audio,
     resolve_annotation_path,
+    waveform_to_mel_windows,
     waveform_to_mfcc_feature,
-    waveform_to_mel,
 )
 
 
 DEFAULT_FALLBACK_GENDER = "F"
+WINDOW_BATCH_SIZE = 64
 
 
 def parse_args() -> argparse.Namespace:
@@ -45,7 +46,9 @@ def warn(message: str) -> None:
     print(f"[warn] {message}", file=sys.stderr)
 
 
-def load_checkpoint(path: Path, device: torch.device) -> tuple[SimpleCNN, int, str, str]:
+def load_checkpoint(
+    path: Path, device: torch.device
+) -> tuple[SimpleCNN, int, int, str, str]:
     try:
         checkpoint = torch.load(path, map_location=device, weights_only=True)
     except TypeError:  # 구버전 PyTorch 호환을 위한 처리입니다.
@@ -61,6 +64,7 @@ def load_checkpoint(path: Path, device: torch.device) -> tuple[SimpleCNN, int, s
     return (
         model,
         int(checkpoint.get("max_frames", MAX_FRAMES)),
+        int(checkpoint.get("window_hop_frames", MAX_FRAMES // 2)),
         str(checkpoint.get("timestamp_unit", "auto")),
         str(checkpoint.get("fallback_gender", DEFAULT_FALLBACK_GENDER)),
     )
@@ -91,6 +95,23 @@ def find_audio_files(audio_dir: Path) -> list[Path]:
     return sorted(files)
 
 
+def predict_with_cnn(
+    model: SimpleCNN,
+    waveform,
+    max_frames: int,
+    window_hop_frames: int,
+    device: torch.device,
+) -> str:
+    """모든 sliding window의 확률을 합산해 통화 하나의 성별을 정합니다."""
+    windows = waveform_to_mel_windows(waveform, max_frames, window_hop_frames)
+    probability_sum = torch.zeros(len(INDEX_TO_GENDER), device=device)
+    with torch.inference_mode():
+        for window_batch in windows.split(WINDOW_BATCH_SIZE):
+            probabilities = torch.softmax(model(window_batch.to(device)), dim=1)
+            probability_sum += probabilities.sum(dim=0)
+    return INDEX_TO_GENDER[int(probability_sum.argmax().item())]
+
+
 def main() -> None:
     args = parse_args()
     if not args.audio_dir.is_dir():
@@ -106,11 +127,15 @@ def main() -> None:
         model, n_mfcc, use_f0, timestamp_unit, fallback_gender = load_mfcc_rf_checkpoint(
             args.ckpt_path
         )
-        max_frames = MAX_FRAMES
+        max_frames, window_hop_frames = MAX_FRAMES, MAX_FRAMES // 2
     else:
-        model, max_frames, timestamp_unit, fallback_gender = load_checkpoint(
-            args.ckpt_path, device
-        )
+        (
+            model,
+            max_frames,
+            window_hop_frames,
+            timestamp_unit,
+            fallback_gender,
+        ) = load_checkpoint(args.ckpt_path, device)
         n_mfcc, use_f0 = 20, False
 
     audio_files = find_audio_files(args.audio_dir)
@@ -138,9 +163,9 @@ def main() -> None:
                 ).reshape(1, -1)
                 gender = INDEX_TO_GENDER[int(model.predict(feature)[0])]
             else:
-                feature = waveform_to_mel(waveform, max_frames).unsqueeze(0).to(device)
-                with torch.inference_mode():
-                    gender = INDEX_TO_GENDER[model(feature).argmax(dim=1).item()]
+                gender = predict_with_cnn(
+                    model, waveform, max_frames, window_hop_frames, device
+                )
         except Exception as error:  # 개별 파일 실패가 전체를 중단시키지 않게 합니다.
             failures += 1
             gender = fallback_gender
