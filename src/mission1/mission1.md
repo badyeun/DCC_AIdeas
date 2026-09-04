@@ -103,7 +103,21 @@ python src/mission1/train_mfcc_rf.py \
   --ckpt_path saved_models/mission1_mfcc_rf.joblib
 ```
 
-RandomForest는 MFCC 20개, 1차 변화량, 2차 변화량 각각의 평균·표준편차·25%·75% 분위수를 특징으로 사용합니다. 학습 시간을 줄여 빠르게 기준 성능을 확인하기 좋고, CNN과 비교할 출발점으로 적합합니다.
+RandomForest는 MFCC 20개, 1차 변화량, 2차 변화량 각각의 평균·표준편차·25%·75% 분위수(240개)에 더해, **F0(기본주파수) 통계 6개**를 특징으로 사용합니다. 총 246차원입니다.
+
+MFCC는 DCT 과정에서 스펙트럼 포락선만 남기고 F0를 상당 부분 버리는데, 성별을 가르는 가장 강한 단서가 F0입니다(성인 남성 약 85~180Hz, 여성 약 165~255Hz). 그래서 `librosa.yin`으로 F0를 따로 추출해 log2 스케일의 평균·중앙값·표준편차·25%·75% 분위수와 유성음 비율을 덧붙입니다.
+
+F0 추출은 시간이 걸리므로, 기여도를 비교하려면 `--no_f0`로 끈 버전을 함께 학습해 Accuracy를 비교합니다.
+
+```bash
+python src/mission1/train_mfcc_rf.py \
+  --audio_dir data/train/wav \
+  --label_dir data/train/json \
+  --no_f0 \
+  --ckpt_path saved_models/mission1_mfcc_rf_nof0.joblib
+```
+
+> `train_mfcc_rf.py`가 출력하는 `[참고] 학습 데이터 재현 정확도`는 **성능 지표가 아닙니다.** 학습에 쓴 데이터를 그대로 채점한 값이고, `max_depth` 제한이 없으면 거의 항상 1.0에 가깝게 나옵니다. 실제 성능은 반드시 별도 검증셋으로 측정하세요.
 
 ## Validation 성능 비교
 
@@ -140,6 +154,17 @@ python src/mission1/inference.py \
 ```
 
 생성되는 CSV 컬럼은 정확히 `audio file name,gender`이며, 성별 값은 `M` 또는 `F`입니다.
+
+### 실패 허용 동작
+
+평가 폴더에 어떤 파일이 들어올지 알 수 없으므로 `inference.py`는 개별 파일의 실패로 중단되지 않습니다.
+
+- 대응 JSON은 ①동일한 하위 경로 → ②파일명(stem) 일치 순으로 찾습니다. 원천/라벨 폴더의 하위 구조가 달라도 매칭됩니다.
+- JSON 파싱 실패, 신고자 발화 없음, 오디오 로드 실패 등이 발생하면 해당 파일만 학습 데이터의 다수 클래스(`fallback_gender`, 체크포인트에 저장됨)로 채우고 진행합니다.
+- 확장자가 `.WAV`인 파일도 인식합니다.
+- 실패 내역은 stderr에 남기며, **CSV 행 수는 항상 입력 WAV 개수와 같습니다.**
+
+이 동작이 없으면 파일 하나만 잘못되어도 CSV가 생성되지 않아 0점이 됩니다.
 
 CNN 체크포인트(`.pt`)와 MFCC-랜덤 포레스트 체크포인트(`.joblib`) 모두 같은 `inference.py` 명령으로 실행할 수 있습니다.
 
