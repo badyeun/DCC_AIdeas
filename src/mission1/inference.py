@@ -17,7 +17,7 @@ from common import (
     load_annotation,
     load_caller_audio,
     waveform_to_mfcc_feature,
-    waveform_to_mel,
+    waveform_to_mel_windows,
 )
 
 
@@ -31,7 +31,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def load_checkpoint(path: Path, device: torch.device) -> tuple[SimpleCNN, int, str]:
+def load_checkpoint(path: Path, device: torch.device) -> tuple[SimpleCNN, int, int, str]:
     try:
         checkpoint = torch.load(path, map_location=device, weights_only=True)
     except TypeError:  # 구버전 PyTorch 호환을 위한 처리입니다.
@@ -47,6 +47,7 @@ def load_checkpoint(path: Path, device: torch.device) -> tuple[SimpleCNN, int, s
     return (
         model,
         int(checkpoint.get("max_frames", MAX_FRAMES)),
+        int(checkpoint.get("window_hop_frames", 150)),
         str(checkpoint.get("timestamp_unit", "auto")),
     )
 
@@ -75,7 +76,9 @@ def main() -> None:
         model, n_mfcc, timestamp_unit = load_mfcc_rf_checkpoint(args.ckpt_path)
     else:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        model, max_frames, timestamp_unit = load_checkpoint(args.ckpt_path, device)
+        model, max_frames, window_hop_frames, timestamp_unit = load_checkpoint(
+            args.ckpt_path, device
+        )
     audio_files = sorted(args.audio_dir.rglob("*.wav"))
     if not audio_files:
         raise ValueError(f"No .wav files found in {args.audio_dir}")
@@ -92,9 +95,15 @@ def main() -> None:
             feature = waveform_to_mfcc_feature(waveform, n_mfcc).reshape(1, -1)
             gender = INDEX_TO_GENDER[int(model.predict(feature)[0])]
         else:
-            feature = waveform_to_mel(waveform, max_frames).unsqueeze(0).to(device)
+            windows = waveform_to_mel_windows(
+                waveform, max_frames, window_hop_frames
+            )
+            probability_sum = torch.zeros(2, device=device)
             with torch.inference_mode():
-                gender = INDEX_TO_GENDER[model(feature).argmax(dim=1).item()]
+                for window_batch in windows.split(64):
+                    probabilities = torch.softmax(model(window_batch.to(device)), dim=1)
+                    probability_sum += probabilities.sum(dim=0)
+            gender = INDEX_TO_GENDER[probability_sum.argmax().item()]
         rows.append((audio_path.name, gender))
 
     if args.output.parent != Path("."):

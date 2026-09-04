@@ -70,14 +70,25 @@ def load_caller_audio(
     """통화에서 신고자(``speaker=1``) 발화 구간만 이어 붙여 불러옵니다."""
     waveform, _ = librosa.load(audio_path, sr=SAMPLE_RATE, mono=True)
     duration_seconds = len(waveform) / SAMPLE_RATE
-    utterances = [utterance for utterance in get_utterances(annotation) if is_caller(utterance.get("speaker"))]
+    all_utterances = get_utterances(annotation)
+    utterances = [
+        utterance
+        for utterance in all_utterances
+        if is_caller(utterance.get("speaker", utterance.get("Speaker")))
+    ]
     if timestamp_unit == "auto":
-        end_times = [utterance.get("endAt") for utterance in utterances]
-        try:
-            largest_end = max(float(end_time) for end_time in end_times)
-        except (TypeError, ValueError):
-            largest_end = 0.0
-        timestamp_unit = "milliseconds" if largest_end > duration_seconds * 10 else "seconds"
+        end_times: list[float] = []
+        for utterance in all_utterances:
+            try:
+                end_times.append(float(utterance.get("endAt")))
+            except (TypeError, ValueError):
+                continue
+        largest_end = max(end_times, default=0.0)
+        # 전체 통화 길이와 가장 가까운 단위를 선택해, 발화가 이른 시점에만
+        # 있는 신고자도 밀리초 단위를 초로 잘못 해석하지 않도록 합니다.
+        seconds_error = abs(largest_end - duration_seconds)
+        milliseconds_error = abs(largest_end / 1_000 - duration_seconds)
+        timestamp_unit = "milliseconds" if milliseconds_error < seconds_error else "seconds"
     segments: list[np.ndarray] = []
 
     for utterance in utterances:
@@ -98,17 +109,37 @@ def load_caller_audio(
     return np.concatenate(segments)
 
 
-def waveform_to_mel(waveform: np.ndarray, max_frames: int = MAX_FRAMES) -> torch.Tensor:
+def waveform_to_mel_windows(
+    waveform: np.ndarray,
+    max_frames: int = MAX_FRAMES,
+    hop_frames: int | None = None,
+) -> torch.Tensor:
+    """Mel-spectrogram을 padding 또는 sliding window로 고정 길이 창으로 나눕니다."""
+    if max_frames < 1:
+        raise ValueError("max_frames는 양수여야 합니다.")
+    if hop_frames is None:
+        hop_frames = max_frames // 2
+    if hop_frames < 1:
+        raise ValueError("hop_frames는 양수여야 합니다.")
+
     mel = librosa.feature.melspectrogram(
         y=waveform, sr=SAMPLE_RATE, n_mels=N_MELS, hop_length=512
     )
     mel_db = librosa.power_to_db(mel, ref=np.max)
-    if mel_db.shape[1] >= max_frames:
-        mel_db = mel_db[:, :max_frames]
-    else:
+    frame_count = mel_db.shape[1]
+    if frame_count <= max_frames:
         padding = np.full((N_MELS, max_frames - mel_db.shape[1]), mel_db.min())
         mel_db = np.concatenate((mel_db, padding), axis=1)
-    return torch.from_numpy(mel_db.astype(np.float32)).unsqueeze(0)
+        return torch.from_numpy(mel_db.astype(np.float32)).unsqueeze(0).unsqueeze(0)
+
+    starts = list(range(0, frame_count - max_frames + 1, hop_frames))
+    final_start = frame_count - max_frames
+    if starts[-1] != final_start:
+        starts.append(final_start)
+    windows = np.stack(
+        [mel_db[:, start : start + max_frames] for start in starts], axis=0
+    )
+    return torch.from_numpy(windows.astype(np.float32)).unsqueeze(1)
 
 
 def waveform_to_mfcc_feature(waveform: np.ndarray, n_mfcc: int = 20) -> np.ndarray:
