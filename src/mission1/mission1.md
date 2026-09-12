@@ -5,7 +5,7 @@
 ```text
 src/mission1/
 ├── common.py
-├── train.py
+├── train_cnn.py
 ├── train_mfcc_rf.py
 ├── inference.py
 ├── mission1.md
@@ -15,7 +15,7 @@ src/mission1/
 | 파일 | 역할 | 직접 실행 여부 |
 | --- | --- | --- |
 | `common.py` | 학습과 추론에서 공통으로 사용하는 코드입니다. WAV 파일 로드, 신고자 발화 구간 추출, Mel-spectrogram·MFCC 특징 생성, CNN 모델 정의를 담당합니다. | 아니요 |
-| `train.py` | `Mel-spectrogram → CNN` 베이스라인 학습 파일입니다. 학습이 끝나면 모델 가중치와 전처리 설정을 `.pt` 체크포인트로 저장합니다. | 예 |
+| `train_cnn.py` | `Mel-spectrogram → CNN` 베이스라인 학습 파일입니다. 학습이 끝나면 모델 가중치와 전처리 설정을 `.pt` 체크포인트로 저장합니다. | 예 |
 | `train_mfcc_rf.py` | `MFCC → RandomForest` 베이스라인 학습 파일입니다. 학습이 끝나면 RandomForest 모델과 전처리 설정을 `.joblib` 체크포인트로 저장합니다. | 예 |
 | `inference.py` | 제출용 추론 파일입니다. `.pt` 체크포인트는 CNN으로, `.joblib` 체크포인트는 RandomForest로 자동 인식하여 제출 CSV를 만듭니다. | 예 |
 | `mission1.md` | 현재 문서입니다. 규정, 파일 역할, 실행 방법 및 실험 절차를 설명합니다. | 아니요 |
@@ -47,7 +47,7 @@ outputs/
 ```text
 학습 데이터: WAV + JSON
         │
-        ├─ train.py ───────────→ Mel-spectrogram + CNN → .pt 체크포인트
+        ├─ train_cnn.py ───────→ Mel-spectrogram + CNN → .pt 체크포인트
         │
         └─ train_mfcc_rf.py ──→ MFCC + RandomForest    → .joblib 체크포인트
                                                           │
@@ -84,10 +84,9 @@ data/
 ### Mel-spectrogram + CNN
 
 ```bash
-python src/mission1/train.py \
-  --audio_dir data/train/wav \
-  --label_dir data/train/json \
-  --ckpt_path saved_models/mission1_model.pt
+python src/mission1/train_cnn.py \
+  --data_root /path/to/mission1 \
+  --ckpt_path saved_models/mission1/mission1_cnn.pt
 ```
 
 `startAt`과 `endAt`의 단위는 기본적으로 자동 판별합니다. 데이터 확인 후 필요하면 학습 시 `--timestamp_unit milliseconds` 또는 `seconds`를 명시합니다. 해당 설정은 체크포인트에 저장되어 추론에 그대로 적용됩니다.
