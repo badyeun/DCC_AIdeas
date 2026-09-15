@@ -4,3 +4,6 @@ numpy
 tqdm
 scikit-learn
 joblib
+soundfile
+pandas
+matplotlib

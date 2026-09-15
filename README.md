@@ -9,6 +9,7 @@
 3. 필요한 패키지가 생기면 `requirements.txt`에 추가합니다.
 
 Mission 1 baseline의 학습 및 주최 측 규격 추론 명령은 [Mission 1 안내](src/mission1/mission1.md)를 참고합니다.
+Mission 2 MFCC+RandomForest baseline의 학습 및 제출 명령은 [Mission 2 안내](src/mission2/mission2.md)를 참고합니다.
 
 ## 노트북
 
