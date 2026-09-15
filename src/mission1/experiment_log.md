@@ -154,19 +154,160 @@ python src/mission1/train_mfcc_rf.py \
   --ckpt_path /content/drive/MyDrive/saved_models/mission1/mission1_mfcc_rf_no_f0.joblib
 ```
 
+## EXP-004 — Frozen WavLM Base+ embedding + classification head (1 chunk)
+
+| 항목 | 결과 |
+| --- | --- |
+| 실행 코드 | `train_wavlm.py` |
+| 실행 환경 | Google Colab, CPU (embedding cache 재사용 후 head 학습) |
+| encoder | `microsoft/wavlm-base-plus`, 동결 |
+| 입력 | 신고자(`speaker=1`) raw waveform, 16 kHz mono |
+| 통화 처리 | 8초 chunk 1개 — 긴 통화는 중앙 8초; WavLM hidden state masked mean pooling |
+| embedding | 768차원, Train 29,200 / Validation 3,640개 cache 재사용 |
+| head | `Linear(768→256) → ReLU → Dropout(0.2) → Linear(256→2)` |
+| 학습 설정 | AdamW, epoch 15, batch size 256, learning rate 0.001, seed 42 |
+| 최적 epoch | 9 |
+| Validation Accuracy | **0.9566** |
+| Validation Macro F1 | **0.9563** |
+| checkpoint | `/content/drive/MyDrive/saved_models/mission1/mission1_wavlm_1chunk.pt` |
+| scaler | `/content/drive/MyDrive/saved_models/mission1/mission1_wavlm_1chunk.scaler.joblib` |
+
+### Validation 상세
+
+`GENDER_TO_INDEX` 기준 `class 0 = M`, `class 1 = F`입니다.
+
+| Class | Precision | Recall | F1-score | Support |
+| --- | ---: | ---: | ---: | ---: |
+| M | 0.9607 | 0.9447 | 0.9526 | 1,681 |
+| F | 0.9532 | 0.9668 | 0.9600 | 1,959 |
+| **Macro avg** | **0.9569** | **0.9557** | **0.9563** | **3,640** |
+| Accuracy |  |  | **0.9566** | **3,640** |
+
+### 기존 모델과 비교
+
+| 모델 | Validation Accuracy | Macro F1 | 최고 epoch / 비고 |
+| --- | ---: | ---: | --- |
+| Log-Mel + SimpleCNN (EXP-001) | 0.9396 | 0.9393 | epoch 9 |
+| MFCC + RandomForest + F0 (EXP-002) | 0.9423 | 0.9419 | F0 포함 |
+| **Frozen WavLM Base+ + head (EXP-004)** | **0.9566** | **0.9563** | epoch 9, 중앙 8초 1개 |
+
+- WavLM은 기존 최고 모델(EXP-002)보다 Accuracy **+1.43%p**, Macro F1 **+1.44%p** 높았습니다.
+- 입력을 통화 전체가 아닌 중앙 8초 한 구간으로 제한했음에도 기준선을 명확히 넘었습니다. encoder fine-tuning 없이도 WavLM 표현이 성별 분류에 유효함을 확인했습니다.
+- Train accuracy(0.9614)와 Validation accuracy(0.9566)의 차이가 작아, 현 설정에서 심한 head 과적합 징후는 보이지 않습니다.
+
+### 다음 우선순위
+
+1. **seed 재현:** 같은 embedding cache로 `seed 52`, `seed 62`를 추가 실행하고, Macro F1 평균·표준편차로 EXP-004의 안정성을 확인한다. cache가 있으므로 encoder 재추출은 필요 없다.
+2. **3-chunk 비교:** GPU 런타임에서 `--chunks_per_call 3`을 실행해 앞·중간·뒤 구간 평균이 1-chunk보다 개선되는지 비교한다. CPU에서 1-chunk cache를 만드는 데 약 17시간 38분이 걸렸으므로, CPU 재추출은 우선순위가 낮다.
+3. **partial fine-tuning:** 재현성과 3-chunk 결과를 확인한 뒤 마지막 2~4개 WavLM layer만 해제하는 실험을 한다. 이때 1-chunk frozen 결과 0.9563을 새 기준으로 사용한다.
+4. **제출 파이프라인:** 최종 모델로 확정되면 `inference.py`에 WavLM encoder·pooling·scaler·head 로딩을 추가해 주최 측의 단일 실행 규격을 만족시킨다.
+
+## EXP-005 — WavLM + MFCC/F0 RandomForest late fusion
+
+| 항목 | 결과 |
+| --- | --- |
+| 구성 | EXP-004 WavLM 확률 + EXP-002 MFCC+F0 RandomForest 확률의 가중 평균 |
+| 검증 데이터 | Validation 3,640개, RF/WavLM 샘플 순서 일치 확인 |
+| 확률 차원 | RF `(3640, 2)`, WavLM `(3640, 2)` |
+| 가중치 탐색 | WavLM weight 0.00~1.00, 0.05 간격 |
+| 최적 WavLM / RF weight | **0.45 / 0.55** |
+| Validation Accuracy | **0.9635** |
+| Validation Macro F1 | **0.9632** |
+
+### 최적 fusion Validation 상세
+
+| Class | Precision | Recall | F1-score | Support |
+| --- | ---: | ---: | ---: | ---: |
+| M | 0.9697 | 0.9506 | 0.9600 | 1,681 |
+| F | 0.9583 | 0.9745 | 0.9663 | 1,959 |
+| **Macro avg** | **0.9640** | **0.9626** | **0.9632** | **3,640** |
+| Accuracy |  |  | **0.9635** | **3,640** |
+
+### 단일 모델·fusion 비교
+
+| 모델 | WavLM / RF weight | Validation Accuracy | Macro F1 |
+| --- | --- | ---: | ---: |
+| MFCC + F0 + RF (EXP-002) | 0.00 / 1.00 | 0.9423 | 0.9419 |
+| Frozen WavLM + head (EXP-004) | 1.00 / 0.00 | 0.9566 | 0.9563 |
+| **Late fusion (EXP-005)** | **0.45 / 0.55** | **0.9635** | **0.9632** |
+
+- 최적 fusion은 단일 WavLM 대비 Accuracy **+0.69%p**, Macro F1 **+0.69%p** 개선됐고, 현재 최고 성능입니다.
+- RF 비중이 0.55로 더 높지만 WavLM을 함께 사용했을 때 성능이 오르므로, MFCC/F0와 WavLM이 서로 다른 오류를 보완합니다.
+- 이 가중치는 동일한 Validation split에서 탐색한 값입니다. 최종 제출 모델로 확정하기 전, 다른 seed의 WavLM head에서도 `0.45 / 0.55`가 개선되는지 재현해야 합니다. 재현 단계에서는 validation 결과를 다시 보고 가중치를 변경하지 않습니다.
+
+## EXP-006 — WavLM 3-chunk test-time averaging
+
+| 항목 | 결과 |
+| --- | --- |
+| encoder / head | EXP-004의 동결 WavLM Base+ encoder 및 1-chunk 학습 head·scaler 재사용 |
+| 비교 대상 | Validation 1-chunk embedding과 3-chunk embedding (`(3640, 768)`) |
+| 통화 처리 | 1-chunk: 중앙 8초 / 3-chunk: 앞·중간·뒤 8초 embedding 평균 |
+| 검증 | 1-chunk·3-chunk label 순서 일치 확인 |
+| 재학습 여부 | 없음 — 동일 head/scaler로 embedding만 교체한 test-time averaging 비교 |
+| 1-chunk Accuracy / Macro F1 | 0.9566 / 0.9563 |
+| 3-chunk Accuracy / Macro F1 | **0.9750 / 0.9748** |
+
+### 3-chunk Validation 상세
+
+| Class | Precision | Recall | F1-score | Support |
+| --- | ---: | ---: | ---: | ---: |
+| M | 0.9783 | 0.9673 | 0.9728 | 1,681 |
+| F | 0.9722 | 0.9816 | 0.9769 | 1,959 |
+| **Macro avg** | **0.9753** | **0.9745** | **0.9748** | **3,640** |
+| Accuracy |  |  | **0.9750** | **3,640** |
+
+### 해석
+
+- 3-chunk test-time averaging은 1-chunk WavLM 대비 Accuracy **+1.84%p**, Macro F1 **+1.85%p** 개선됐습니다.
+- 기존 최고 late fusion(EXP-005)과 비교해도 Accuracy **+1.15%p**, Macro F1 **+1.16%p** 높습니다. 현재 최고 성능은 **EXP-006**입니다.
+- 3-chunk cache는 label을 사용하지 않고 raw waveform의 세 구간을 평균한 표현이므로, 이 평가는 합법적인 추론-time aggregation입니다. 단, 이번 validation에서 3-chunk 방식을 선택했으므로 최종 성능 추정에는 선택 편향 가능성이 있습니다.
+
+### 다음 실험 우선순위
+
+1. **3-chunk head 재학습:** 이미 만든 `train_*_8s_3chunks.npz` cache를 이용해 head와 scaler를 3-chunk train embedding에 맞춰 다시 학습·검증한다. encoder 재추출은 필요 없다.
+2. **seed 재현:** 3-chunk 재학습 설정을 seed 42/52/62로 실행해 평균·표준편차를 기록한다. 이번에 선택한 3-chunk 방식은 고정한다.
+3. **fusion 재검증:** 3-chunk head가 확정된 뒤에만 RF와의 fusion을 한 번 평가한다. 3-chunk WavLM 자체가 이미 높으므로, 개선이 없으면 단일 WavLM을 유지한다.
+4. **제출 구현:** 최종 모델은 반드시 3개 chunk를 같은 규칙으로 만들고 embedding을 평균한 뒤, 3-chunk용 scaler와 head를 적용하도록 `inference.py`에 구현한다.
+
+## EXP-007 — WavLM 3-chunk + MFCC/F0 RandomForest late fusion
+
+| 항목 | 결과 |
+| --- | --- |
+| 구성 | EXP-006 WavLM 3-chunk 확률 + EXP-002 MFCC+F0 RandomForest 확률의 가중 평균 |
+| 검증 데이터 | Validation 3,640개, RF/WavLM sample 순서 일치 확인 |
+| 단일 WavLM 3-chunk Macro F1 | 0.9748 |
+| 최적 WavLM / RF weight | **0.85 / 0.15** |
+| Validation Accuracy | **0.9755** |
+| Validation Macro F1 | **0.9754** |
+
+### 최적 fusion Validation 상세
+
+| Class | Precision | Recall | F1-score | Support |
+| --- | ---: | ---: | ---: | ---: |
+| M | 0.9789 | 0.9679 | 0.9734 | 1,681 |
+| F | 0.9727 | 0.9821 | 0.9774 | 1,959 |
+| **Macro avg** | **0.9758** | **0.9750** | **0.9754** | **3,640** |
+| Accuracy |  |  | **0.9755** | **3,640** |
+
+### 해석 및 선택
+
+- 최적 fusion은 3-chunk WavLM 단독 대비 Accuracy **+0.05%p**, Macro F1 **+0.06%p** 개선입니다. 검증 3,640개 기준 Accuracy 차이는 약 **2개 샘플**에 해당합니다.
+- 여러 weight를 같은 Validation split에서 탐색해 얻은 작은 차이이므로, 아직 fusion을 최종 모델로 확정하지 않습니다.
+- **현재 권장 최종 후보는 EXP-006 (3-chunk WavLM 단독)**입니다. EXP-007은 3-chunk head의 seed 재현 뒤에도 고정 weight `WavLM 0.85 / RF 0.15`가 일관되게 이길 때만 채택합니다.
+
 ## 다음 실험 계획 — WavLM 기반 성별 분류
 
-현재 최종 기준선은 **EXP-002 (MFCC + F0 + RandomForest, Validation Macro F1 0.9419)**입니다.
-WavLM 실험은 이 수치를 동일한 Validation split에서 넘어서는지로 판단합니다.
+현재 최종 기준선은 **EXP-006 (WavLM 3-chunk test-time averaging, Validation Macro F1 0.9748)**입니다. EXP-007의 fusion 최고값은 0.9754이지만, validation weight 탐색에 따른 작은 차이여서 재현 전까지는 기준선으로 승격하지 않습니다.
+후속 WavLM 실험은 이 수치를 동일한 Validation split에서 넘어서는지로 판단합니다.
 
 | 순서 | 실험 | 목적 | 유지 / 변경 사항 | 성공 기준 |
 | ---: | --- | --- | --- | --- |
 | 1 | 데이터·평가 고정 | 공정 비교 | 기존 Training 29,200 / Validation 3,640 pair, `speaker=1` 구간, Accuracy·Macro F1 유지 | 기준선 재현 가능 |
-| 2 | WavLM Base+ feature probe | 사전학습 표현의 단독 효용을 저비용으로 확인 | `microsoft/wavlm-base-plus` 동결, raw waveform → pooling → 작은 분류기 | Macro F1 0.9419 근접 또는 초과 |
-| 3 | head-only fine-tuning | 과적합 위험 없이 task 적응 | encoder 동결, classification head만 학습; 3개 seed로 반복 | 평균 Macro F1 기준선 초과 |
-| 4 | partial fine-tuning | 화자/성별 단서에 표현을 적응 | 마지막 2~4 transformer layer와 head만 해제, encoder는 더 작은 learning rate | EXP-002 대비 유의미한 개선 |
+| 2 | WavLM Base+ feature probe | **완료 (EXP-004)** | `microsoft/wavlm-base-plus` 동결, raw waveform → pooling → 작은 분류기 | Macro F1 **0.9563** |
+| 3 | 3-chunk head 재학습·재현성 확인 | embedding 분포에 맞춘 head 학습과 seed 의존성 확인 | encoder 동결, 3-chunk cache의 head/scaler 학습; seed 3개로 반복 | 평균 Macro F1 0.9748에 근접 또는 초과 |
+| 4 | partial fine-tuning | 화자/성별 단서에 표현을 적응 | 마지막 2~4 transformer layer와 head만 해제, encoder는 더 작은 learning rate | EXP-004 대비 유의미한 개선 |
 | 5 | augmentation ablation | 실제 통화 환경 강건성 확인 | noise/gain/time masking을 하나씩 추가·제거 | Validation 성능 유지 또는 개선 |
-| 6 | soft-voting ensemble | 상호 보완성 검증 | WavLM 확률과 MFCC+F0 RF 확률을 validation에서 가중 평균 | 단일 최고 모델 초과 시 채택 |
+| 6 | soft-voting ensemble | EXP-007 완료, 재현 대기 | WavLM 0.85 + MFCC+F0 RF 0.15 확률 가중 평균 | 다른 seed에서도 단일 WavLM을 일관되게 초과 시 채택 |
 
 ### 구현 원칙
 
