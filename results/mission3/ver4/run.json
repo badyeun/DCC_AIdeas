@@ -1,0 +1,33 @@
+{
+  "signature": "46a4dd257751e2df066a68d4fcc3b6bbbfea41ac74b210ac56161a5a9a030772",
+  "config": {
+    "model_name": "klue/roberta-large",
+    "seed": 42,
+    "n_folds": 5,
+    "calibration_size": 0.1,
+    "calibration_folds": 5,
+    "max_length": 512,
+    "stride": 64,
+    "max_epochs": 6,
+    "patience": 2,
+    "batch_size": 2,
+    "inference_batch_size": 8,
+    "window_batch_size": 2,
+    "gradient_accumulation_steps": 16,
+    "learning_rate": 1.5e-05,
+    "head_learning_rate": 0.0001,
+    "layerwise_lr_decay": 0.95,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.1,
+    "dropout": 0.2,
+    "pos_weight_power": 0.5,
+    "gradient_checkpointing": true,
+    "device": "cuda",
+    "require_cuda": true,
+    "char_features": 120000,
+    "word_features": 40000,
+    "min_df": 2,
+    "logistic_c": 4.0
+  },
+  "training_samples": 29200
+}

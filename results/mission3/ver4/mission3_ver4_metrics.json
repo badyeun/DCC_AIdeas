@@ -1,0 +1,189 @@
+{
+  "score_scope": "Training-only calibration; cross-fit estimates calibration generalization, not official Validation.",
+  "calibration_fit_macro_f1": 0.6694597928001325,
+  "calibration_crossfit_macro_f1": 0.6596708655816239,
+  "per_symptom_crossfit": {
+    "고열": {
+      "precision": 0.7362869198312236,
+      "recall": 0.6724470134874759,
+      "f1": 0.702920443101712,
+      "support": 519
+    },
+    "구토": {
+      "precision": 0.6697530864197531,
+      "recall": 0.48654708520179374,
+      "f1": 0.5636363636363636,
+      "support": 446
+    },
+    "두통": {
+      "precision": 0.5457875457875457,
+      "recall": 0.5137931034482759,
+      "f1": 0.5293072824156305,
+      "support": 290
+    },
+    "복통": {
+      "precision": 0.8959731543624161,
+      "recall": 0.7887740029542097,
+      "f1": 0.8389630793401414,
+      "support": 677
+    },
+    "어지러움": {
+      "precision": 0.6805555555555556,
+      "recall": 0.6966824644549763,
+      "f1": 0.6885245901639344,
+      "support": 633
+    },
+    "열상": {
+      "precision": 0.883008356545961,
+      "recall": 0.9161849710982659,
+      "f1": 0.8992907801418439,
+      "support": 346
+    },
+    "오심": {
+      "precision": 0.3154121863799283,
+      "recall": 0.5269461077844312,
+      "f1": 0.39461883408071746,
+      "support": 334
+    },
+    "전신쇠약": {
+      "precision": 0.5376,
+      "recall": 0.632768361581921,
+      "f1": 0.5813148788927336,
+      "support": 531
+    },
+    "호흡곤란": {
+      "precision": 0.7441860465116279,
+      "recall": 0.732824427480916,
+      "f1": 0.7384615384615385,
+      "support": 393
+    }
+  },
+  "calibration_samples": 2880,
+  "calibration_groups": 2880,
+  "crossfit_splits": 5,
+  "crossfit_fold_counts": [
+    {
+      "fit_samples": 2306,
+      "score_samples": 574
+    },
+    {
+      "fit_samples": 2309,
+      "score_samples": 571
+    },
+    {
+      "fit_samples": 2299,
+      "score_samples": 581
+    },
+    {
+      "fit_samples": 2303,
+      "score_samples": 577
+    },
+    {
+      "fit_samples": 2303,
+      "score_samples": 577
+    }
+  ],
+  "training_samples": 29200,
+  "development_samples": 26320,
+  "model": "klue/roberta-large 5-fold ensemble + char/word TF-IDF LR",
+  "calibrator": {
+    "neural_weights": [
+      1.0,
+      0.75,
+      0.75,
+      0.75,
+      1.0,
+      1.0,
+      0.75,
+      1.0,
+      0.75
+    ],
+    "thresholds": [
+      0.5270613998174667,
+      0.5857406787574292,
+      0.4146592520177364,
+      0.5259841911494731,
+      0.49158732295036317,
+      0.5271574668586254,
+      0.41103987377136947,
+      0.47292521148920064,
+      0.5859717525541782
+    ]
+  },
+  "fold_best_epochs": [
+    3,
+    2,
+    3,
+    2,
+    2
+  ],
+  "versions": {
+    "torch": "2.11.0+cu128",
+    "transformers": "4.57.1",
+    "numpy": "2.1.3",
+    "scikit-learn": "1.6.1",
+    "iterative-stratification": "0.1.9"
+  },
+  "validation_used_for_training_or_calibration": false,
+  "validation_macro_f1": 0.6566489480388843,
+  "validation": {
+    "macro_f1": 0.6566489480388843,
+    "samples": 3640,
+    "per_symptom": {
+      "고열": {
+        "f1": 0.6973365617433414,
+        "precision": 0.7700534759358288,
+        "recall": 0.6371681415929203,
+        "support": 678
+      },
+      "구토": {
+        "f1": 0.608786610878661,
+        "precision": 0.6945107398568019,
+        "recall": 0.5418994413407822,
+        "support": 537
+      },
+      "두통": {
+        "f1": 0.5497237569060773,
+        "precision": 0.5685714285714286,
+        "recall": 0.5320855614973262,
+        "support": 374
+      },
+      "복통": {
+        "f1": 0.8254172015404364,
+        "precision": 0.8930555555555556,
+        "recall": 0.7673031026252983,
+        "support": 838
+      },
+      "어지러움": {
+        "f1": 0.6590223295111648,
+        "precision": 0.6183465458663646,
+        "recall": 0.7054263565891473,
+        "support": 774
+      },
+      "열상": {
+        "f1": 0.8936170212765957,
+        "precision": 0.8805031446540881,
+        "recall": 0.9071274298056156,
+        "support": 463
+      },
+      "오심": {
+        "f1": 0.4031141868512111,
+        "precision": 0.3204951856946355,
+        "recall": 0.5431235431235432,
+        "support": 429
+      },
+      "전신쇠약": {
+        "f1": 0.5932944606413995,
+        "precision": 0.5644937586685159,
+        "recall": 0.6251920122887865,
+        "support": 651
+      },
+      "호흡곤란": {
+        "f1": 0.6795284030010718,
+        "precision": 0.7188208616780045,
+        "recall": 0.6443089430894309,
+        "support": 492
+      }
+    }
+  }
+}

@@ -15,3 +15,16 @@ venv/
 
 # macOS
 .DS_Store
+
+# Local artifacts exceeding GitHub's 100 MiB file limit
+/results/mission3/ver3/mission3_ver3_model.ckpt
+/results/mission3/ver4-20260905T170334Z-1-001.zip
+/results/mission3/ver4-20260905T170334Z-1-002.zip
+/results/mission3/ver4-20260905T170334Z-1-003.zip
+/results/mission3/ver4-20260905T170334Z-1-004.zip
+/results/mission3/ver4-20260905T170334Z-1-005.zip
+/results/mission3/ver4/fold_1.ckpt
+/results/mission3/ver4/fold_2.ckpt
+/results/mission3/ver4/fold_3.ckpt
+/results/mission3/ver4/fold_4.ckpt
+/results/mission3/ver4/fold_5.ckpt

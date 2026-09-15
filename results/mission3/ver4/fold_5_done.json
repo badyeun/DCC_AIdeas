@@ -1,0 +1,34 @@
+{
+  "best_epoch": 2,
+  "best_stop_ap": 0.6869459785981183,
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 0.5223561102910953,
+      "stop_macro_ap": 0.6763787938148442,
+      "stop_labels_with_positives": 9,
+      "minutes": 28.534406028100058
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.4169521108643318,
+      "stop_macro_ap": 0.6869459785981183,
+      "stop_labels_with_positives": 9,
+      "minutes": 28.666707749866692
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.38258055084647846,
+      "stop_macro_ap": 0.6854056448336471,
+      "stop_labels_with_positives": 9,
+      "minutes": 28.64787504214995
+    },
+    {
+      "epoch": 4,
+      "train_loss": 0.34449703959451194,
+      "stop_macro_ap": 0.6784910456987604,
+      "stop_labels_with_positives": 9,
+      "minutes": 28.666581642966655
+    }
+  ]
+}
