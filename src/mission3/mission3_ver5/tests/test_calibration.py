@@ -26,42 +26,53 @@ def test_beta_zero_reproduces_legacy_and_ties_prefer_it():
     np.testing.assert_array_equal(apply_calibrator(base, sparse, None, new), apply_legacy(base, sparse, old))
 
 
-def test_mixture_search_matches_independent_exhaustive_f1():
+@pytest.mark.parametrize("blend_space", ["raw", "logit"])
+def test_mixture_search_matches_independent_exhaustive_f1(blend_space):
     rng = np.random.default_rng(3)
     truth = rng.integers(0, 2, size=(28, 9))
     arrays = [np.round(rng.uniform(size=(28, 9)), 1) for _ in range(3)]
-    fitted = _fit_mixture(truth, *arrays)
+    fitted = _fit_mixture(truth, *arrays, blend_space=blend_space)
     predictions = apply_calibrator(*arrays, fitted) >= fitted["thresholds"]
+    values = arrays
+    if blend_space == "logit":
+        values = [np.log(np.clip(p, 1e-6, 1 - 1e-6) / (1 - np.clip(p, 1e-6, 1 - 1e-6)))
+                  for p in arrays]
     for column in (0, 5, 8):
         best = 0.0
         for alpha in (0, 0.25, 0.5, 0.75, 1):
             for beta in (0, 0.25, 0.5, 0.75, 1):
-                p = (1 - beta) * (alpha * arrays[0][:, column] + (1 - alpha) * arrays[1][:, column]) + beta * arrays[2][:, column]
+                p = (1 - beta) * (alpha * values[0][:, column] + (1 - alpha) * values[1][:, column]) + beta * values[2][:, column]
+                if blend_space == "logit":
+                    p = 1 / (1 + np.exp(-p))
                 best = max(best, *(f1_score(truth[:, column], p >= threshold, zero_division=0)
                                    for threshold in [0.0, *np.unique(p), np.nextafter(1.0, np.inf)]))
         assert f1_score(truth[:, column], predictions[:, column]) == pytest.approx(best)
 
 
-def test_constants_and_saturated_probabilities_remain_valid():
+@pytest.mark.parametrize("blend_space", ["raw", "logit"])
+def test_constants_and_saturated_probabilities_remain_valid(blend_space):
     truth = np.tile([0, 1, 0, 1, 0, 1, 0, 1, 0], (12, 1))
     probabilities = np.ones((12, 9), dtype=np.float32)
-    fitted = _fit_mixture(truth, probabilities, probabilities, probabilities)
+    fitted = _fit_mixture(truth, probabilities, probabilities, probabilities, blend_space=blend_space)
     assert fitted["thresholds"][0] > 1
     assert fitted["thresholds"][1] == 0
     result = apply_calibrator(probabilities, probabilities, probabilities, fitted)
-    np.testing.assert_array_equal(result, np.ones((12, 9)))
+    expected = np.full((12, 9), 1 - 1e-6 if blend_space == "logit" else 1)
+    np.testing.assert_allclose(result, expected, rtol=0, atol=2e-16)
     np.testing.assert_array_equal(result >= fitted["thresholds"], truth)
     for alpha in (0, 0.25, 0.5, 0.75, 1):
         for beta in (0, 0.25, 0.5, 0.75, 1):
             saturated = apply_calibrator(probabilities, probabilities, probabilities,
                                          {**fitted, "neural_weights": [alpha] * 9, "candidate_weights": [beta] * 9})
-            np.testing.assert_array_equal(saturated, np.ones((12, 9)))
+            np.testing.assert_allclose(saturated, expected, rtol=0, atol=2e-16)
     json.dumps(fitted, allow_nan=False)
 
 
-def test_candidate_inputs_and_weights_are_validated_even_for_zero_beta():
+@pytest.mark.parametrize("blend_space", ["raw", "logit"])
+def test_candidate_inputs_and_weights_are_validated_even_for_zero_beta(blend_space):
     valid = np.full((12, 9), 0.5)
-    fitted = {"neural_weights": [1.0] * 9, "candidate_weights": [0.0] * 9, "thresholds": [0.5] * 9}
+    fitted = {"neural_weights": [1.0] * 9, "candidate_weights": [0.0] * 9,
+              "thresholds": [0.5] * 9, "blend_space": blend_space}
     for invalid in [np.full((12, 9), np.nan), np.full((12, 9), np.inf), valid + 1, valid[:, :8], valid[:11]]:
         with pytest.raises(ValueError):
             apply_calibrator(valid, valid, invalid, fitted)
@@ -83,18 +94,26 @@ def test_crossfit_group_separation_and_candidate_success():
     calls = []
     actual_fit = module._fit_mixture
 
-    def spy(y, b, s, c):
-        calls.append(b[:, 0].copy())
-        return actual_fit(y, b, s, c)
+    def spy(y, b, s, c, blend_space="raw"):
+        calls.append((blend_space, b[:, 0].copy()))
+        return actual_fit(y, b, s, c, blend_space=blend_space)
 
     with patch.object(module, "_fit_mixture", side_effect=spy):
         fitted, report = calibrate_crossfit(truth, base, base, candidate, groups)
-    for observed, (train, test) in zip(calls[:5], expected):
-        np.testing.assert_array_equal(observed, base[train, 0])
+    for fold, (train, test) in enumerate(expected):
+        for offset, space in enumerate(("raw", "logit")):
+            observed_space, observed = calls[2 * fold + offset]
+            assert observed_space == space
+            np.testing.assert_array_equal(observed, base[train, 0])
         assert set(groups[train]).isdisjoint(groups[test])
-    assert len(calls) == 6  # Five fold-training fits, then one deployment fit.
+    assert len(calls) == 11  # Both families in each fold, then one deployment fit.
+    assert calls[-1][0] == "raw"  # Candidate-family ties prefer the original raw blend.
+    np.testing.assert_array_equal(calls[-1][1], base[:, 0])
     assert report["selected_name"] == "candidate_mixture"
     assert report["selected_crossfit_macro_f1"] == pytest.approx(1.0)
+    assert report["candidate_raw_crossfit_macro_f1"] == pytest.approx(1.0)
+    assert report["candidate_logit_crossfit_macro_f1"] == pytest.approx(1.0)
+    assert report["candidate_blend_space"] == report["selected_blend_space"] == "raw"
     assert all(beta > 0 for beta in fitted["candidate_weights"])
     assert sum(f["score_samples"] for f in report["crossfit_fold_counts"]) == 90
     json.dumps(report, allow_nan=False)
@@ -108,10 +127,71 @@ def test_equal_procedure_score_falls_back_to_original_baseline():
     assert report["baseline_crossfit_macro_f1"] == pytest.approx(1.0)
     assert report["selected_name"] == "ver4_baseline"
     assert report["fallback_reason"] is not None
+    assert report["selected_blend_space"] == fitted["blend_space"] == "raw"
     assert fitted["candidate_weights"] == [0.0] * 9
     old = fit_legacy(truth, base, base)
     assert fitted["neural_weights"] == old["neural_weights"]
     assert fitted["thresholds"] == old["thresholds"]
+
+
+def test_logit_mixture_matches_weighted_odds_and_roundtrips_for_inference():
+    base = np.tile([0, 1, .2, .4, .6, .8, .3, .5, .7], (4, 1))
+    sparse = np.flip(base, axis=1).copy()
+    candidate = np.full_like(base, .37)
+    alpha = np.linspace(0, 1, 9)
+    beta = np.linspace(1, 0, 9)
+    fitted = {"neural_weights": alpha.tolist(), "candidate_weights": beta.tolist(),
+              "thresholds": [.5] * 9, "blend_space": "logit"}
+    odds = []
+    for probabilities in (base, sparse, candidate):
+        probabilities = np.clip(probabilities, 1e-6, 1 - 1e-6)
+        odds.append(probabilities / (1 - probabilities))
+    expected_odds = odds[0] ** ((1 - beta) * alpha) * odds[1] ** ((1 - beta) * (1 - alpha)) * odds[2] ** beta
+    expected = expected_odds / (1 + expected_odds)
+    restored = json.loads(json.dumps(fitted, allow_nan=False))
+    actual = apply_calibrator(base, sparse, candidate, restored)
+    np.testing.assert_allclose(actual, expected, rtol=0, atol=3e-16)
+    assert np.isfinite(actual).all()
+
+
+@pytest.mark.parametrize("alpha,beta,unused", [(0, .25, "base"), (1, .25, "sparse"), (.5, 1, "both")])
+def test_logit_zero_coefficients_allow_skipped_inference_components(alpha, beta, unused):
+    rng = np.random.default_rng(31)
+    base, sparse, candidate = [rng.uniform(size=(12, 9)) for _ in range(3)]
+    fitted = {"neural_weights": [alpha] * 9, "candidate_weights": [beta] * 9,
+              "thresholds": [.5] * 9, "blend_space": "logit"}
+    expected = apply_calibrator(base, sparse, candidate, fitted)
+    if unused in ("base", "both"):
+        base = np.zeros_like(base)
+    if unused in ("sparse", "both"):
+        sparse = np.ones_like(sparse)
+    np.testing.assert_array_equal(apply_calibrator(base, sparse, candidate, fitted), expected)
+
+
+def test_logit_zero_beta_needs_no_candidate_and_missing_space_keeps_legacy():
+    rng = np.random.default_rng(32)
+    base, sparse, candidate = [rng.uniform(size=(12, 9)) for _ in range(3)]
+    fitted = {"neural_weights": [.25] * 9, "candidate_weights": [0.] * 9, "thresholds": [.5] * 9}
+    np.testing.assert_array_equal(apply_calibrator(base, sparse, None, fitted), apply_legacy(base, sparse, fitted))
+    fitted["blend_space"] = "logit"
+    np.testing.assert_array_equal(apply_calibrator(base, sparse, None, fitted), apply_calibrator(base, sparse, candidate, fitted))
+    with pytest.raises(ValueError, match="blend_space"):
+        apply_calibrator(base, sparse, candidate, {**fitted, "blend_space": "unknown"})
+
+
+def test_crossfit_can_select_logit_family_globally_with_transparent_scores():
+    rng = np.random.default_rng(45)
+    neural_logits, sparse_logits = [rng.normal(0, 3, (180, 9)) for _ in range(2)]
+    truth = ((neural_logits + sparse_logits) / 2 > .9).astype(np.int8)
+    base, sparse = [1 / (1 + np.exp(-x)) for x in (neural_logits, sparse_logits)]
+    candidate = np.full_like(base, .5)
+    fitted, report = calibrate_crossfit(truth, base, sparse, candidate, np.arange(len(truth)))
+    assert report["candidate_logit_crossfit_macro_f1"] > report["candidate_raw_crossfit_macro_f1"]
+    assert report["candidate_crossfit_macro_f1"] == report["candidate_logit_crossfit_macro_f1"]
+    assert report["selected_crossfit_macro_f1"] > report["baseline_crossfit_macro_f1"]
+    assert report["selected_name"] == "candidate_mixture"
+    assert report["candidate_blend_space"] == report["selected_blend_space"] == fitted["blend_space"] == "logit"
+    assert report["per_symptom_crossfit"]["selected"] == report["per_symptom_crossfit"]["candidate_logit"]
 
 
 def test_overfit_candidate_falls_back_and_samefold_baseline_matches_legacy():

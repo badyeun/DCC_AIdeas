@@ -15,27 +15,31 @@ from transformers import AutoTokenizer
 
 if __package__:
     from . import calibration, neural
+    from .prediction_cache import PredictionCache
     from .ver4_runtime import pipeline as base_pipeline
     from .ver4_runtime.data import TARGET_SYMPTOMS, load_dataset, text_group, write_json, write_predictions
 else:
     import calibration
     import neural
+    from prediction_cache import PredictionCache
     from ver4_runtime import pipeline as base_pipeline
     from ver4_runtime.data import TARGET_SYMPTOMS, load_dataset, text_group, write_json, write_predictions
 
 
 DEFAULT_CONFIG = {
-    "seed": 42, "init_fold": 1, "warmup_epochs": 1, "finetune_epochs": 3,
+    "seed": 42, "init_fold": 1, "warmup_epochs": 1, "finetune_epochs": 1,
+    "finetune_top_layers": 4,
     "patience": 2, "learning_rate": 5e-6, "head_learning_rate": 1e-4,
     "warmup_head_learning_rate": 3e-4, "attention_dim": 256, "dropout": 0.2,
     "batch_size": 2, "window_batch_size": 2, "gradient_accumulation_steps": 16,
     "inference_batch_size": 8, "gradient_checkpointing": True,
     "layerwise_lr_decay": 0.95, "weight_decay": 0.01, "pos_weight_power": 0.5,
     "warmup_ratio": 0.1, "log_every": 100, "device": "cuda", "require_cuda": True,
+    "bundle_base": True,
 }
 RUNTIME_FILES = (
-    "__init__.py", "pipeline.py", "neural.py", "calibration.py", "train.py", "inference.py",
-    "requirements.txt", "README.md", "RESEARCH.md",
+    "__init__.py", "pipeline.py", "neural.py", "calibration.py", "prediction_cache.py", "train.py", "inference.py",
+    "bootstrap.py", "requirements.txt", "README.md", "RESEARCH.md",
 )
 
 
@@ -227,6 +231,8 @@ def train_pipeline(train_label_dir, base_dir, output_dir, config=None):
     if unknown:
         raise ValueError(f"Unknown config keys: {sorted(unknown)}")
     config = {**DEFAULT_CONFIG, **supplied}
+    if not isinstance(config["bundle_base"], bool):
+        raise ValueError("bundle_base must be true or false")
     train_label_dir, base_dir, output_dir = (Path(x).expanduser().resolve() for x in
                                           (train_label_dir, base_dir, output_dir))
     if train_label_dir.name != "TL_서울_구급" or any("validation" in part.lower() for part in train_label_dir.parts):
@@ -249,7 +255,7 @@ def train_pipeline(train_label_dir, base_dir, output_dir, config=None):
     manifest_path = output_dir / "mission3_ver5_model.ckpt"
     report_path = output_dir / "mission3_ver5_metrics.json"
     if manifest_path.is_file() and report_path.is_file():
-        saved = load_manifest(manifest_path)
+        saved = load_manifest(manifest_path, base_dir=None if config["bundle_base"] else base_dir)
         if saved["signature"] != signature:
             raise ValueError("Final ver5 signature mismatch")
         print("완료된 ver5 재사용: 추가 학습·보정 탐색을 건너뜁니다.", flush=True)
@@ -261,7 +267,8 @@ def train_pipeline(train_label_dir, base_dir, output_dir, config=None):
         "source": "Exact stored ver4 fold; no resplitting after warm-start",
     })
     print(f"ver4 재사용 | 새 모델 fit={len(fit):,}, stop={len(stop):,}, calibration={len(cal):,}", flush=True)
-    print(f"새 학습: frozen {config['warmup_epochs']} + fine-tune 최대 {config['finetune_epochs']} epoch", flush=True)
+    print(f"새 학습: frozen {config['warmup_epochs']} + fine-tune 최대 {config['finetune_epochs']} epoch "
+          f"(상위 층={config['finetune_top_layers']}, -1은 전체)", flush=True)
     tokenizer = AutoTokenizer.from_pretrained(base_dir / base_manifest["tokenizer"], use_fast=True, local_files_only=True)
     neural_config = {**config, "max_length": base_manifest["config"]["max_length"],
                      "stride": base_manifest["config"]["stride"]}
@@ -308,11 +315,16 @@ def train_pipeline(train_label_dir, base_dir, output_dir, config=None):
         "versions": _versions(), "validation_used_for_training_or_selection": False,
         "new_models_trained": 1, "base_models_retrained": 0,
     })
-    _export_base(base_dir, output_dir, base_manifest, provenance["base_artifact_sha256"])
+    if config["bundle_base"]:
+        _export_base(base_dir, output_dir, base_manifest, provenance["base_artifact_sha256"])
+    else:
+        print("저장 공간 절약: 기존 ver4를 복사하지 않고 현재 폴더에서 재사용합니다.", flush=True)
     _export_code(output_dir)
     manifest = {
         "format": "mission3_ver5", "version": 1, "signature": signature,
-        "target_symptoms": list(TARGET_SYMPTOMS), "base_manifest": "base/mission3_ver4_model.ckpt",
+        "target_symptoms": list(TARGET_SYMPTOMS), "portable": config["bundle_base"],
+        "base_manifest": ("base/mission3_ver4_model.ckpt" if config["bundle_base"] else
+                          str(base_dir / "mission3_ver4_model.ckpt")),
         "base_signature": base_manifest["signature"], "candidate": "candidate_best.ckpt",
         "config": neural_config, "calibrator": calibrator, "versions": _versions(),
         "selected_name": report["selected_name"],
@@ -325,7 +337,12 @@ def train_pipeline(train_label_dir, base_dir, output_dir, config=None):
     return manifest_path, report
 
 
-def load_manifest(checkpoint_path):
+def load_manifest(checkpoint_path, base_dir=None):
+    """Validate a portable bundle or an explicit external-base experiment.
+
+    ``base_dir`` relocates an external ver4 dependency without rewriting the
+    saved manifest. Portable manifests always retain their internal base.
+    """
     checkpoint_path = Path(checkpoint_path).resolve()
     manifest = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
     if manifest.get("format") != "mission3_ver5" or manifest.get("version") != 1:
@@ -333,19 +350,37 @@ def load_manifest(checkpoint_path):
     if manifest.get("target_symptoms") != list(TARGET_SYMPTOMS):
         raise ValueError("ver5 target label order mismatch")
     root = checkpoint_path.parent
-    for name in (manifest["base_manifest"], manifest["candidate"]):
-        path = (root / name).resolve()
-        if not path.is_relative_to(root) or not path.is_file():
-            raise FileNotFoundError(f"ver5 결과 폴더 전체를 함께 보관하세요: {name}")
-    base = base_pipeline.load_manifest(root / manifest["base_manifest"])
+    candidate = (root / manifest["candidate"]).resolve()
+    if not candidate.is_relative_to(root) or not candidate.is_file():
+        raise FileNotFoundError(f"ver5 결과 폴더 전체를 함께 보관하세요: {manifest['candidate']}")
+    portable = manifest.get("portable", True)
+    if not isinstance(portable, bool):
+        raise ValueError("Invalid ver5 portable flag")
+    if portable:
+        if base_dir is not None:
+            raise ValueError("--base_dir is only supported for external-base ver5 experiments")
+        base_path = (root / manifest["base_manifest"]).resolve()
+        if not base_path.is_relative_to(root) or not base_path.is_file():
+            raise FileNotFoundError(f"ver5 결과 폴더 전체를 함께 보관하세요: {manifest['base_manifest']}")
+    else:
+        base_path = Path(manifest["base_manifest"])
+        if not base_path.is_absolute():
+            raise ValueError("External ver4 manifest path must be absolute")
+        if base_dir is not None:
+            base_path = Path(base_dir).expanduser().resolve() / "mission3_ver4_model.ckpt"
+        if not base_path.is_file():
+            raise FileNotFoundError("기존 ver4 묶음을 다시 준비하고 --base_dir에 폴더를 지정하세요: "
+                                    f"{base_path}")
+        manifest["base_manifest"] = str(base_path.resolve())
+    base = base_pipeline.load_manifest(base_path)
     if base.get("signature") != manifest.get("base_signature"):
         raise ValueError("ver5 references a different ver4 base")
     return manifest
 
 
-def predict_pipeline(checkpoint_path, label_dir, output, device=None, batch_size=None):
+def predict_pipeline(checkpoint_path, label_dir, output, device=None, batch_size=None, cache_dir=None, base_dir=None):
     checkpoint_path = Path(checkpoint_path).resolve()
-    manifest = load_manifest(checkpoint_path)
+    manifest = load_manifest(checkpoint_path, base_dir=base_dir)
     root = checkpoint_path.parent
     base_manifest = base_pipeline.load_manifest(root / manifest["base_manifest"])
     _check_versions(base_manifest)
@@ -357,6 +392,23 @@ def predict_pipeline(checkpoint_path, label_dir, output, device=None, batch_size
     paths, texts, _ = load_dataset(Path(label_dir), include_targets=False)
     tokenizer = AutoTokenizer.from_pretrained(base_root / base_manifest["tokenizer"], use_fast=True, local_files_only=True)
     documents = neural.tokenize_dialogues(texts, tokenizer, config["max_length"], config["stride"])
+    cache = None
+    if cache_dir is not None:
+        execution = {"versions": {**_versions(), **{name: importlib.metadata.version(name)
+                     for name in ("scipy", "joblib")}}, "cuda_version": torch.version.cuda}
+        if config["device"] == "cuda":
+            execution.update(gpu=torch.cuda.get_device_name(),
+                             capability=list(torch.cuda.get_device_capability()),
+                             bf16=torch.cuda.is_bf16_supported())
+        cache = PredictionCache(cache_dir, paths, texts, base_root / base_manifest["tokenizer"],
+                                TARGET_SYMPTOMS, execution)
+    source = Path(__file__).parent
+
+    def predict(kind, path, settings, sources, compute):
+        if cache is None:
+            return compute()
+        return cache.get(kind, path, settings, [source / name for name in sources], compute)
+
     alpha = np.asarray(manifest["calibrator"]["neural_weights"])
     beta = np.asarray(manifest["calibrator"]["candidate_weights"])
     base_probs = np.zeros((len(paths), len(TARGET_SYMPTOMS)), dtype=np.float64)
@@ -368,14 +420,20 @@ def predict_pipeline(checkpoint_path, label_dir, output, device=None, batch_size
         # Keep ver4's original window batching for its numerical inference path.
         for name in base_manifest["folds"]:
             print("Predict base:", name, flush=True)
-            base_probs += base_pipeline.predict_checkpoint(base_root / name, documents, tokenizer, base_config)
+            base_probs += predict("ver4-neural", base_root / name, base_config,
+                                  ["ver4_runtime/neural.py"],
+                                  lambda: base_pipeline.predict_checkpoint(base_root / name, documents, tokenizer, base_config))
             _release()
         base_probs /= len(base_manifest["folds"])
     if np.any((1 - beta) * (1 - alpha) > 0):
-        sparse_probs = base_pipeline.predict_sparse(joblib.load(base_root / base_manifest["sparse"]), texts)
+        sparse_probs = predict("ver4-sparse", base_root / base_manifest["sparse"], config,
+                               ["ver4_runtime/pipeline.py"],
+                               lambda: base_pipeline.predict_sparse(joblib.load(base_root / base_manifest["sparse"]), texts))
     if np.any(beta > 0):
         print("Predict: candidate_best.ckpt", flush=True)
-        candidate_probs = neural.predict_checkpoint(root / manifest["candidate"], documents, tokenizer, config)
+        candidate_probs = predict("ver5-neural", root / manifest["candidate"], config,
+                                  ["neural.py", "ver4_runtime/neural.py"],
+                                  lambda: neural.predict_checkpoint(root / manifest["candidate"], documents, tokenizer, config))
         _release()
     probabilities = calibration.apply_calibrator(base_probs, sparse_probs, candidate_probs, manifest["calibrator"])
     predictions = write_predictions(paths, probabilities, manifest["calibrator"]["thresholds"], Path(output))

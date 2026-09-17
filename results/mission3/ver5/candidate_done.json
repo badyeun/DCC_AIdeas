@@ -1,0 +1,45 @@
+{
+  "signature": "bd8fa1c04c81fee97a0d3158543e4ce8b258bd14718438fcc26dd94183b52eef",
+  "training": {
+    "best_epoch": 0,
+    "best_stop_ap": 0.6829887457887052,
+    "history": [
+      {
+        "epoch": 0,
+        "phase": "baseline",
+        "phase_epoch": 0,
+        "train_loss": null,
+        "stop_macro_ap": 0.6829887457887052,
+        "stop_labels_with_positives": 9,
+        "minutes": 0.8801541448666683
+      },
+      {
+        "epoch": 1,
+        "phase": "warmup",
+        "phase_epoch": 1,
+        "train_loss": 0.3313414914763404,
+        "stop_macro_ap": 0.6791724429453352,
+        "stop_labels_with_positives": 9,
+        "minutes": 4.8017005296,
+        "total_parameters": 339040018,
+        "trainable_parameters": 2383634,
+        "trainable_encoder_parameters": 0
+      },
+      {
+        "epoch": 2,
+        "phase": "finetune",
+        "phase_epoch": 1,
+        "train_loss": 0.32001657407169687,
+        "stop_macro_ap": 0.6749485978034541,
+        "stop_labels_with_positives": 9,
+        "minutes": 7.021838672533333,
+        "total_parameters": 339040018,
+        "trainable_parameters": 52768530,
+        "trainable_encoder_parameters": 50384896
+      }
+    ],
+    "completed_epochs": 2,
+    "resumed": false,
+    "last_checkpoint": "/content/drive/MyDrive/DCC_AIdeas/results/mission3/ver5_efficient/candidate_best_last.ckpt"
+  }
+}

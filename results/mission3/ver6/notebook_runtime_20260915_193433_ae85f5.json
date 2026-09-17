@@ -1,0 +1,8 @@
+{
+  "preparation_minutes": 2.5505784168500005,
+  "training_and_calibration_minutes": 21.31443536108333,
+  "inference_and_evaluation_minutes": 0.8049426202333317,
+  "output_dir": "/content/drive/MyDrive/DCC_AIdeas/results/mission3/ver6",
+  "prediction_csv": "/content/drive/MyDrive/DCC_AIdeas/results/mission3/ver6/predictions/20260915_193433_ae85f5/mission3.csv",
+  "note": "벽시계 시간이며 CU 측정값이 아닙니다. 패키지 설치 시간은 제외합니다."
+}

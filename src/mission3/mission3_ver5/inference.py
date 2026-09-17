@@ -19,9 +19,12 @@ def main():
     parser.add_argument("--output", required=True)
     parser.add_argument("--device", choices=("cuda", "cpu"))
     parser.add_argument("--batch_size", type=int)
+    parser.add_argument("--cache_dir", help="Optional persistent raw prediction cache shared across experiments.")
+    parser.add_argument("--base_dir", help="Relocated ver4 folder for an external-base ver5 experiment.")
     parser.add_argument("--evaluate", action="store_true", help="Evaluate only after CSV is saved and all targets exist.")
     args = parser.parse_args()
-    paths, _, _ = predict_pipeline(args.ckpt_path, args.label_dir, args.output, args.device, args.batch_size)
+    paths, _, _ = predict_pipeline(args.ckpt_path, args.label_dir, args.output, args.device, args.batch_size,
+                                   cache_dir=args.cache_dir, base_dir=args.base_dir)
     if args.evaluate:
         target_count = sum("symptom" in json.loads(path.read_text(encoding="utf-8-sig")) for path in paths)
         if target_count == len(paths):

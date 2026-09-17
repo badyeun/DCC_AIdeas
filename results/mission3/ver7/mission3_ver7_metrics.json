@@ -1,0 +1,787 @@
+{
+  "score_scope": "Training-only calibration. Procedure selection reuses cross-fit scores; selected score is a selection estimate, not an unbiased guarantee or official Validation.",
+  "baseline_crossfit_macro_f1": 0.6596708655816239,
+  "candidate_crossfit_macro_f1": 0.6586659253322491,
+  "candidate_raw_crossfit_macro_f1": 0.6586659253322491,
+  "candidate_logit_crossfit_macro_f1": 0.6582586986906392,
+  "candidate_blend_space": "raw",
+  "selected_blend_space": "raw",
+  "selected_crossfit_macro_f1": 0.6596708655816239,
+  "selected_fit_macro_f1": 0.6694597928001325,
+  "selected_name": "ver4_baseline",
+  "fallback_reason": "candidate_gain_below_minimum",
+  "selection_gain": -0.0010049402493748083,
+  "minimum_gain": 0.002,
+  "candidate_improved_folds": 2,
+  "minimum_improved_folds": 3,
+  "candidate_fold_gains": [
+    -0.0020419725623099794,
+    0.0063190201955790615,
+    0.0009685182780598822,
+    -0.007830696412992721,
+    -0.0018372619173232518
+  ],
+  "all_candidate_fold_gains": {
+    "raw": [
+      -0.0020419725623099794,
+      0.0063190201955790615,
+      0.0009685182780598822,
+      -0.007830696412992721,
+      -0.0018372619173232518
+    ],
+    "logit": [
+      -0.0037936155041504716,
+      0.005431963771912907,
+      -0.0005046458579152091,
+      -0.006128462470913254,
+      -0.0015168246615773207
+    ]
+  },
+  "per_symptom_crossfit": {
+    "baseline": {
+      "고열": {
+        "precision": 0.7362869198312236,
+        "recall": 0.6724470134874759,
+        "f1": 0.702920443101712,
+        "support": 519
+      },
+      "구토": {
+        "precision": 0.6697530864197531,
+        "recall": 0.48654708520179374,
+        "f1": 0.5636363636363636,
+        "support": 446
+      },
+      "두통": {
+        "precision": 0.5457875457875457,
+        "recall": 0.5137931034482759,
+        "f1": 0.5293072824156305,
+        "support": 290
+      },
+      "복통": {
+        "precision": 0.8959731543624161,
+        "recall": 0.7887740029542097,
+        "f1": 0.8389630793401414,
+        "support": 677
+      },
+      "어지러움": {
+        "precision": 0.6805555555555556,
+        "recall": 0.6966824644549763,
+        "f1": 0.6885245901639344,
+        "support": 633
+      },
+      "열상": {
+        "precision": 0.883008356545961,
+        "recall": 0.9161849710982659,
+        "f1": 0.8992907801418439,
+        "support": 346
+      },
+      "오심": {
+        "precision": 0.3154121863799283,
+        "recall": 0.5269461077844312,
+        "f1": 0.39461883408071746,
+        "support": 334
+      },
+      "전신쇠약": {
+        "precision": 0.5376,
+        "recall": 0.632768361581921,
+        "f1": 0.5813148788927336,
+        "support": 531
+      },
+      "호흡곤란": {
+        "precision": 0.7441860465116279,
+        "recall": 0.732824427480916,
+        "f1": 0.7384615384615385,
+        "support": 393
+      }
+    },
+    "candidate": {
+      "고열": {
+        "precision": 0.7339055793991416,
+        "recall": 0.6589595375722543,
+        "f1": 0.6944162436548224,
+        "support": 519
+      },
+      "구토": {
+        "precision": 0.6534090909090909,
+        "recall": 0.515695067264574,
+        "f1": 0.5764411027568922,
+        "support": 446
+      },
+      "두통": {
+        "precision": 0.5957446808510638,
+        "recall": 0.4827586206896552,
+        "f1": 0.5333333333333333,
+        "support": 290
+      },
+      "복통": {
+        "precision": 0.9094076655052264,
+        "recall": 0.7710487444608567,
+        "f1": 0.8345323741007195,
+        "support": 677
+      },
+      "어지러움": {
+        "precision": 0.6805555555555556,
+        "recall": 0.6966824644549763,
+        "f1": 0.6885245901639344,
+        "support": 633
+      },
+      "열상": {
+        "precision": 0.8813559322033898,
+        "recall": 0.9017341040462428,
+        "f1": 0.8914285714285715,
+        "support": 346
+      },
+      "오심": {
+        "precision": 0.31016042780748665,
+        "recall": 0.5209580838323353,
+        "f1": 0.3888268156424581,
+        "support": 334
+      },
+      "전신쇠약": {
+        "precision": 0.5472312703583062,
+        "recall": 0.632768361581921,
+        "f1": 0.5868995633187772,
+        "support": 531
+      },
+      "호흡곤란": {
+        "precision": 0.7421875,
+        "recall": 0.7251908396946565,
+        "f1": 0.7335907335907336,
+        "support": 393
+      }
+    },
+    "candidate_raw": {
+      "고열": {
+        "precision": 0.7339055793991416,
+        "recall": 0.6589595375722543,
+        "f1": 0.6944162436548224,
+        "support": 519
+      },
+      "구토": {
+        "precision": 0.6534090909090909,
+        "recall": 0.515695067264574,
+        "f1": 0.5764411027568922,
+        "support": 446
+      },
+      "두통": {
+        "precision": 0.5957446808510638,
+        "recall": 0.4827586206896552,
+        "f1": 0.5333333333333333,
+        "support": 290
+      },
+      "복통": {
+        "precision": 0.9094076655052264,
+        "recall": 0.7710487444608567,
+        "f1": 0.8345323741007195,
+        "support": 677
+      },
+      "어지러움": {
+        "precision": 0.6805555555555556,
+        "recall": 0.6966824644549763,
+        "f1": 0.6885245901639344,
+        "support": 633
+      },
+      "열상": {
+        "precision": 0.8813559322033898,
+        "recall": 0.9017341040462428,
+        "f1": 0.8914285714285715,
+        "support": 346
+      },
+      "오심": {
+        "precision": 0.31016042780748665,
+        "recall": 0.5209580838323353,
+        "f1": 0.3888268156424581,
+        "support": 334
+      },
+      "전신쇠약": {
+        "precision": 0.5472312703583062,
+        "recall": 0.632768361581921,
+        "f1": 0.5868995633187772,
+        "support": 531
+      },
+      "호흡곤란": {
+        "precision": 0.7421875,
+        "recall": 0.7251908396946565,
+        "f1": 0.7335907335907336,
+        "support": 393
+      }
+    },
+    "candidate_logit": {
+      "고열": {
+        "precision": 0.7366167023554604,
+        "recall": 0.6628131021194605,
+        "f1": 0.6977687626774848,
+        "support": 519
+      },
+      "구토": {
+        "precision": 0.6477272727272727,
+        "recall": 0.5112107623318386,
+        "f1": 0.5714285714285714,
+        "support": 446
+      },
+      "두통": {
+        "precision": 0.5892116182572614,
+        "recall": 0.4896551724137931,
+        "f1": 0.5348399246704332,
+        "support": 290
+      },
+      "복통": {
+        "precision": 0.9116117850953206,
+        "recall": 0.7769571639586411,
+        "f1": 0.8389154704944178,
+        "support": 677
+      },
+      "어지러움": {
+        "precision": 0.6747720364741642,
+        "recall": 0.7014218009478673,
+        "f1": 0.6878388845855926,
+        "support": 633
+      },
+      "열상": {
+        "precision": 0.883008356545961,
+        "recall": 0.9161849710982659,
+        "f1": 0.8992907801418439,
+        "support": 346
+      },
+      "오심": {
+        "precision": 0.2980599647266314,
+        "recall": 0.5059880239520959,
+        "f1": 0.3751387347391787,
+        "support": 334
+      },
+      "전신쇠약": {
+        "precision": 0.5391849529780565,
+        "recall": 0.647834274952919,
+        "f1": 0.5885372112917023,
+        "support": 531
+      },
+      "호흡곤란": {
+        "precision": 0.7440633245382586,
+        "recall": 0.7175572519083969,
+        "f1": 0.7305699481865285,
+        "support": 393
+      }
+    },
+    "selected": {
+      "고열": {
+        "precision": 0.7362869198312236,
+        "recall": 0.6724470134874759,
+        "f1": 0.702920443101712,
+        "support": 519
+      },
+      "구토": {
+        "precision": 0.6697530864197531,
+        "recall": 0.48654708520179374,
+        "f1": 0.5636363636363636,
+        "support": 446
+      },
+      "두통": {
+        "precision": 0.5457875457875457,
+        "recall": 0.5137931034482759,
+        "f1": 0.5293072824156305,
+        "support": 290
+      },
+      "복통": {
+        "precision": 0.8959731543624161,
+        "recall": 0.7887740029542097,
+        "f1": 0.8389630793401414,
+        "support": 677
+      },
+      "어지러움": {
+        "precision": 0.6805555555555556,
+        "recall": 0.6966824644549763,
+        "f1": 0.6885245901639344,
+        "support": 633
+      },
+      "열상": {
+        "precision": 0.883008356545961,
+        "recall": 0.9161849710982659,
+        "f1": 0.8992907801418439,
+        "support": 346
+      },
+      "오심": {
+        "precision": 0.3154121863799283,
+        "recall": 0.5269461077844312,
+        "f1": 0.39461883408071746,
+        "support": 334
+      },
+      "전신쇠약": {
+        "precision": 0.5376,
+        "recall": 0.632768361581921,
+        "f1": 0.5813148788927336,
+        "support": 531
+      },
+      "호흡곤란": {
+        "precision": 0.7441860465116279,
+        "recall": 0.732824427480916,
+        "f1": 0.7384615384615385,
+        "support": 393
+      }
+    }
+  },
+  "calibration_samples": 2880,
+  "calibration_groups": 2880,
+  "crossfit_splits": 5,
+  "crossfit_fold_counts": [
+    {
+      "fit_samples": 2306,
+      "score_samples": 574
+    },
+    {
+      "fit_samples": 2309,
+      "score_samples": 571
+    },
+    {
+      "fit_samples": 2299,
+      "score_samples": 581
+    },
+    {
+      "fit_samples": 2303,
+      "score_samples": 577
+    },
+    {
+      "fit_samples": 2303,
+      "score_samples": 577
+    }
+  ],
+  "selection_rule": "Compare fixed raw/logit families globally; ties prefer raw. Require strictly positive aggregate gain at least minimum_gain and improvements on minimum_improved_folds; otherwise use ver4. Training-only selection guard, not a statistical significance test or Validation guarantee.",
+  "candidate_standalone_crossfit_macro_f1": 0.6311515663155327,
+  "candidate_standalone_fit_macro_f1": 0.6419604554177716,
+  "candidate_standalone_per_symptom_crossfit": {
+    "고열": {
+      "precision": 0.7066666666666667,
+      "recall": 0.6127167630057804,
+      "f1": 0.6563467492260062,
+      "support": 519
+    },
+    "구토": {
+      "precision": 0.5364238410596026,
+      "recall": 0.5448430493273543,
+      "f1": 0.5406006674082313,
+      "support": 446
+    },
+    "두통": {
+      "precision": 0.6195121951219512,
+      "recall": 0.4379310344827586,
+      "f1": 0.5131313131313131,
+      "support": 290
+    },
+    "복통": {
+      "precision": 0.8787878787878788,
+      "recall": 0.7710487444608567,
+      "f1": 0.8214004720692368,
+      "support": 677
+    },
+    "어지러움": {
+      "precision": 0.6225563909774436,
+      "recall": 0.6540284360189573,
+      "f1": 0.637904468412943,
+      "support": 633
+    },
+    "열상": {
+      "precision": 0.8605341246290801,
+      "recall": 0.838150289017341,
+      "f1": 0.849194729136164,
+      "support": 346
+    },
+    "오심": {
+      "precision": 0.27092198581560284,
+      "recall": 0.5718562874251497,
+      "f1": 0.36766121270452357,
+      "support": 334
+    },
+    "전신쇠약": {
+      "precision": 0.5192307692307693,
+      "recall": 0.6610169491525424,
+      "f1": 0.5816072908036454,
+      "support": 531
+    },
+    "호흡곤란": {
+      "precision": 0.7754491017964071,
+      "recall": 0.6590330788804071,
+      "f1": 0.7125171939477304,
+      "support": 393
+    }
+  },
+  "candidate_standalone_crossfit_splits": 5,
+  "signature": "1e568aa00888633e0dc72afda05d6887c1709f5f746f6fd78ec453e82c71e4d6",
+  "base_signature": "46a4dd257751e2df066a68d4fcc3b6bbbfea41ac74b210ac56161a5a9a030772",
+  "training_samples": 29200,
+  "candidate_fit_samples": 21032,
+  "candidate_stop_samples": 5288,
+  "candidate_training": {
+    "best_epoch": 2,
+    "best_stop_ap": 0.6574641397736366,
+    "best_stop_macro_f1": 0.6173289958328092,
+    "history": [
+      {
+        "epoch": 0,
+        "phase": "initial_public_encoder",
+        "train_loss": null,
+        "stop_macro_f1": 0.2682383978129042,
+        "stop_macro_ap": 0.15864140534104532,
+        "stop_labels_with_positives": 9,
+        "threshold_crossfit_splits": 3,
+        "thresholds_by_fold": [
+          [
+            0.4382953494787216,
+            0.4552105665206909,
+            0.49307282269001007,
+            0.43596045672893524,
+            0.6196824908256531,
+            0.4265628308057785,
+            0.6257184743881226,
+            0.6215026676654816,
+            0.594420313835144
+          ],
+          [
+            0.4338291883468628,
+            0.4500126242637634,
+            0.4931524395942688,
+            0.44511401653289795,
+            0.6291756927967072,
+            0.43168362975120544,
+            0.621229499578476,
+            0.6180910468101501,
+            0.5946830809116364
+          ],
+          [
+            0.43439120054244995,
+            0.4613076448440552,
+            0.4935945123434067,
+            0.44552694261074066,
+            0.6292147040367126,
+            0.4232065677642822,
+            0.6216166913509369,
+            0.6205557286739349,
+            0.5979344844818115
+          ]
+        ],
+        "minutes": 0.6693470633000023
+      },
+      {
+        "epoch": 1,
+        "phase": "full_encoder_finetune",
+        "train_loss": 0.5979577928622806,
+        "stop_macro_f1": 0.6037101048653519,
+        "stop_macro_ap": 0.6356109164815766,
+        "stop_labels_with_positives": 9,
+        "threshold_crossfit_splits": 3,
+        "thresholds_by_fold": [
+          [
+            0.4369152635335922,
+            0.41972990334033966,
+            0.6949759125709534,
+            0.40917590260505676,
+            0.7125242352485657,
+            0.5433884561061859,
+            0.3435986191034317,
+            0.5260241627693176,
+            0.31342142820358276
+          ],
+          [
+            0.5619212090969086,
+            0.5660473108291626,
+            0.6516654193401337,
+            0.4910759925842285,
+            0.6953762769699097,
+            0.7516016066074371,
+            0.38534678518772125,
+            0.5246203243732452,
+            0.5645913779735565
+          ],
+          [
+            0.39752471446990967,
+            0.41960760951042175,
+            0.6851308047771454,
+            0.41299667954444885,
+            0.6473046243190765,
+            0.5280218720436096,
+            0.411570280790329,
+            0.46423502266407013,
+            0.3132810443639755
+          ]
+        ],
+        "minutes": 12.441672462583332
+      },
+      {
+        "epoch": 2,
+        "phase": "full_encoder_finetune",
+        "train_loss": 0.44216172662398895,
+        "stop_macro_f1": 0.6173289958328092,
+        "stop_macro_ap": 0.6574641397736366,
+        "stop_labels_with_positives": 9,
+        "threshold_crossfit_splits": 3,
+        "thresholds_by_fold": [
+          [
+            0.5713687241077423,
+            0.3774282932281494,
+            0.7125485837459564,
+            0.3596923053264618,
+            0.48973144590854645,
+            0.9066632091999054,
+            0.43167783319950104,
+            0.41777537763118744,
+            0.463046059012413
+          ],
+          [
+            0.5815304815769196,
+            0.35197949409484863,
+            0.714116096496582,
+            0.558543860912323,
+            0.5147713422775269,
+            0.9401710033416748,
+            0.31714674830436707,
+            0.5066377222537994,
+            0.3697343021631241
+          ],
+          [
+            0.5854763686656952,
+            0.3176472336053848,
+            0.5514011383056641,
+            0.48804184794425964,
+            0.584453672170639,
+            0.937976598739624,
+            0.43167783319950104,
+            0.4313846677541733,
+            0.5218188762664795
+          ]
+        ],
+        "minutes": 12.387369062749997
+      },
+      {
+        "epoch": 3,
+        "phase": "full_encoder_finetune",
+        "train_loss": 0.4167903663173244,
+        "stop_macro_f1": 0.6156255254911496,
+        "stop_macro_ap": 0.6576584087774832,
+        "stop_labels_with_positives": 9,
+        "threshold_crossfit_splits": 3,
+        "thresholds_by_fold": [
+          [
+            0.5049000382423401,
+            0.44260817766189575,
+            0.734565019607544,
+            0.5761275887489319,
+            0.48246999084949493,
+            0.5944337844848633,
+            0.4702826887369156,
+            0.4339948147535324,
+            0.5227197408676147
+          ],
+          [
+            0.49750320613384247,
+            0.617446094751358,
+            0.5618802607059479,
+            0.5560933649539948,
+            0.6405344307422638,
+            0.9260057508945465,
+            0.40250372886657715,
+            0.3602893203496933,
+            0.7354795336723328
+          ],
+          [
+            0.6512802541255951,
+            0.4505046457052231,
+            0.479512020945549,
+            0.5826605558395386,
+            0.46206389367580414,
+            0.9298852682113647,
+            0.48697127401828766,
+            0.45590513944625854,
+            0.56212517619133
+          ]
+        ],
+        "minutes": 12.470158019266668
+      }
+    ],
+    "completed_epochs": 3,
+    "resumed": false,
+    "last_checkpoint": "/content/drive/MyDrive/DCC_AIdeas/results/mission3/ver7/candidate_best_last.ckpt",
+    "execution": {
+      "device_type": "cuda",
+      "torch": "2.11.0+cu128",
+      "transformers": "4.57.1",
+      "cuda_version": "12.8",
+      "amp_dtype": "bfloat16",
+      "deterministic_algorithms": false,
+      "matmul_allow_tf32": false,
+      "cudnn_allow_tf32": true,
+      "gpu": "NVIDIA L4",
+      "capability": [
+        8,
+        9
+      ],
+      "cuda_device_count": 1
+    },
+    "best_is_initial_baseline": false,
+    "selection_scope": "Original Training fold stop: grouped threshold cross-fit macro-F1; AP secondary. This is reused epoch selection, not model-level OOF or official Validation."
+  },
+  "calibrator": {
+    "neural_weights": [
+      1.0,
+      0.75,
+      0.75,
+      0.75,
+      1.0,
+      1.0,
+      0.75,
+      1.0,
+      0.75
+    ],
+    "thresholds": [
+      0.5270613998174667,
+      0.5857406787574292,
+      0.4146592520177364,
+      0.5259841911494731,
+      0.49158732295036317,
+      0.5271574668586254,
+      0.41103987377136947,
+      0.47292521148920064,
+      0.5859717525541782
+    ],
+    "candidate_weights": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "blend_space": "raw"
+  },
+  "config": {
+    "model_name": "monologg/koelectra-base-v3-discriminator",
+    "max_length": 512,
+    "stride": 64,
+    "max_epochs": 3,
+    "patience": 2,
+    "stop_crossfit_splits": 3,
+    "learning_rate": 2e-05,
+    "head_learning_rate": 0.0001,
+    "attention_dim": 256,
+    "dropout": 0.1,
+    "batch_size": 8,
+    "window_batch_size": 8,
+    "gradient_accumulation_steps": 4,
+    "inference_batch_size": 8,
+    "gradient_checkpointing": true,
+    "device": "cuda",
+    "log_every": 100,
+    "layerwise_lr_decay": 0.95,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.1,
+    "seed": 42,
+    "init_fold": 1,
+    "require_cuda": true,
+    "bundle_base": false,
+    "min_calibration_gain": 0.002,
+    "min_calibration_improved_folds": 3
+  },
+  "candidate_only_calibrator": {
+    "thresholds": [
+      0.4751416742801666,
+      0.35118088126182556,
+      0.6446688175201416,
+      0.4595720022916794,
+      0.46691757440567017,
+      0.8638150691986084,
+      0.30335208773612976,
+      0.43151696026325226,
+      0.6514840722084045
+    ]
+  },
+  "public_pretrained": {
+    "model_id": "monologg/koelectra-base-v3-discriminator",
+    "revision": "68b30cd259f34a4b5aa8786392612ba2a2617fcc",
+    "files": {
+      "config.json": {
+        "size": 726,
+        "sha256": "0815ea62ba855fedf44b002d6b92690931a82bcb1157e70f43f1035d5d803400"
+      },
+      "model.safetensors": {
+        "size": 449345208,
+        "sha256": "efddac2a76558fe2196cc68de3d7a2bb86b650a4b74cb38f8263b1075092fd5a"
+      },
+      "special_tokens_map.json": {
+        "size": 125,
+        "sha256": "b6d346be366a7d1d48332dbc9fdf3bf8960b5d879522b7799ddba59e76237ee3"
+      },
+      "tokenizer.json": {
+        "size": 814850,
+        "sha256": "d5c7a9a8996aca4fee55a3664381b012bd7dbb3e190061b2591c02502b7171b6"
+      },
+      "tokenizer_config.json": {
+        "size": 1268,
+        "sha256": "06f6141cd1231cd88beafbcdc7860f442b2ea8115279682f29f21bf9fb20b275"
+      },
+      "vocab.txt": {
+        "size": 263327,
+        "sha256": "6e886927dfcecd22029b1ba80c10a1374740259c1067fc3a28d964b7ae2d55a7"
+      }
+    }
+  },
+  "baseline_single_fold_stop": {
+    "stop_macro_f1": 0.6396840921628759,
+    "stop_macro_ap": 0.682987440457887,
+    "stop_labels_with_positives": 9,
+    "threshold_crossfit_splits": 3,
+    "thresholds_by_fold": [
+      [
+        0.4927358627319336,
+        0.6210165917873383,
+        0.5779590308666229,
+        0.7140004634857178,
+        0.5090495944023132,
+        0.6312204599380493,
+        0.4810582101345062,
+        0.4576069712638855,
+        0.7097009122371674
+      ],
+      [
+        0.48555655777454376,
+        0.4301072359085083,
+        0.57720547914505,
+        0.7435305416584015,
+        0.517765998840332,
+        0.7467788457870483,
+        0.39160698652267456,
+        0.5235460102558136,
+        0.7083559334278107
+      ],
+      [
+        0.44185909628868103,
+        0.5603528320789337,
+        0.5726848840713501,
+        0.7307456731796265,
+        0.5080117583274841,
+        0.6312204599380493,
+        0.5457507073879242,
+        0.4543427973985672,
+        0.7090789973735809
+      ]
+    ],
+    "fold": 1,
+    "scope": "Single original fold on its own stop set; repeated epoch-selection estimate"
+  },
+  "candidate_minus_single_fold_stop_macro_f1": -0.022355096330066715,
+  "versions": {
+    "torch": "2.11.0+cu128",
+    "transformers": "4.57.1",
+    "numpy": "2.1.3",
+    "scikit-learn": "1.6.1",
+    "iterative-stratification": "0.1.9"
+  },
+  "validation_used_for_training_or_selection": false,
+  "new_models_trained": 1,
+  "base_models_retrained": 0,
+  "timing_minutes_this_invocation": {
+    "candidate_training_or_reuse": 38.643412785116666,
+    "baseline_stop_or_reuse": 1.3482389622499946,
+    "calibration_prediction_and_selection": 0.5045347100333326,
+    "total_pipeline": 41.403363527649994
+  }
+}

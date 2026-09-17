@@ -142,7 +142,8 @@ def _csv_predictions(path):
     return rows, result
 
 
-def test_actual_tiny_pipeline_reuses_cache_and_exports_portable_offline_bundle(tmp_path):
+@pytest.mark.parametrize("bundle_base", [True, False], ids=["portable", "external_base"])
+def test_actual_tiny_pipeline_reuses_cache_and_exports_portable_offline_bundle(tmp_path, bundle_base):
     pretrained, train_dir, texts, base_dir, base_manifest, base_report = _build_base(tmp_path)
     _assert_bad_base_rejected(train_dir, base_dir, base_manifest)
     output_dir = tmp_path / "ver5_original"
@@ -152,20 +153,44 @@ def test_actual_tiny_pipeline_reuses_cache_and_exports_portable_offline_bundle(t
         "inference_batch_size": 8, "gradient_accumulation_steps": 2, "dropout": 0,
         "gradient_checkpointing": True, "log_every": 0,
     }
+    if not bundle_base:
+        config["bundle_base"] = False
     with ExitStack() as patches:
         for name in ("train_model", "fit_sparse", "predict_checkpoint"):
             patches.enter_context(patch.object(legacy, name, side_effect=AssertionError(f"ver4 {name} must be reused")))
         patches.enter_context(patch("transformers.AutoModel.from_pretrained", side_effect=AssertionError("Use saved encoder weights")))
         checkpoint_path, report = pipeline.train_pipeline(train_dir, base_dir, output_dir, config)
     manifest = pipeline.load_manifest(checkpoint_path)
+    assert manifest["portable"] is bundle_base
     assert report["new_models_trained"] == 1 and report["base_models_retrained"] == 0
     assert report["validation_used_for_training_or_selection"] is False
     assert report["training_samples"] == 144
     assert report["baseline_crossfit_macro_f1"] == base_report["calibration_crossfit_macro_f1"]
     assert {row["phase"] for row in report["candidate_training"]["history"]} == {"baseline", "warmup", "finetune"}
     assert (output_dir / "candidate_best.ckpt").is_file()
-    for name in [*base_manifest["folds"], "sparse.joblib"]:
-        assert (output_dir / "base" / name).read_bytes() == (base_dir / name).read_bytes()
+    if bundle_base:
+        for name in [*base_manifest["folds"], "sparse.joblib"]:
+            assert (output_dir / "base" / name).read_bytes() == (base_dir / name).read_bytes()
+    else:
+        assert not (output_dir / "base").exists()
+        assert manifest["base_manifest"] == str(base_dir / "mission3_ver4_model.ckpt")
+    assert (output_dir / "submission" / "bootstrap.py").is_file()
+    # External base access never relaxes the candidate's containment constraint.
+    invalid_path = output_dir / "invalid.ckpt"
+    invalid = {**manifest, "candidate": str(base_dir / base_manifest["folds"][0])}
+    torch.save(invalid, invalid_path)
+    with pytest.raises(FileNotFoundError, match="candidate|fold"):
+        pipeline.load_manifest(invalid_path)
+    invalid = {**manifest, "base_manifest": str(base_dir / "mission3_ver4_model.ckpt")}
+    invalid.pop("portable")
+    torch.save(invalid, invalid_path)
+    with pytest.raises(FileNotFoundError, match="결과 폴더"):
+        pipeline.load_manifest(invalid_path)
+    if bundle_base:
+        old_manifest = {key: value for key, value in manifest.items() if key != "portable"}
+        torch.save(old_manifest, invalid_path)
+        assert pipeline.load_manifest(invalid_path)["base_manifest"] == manifest["base_manifest"]
+    invalid_path.unlink()
     if report["selected_name"] == "ver4_baseline":
         assert manifest["calibrator"]["candidate_weights"] == [0.0] * 9
         for key in ("neural_weights", "thresholds"):
@@ -211,12 +236,82 @@ def test_actual_tiny_pipeline_reuses_cache_and_exports_portable_offline_bundle(t
         annotation["unrelated"] = "cue8 cue8 cue8"
         path.write_text(json.dumps(annotation), encoding="utf-8")
 
+    # Cache real model outputs, then forbid all model inference on the next run.
+    # Poisoned labels/metadata above must not affect either inference or its key.
+    cache_dir = tmp_path / "shared_prediction_cache"
+    _, cached_probabilities, cached_predictions = pipeline.predict_pipeline(
+        forced_path, inference_dir, tmp_path / "cached.csv", device="cpu", batch_size=2, cache_dir=cache_dir)
+    np.testing.assert_array_equal(cached_probabilities, probabilities)
+    np.testing.assert_array_equal(cached_predictions, forced_predictions)
+    with patch.object(legacy, "predict_checkpoint", side_effect=AssertionError("Cached base inferred again")), \
+         patch.object(legacy, "predict_sparse", side_effect=AssertionError("Cached sparse inferred again")), \
+         patch.object(pipeline.neural, "predict_checkpoint", side_effect=AssertionError("Cached candidate inferred again")):
+        _, reused, _ = pipeline.predict_pipeline(
+            forced_path, inference_dir, tmp_path / "reused.csv", device="cpu", batch_size=2, cache_dir=cache_dir)
+    np.testing.assert_array_equal(reused, probabilities)
+    assert (tmp_path / "cached.csv").read_bytes() == (tmp_path / "reused.csv").read_bytes()
+
+    # Changing only the blend space must reuse raw outputs, including after export.
+    logit_path = output_dir / "forced_logit.ckpt"
+    logit_manifest = copy.deepcopy(forced)
+    logit_manifest["calibrator"]["blend_space"] = "logit"
+    torch.save(logit_manifest, logit_path)
+    with patch.object(legacy, "predict_checkpoint", side_effect=AssertionError("Blend change reran base")), \
+         patch.object(legacy, "predict_sparse", side_effect=AssertionError("Blend change reran sparse")), \
+         patch.object(pipeline.neural, "predict_checkpoint", side_effect=AssertionError("Blend change reran candidate")):
+        logit_paths, logit_probabilities, _ = pipeline.predict_pipeline(
+            logit_path, inference_dir, tmp_path / "logit.csv", device="cpu", batch_size=2, cache_dir=cache_dir)
+    assert not np.array_equal(logit_probabilities, probabilities)
+    logit_thresholds = (logit_probabilities.min(axis=0) + logit_probabilities.max(axis=0)) / 2
+    logit_manifest["calibrator"]["thresholds"] = logit_thresholds.tolist()
+    logit_predictions = logit_probabilities >= logit_thresholds
+    assert np.any(logit_predictions) and not np.all(logit_predictions)
+    logit_reference = {p.name: prediction.tolist() for p, prediction in zip(logit_paths, logit_predictions)}
+    torch.save(logit_manifest, logit_path)
+
+    # A new experiment's changed candidate reuses every unchanged base model.
+    candidate_path = output_dir / forced["candidate"]
+    with _restore(candidate_path):
+        updated = torch.load(candidate_path, map_location="cpu", weights_only=True)
+        updated["model_state"]["token_evidence_bias"] += 0.2
+        torch.save(updated, candidate_path)
+        with patch.object(legacy, "predict_checkpoint", side_effect=AssertionError("Unchanged base inferred again")), \
+             patch.object(legacy, "predict_sparse", side_effect=AssertionError("Unchanged sparse inferred again")), \
+             patch.object(pipeline.neural, "predict_checkpoint", wraps=pipeline.neural.predict_checkpoint) as spy:
+            _, changed, _ = pipeline.predict_pipeline(
+                forced_path, inference_dir, tmp_path / "new_candidate.csv", device="cpu", batch_size=2, cache_dir=cache_dir)
+        assert spy.call_count == 1
+        assert not np.array_equal(changed, probabilities)
+
     portable = tmp_path / "moved" / "portable"
     portable.parent.mkdir()
     shutil.move(str(output_dir), portable)
-    base_dir.rename(tmp_path / "hidden_base")
+    relocated_base = tmp_path / "hidden_base"
+    base_dir.rename(relocated_base)
     pretrained.rename(tmp_path / "hidden_pretrained")
     assert not output_dir.exists() and not base_dir.exists() and not pretrained.exists()
+    base_arguments = []
+    if not bundle_base:
+        with pytest.raises(FileNotFoundError, match="--base_dir"):
+            pipeline.load_manifest(portable / checkpoint_path.name)
+        override = pipeline.load_manifest(portable / checkpoint_path.name, base_dir=relocated_base)
+        assert override["base_manifest"] == str(relocated_base / "mission3_ver4_model.ckpt")
+        # A moved base cannot silently substitute a different model run.
+        base_path = relocated_base / "mission3_ver4_model.ckpt"
+        with _restore(base_path):
+            different = {**base_manifest, "signature": "different-base"}
+            torch.save(different, base_path)
+            with pytest.raises(ValueError, match="different ver4"):
+                pipeline.load_manifest(portable / checkpoint_path.name, base_dir=relocated_base)
+        # Complete runs can be reopened after re-extraction at a new location;
+        # partial epoch resume still uses its original initialization path.
+        with patch.object(pipeline.neural, "train_model", side_effect=AssertionError("Moved completed run retrained")):
+            moved_checkpoint, moved_report = pipeline.train_pipeline(train_dir, relocated_base, portable, config)
+        assert moved_checkpoint == portable / checkpoint_path.name and moved_report == report
+        # Resolving an override does not rewrite the recorded original location.
+        stored = torch.load(moved_checkpoint, map_location="cpu", weights_only=True)
+        assert stored["base_manifest"] == str(base_dir / "mission3_ver4_model.ckpt")
+        base_arguments = ["--base_dir", str(relocated_base)]
     script = portable / "submission" / "inference.py"
     assert script.is_file()
     unrelated = tmp_path / "unrelated"
@@ -227,12 +322,15 @@ def test_actual_tiny_pipeline_reuses_cache_and_exports_portable_offline_bundle(t
                         "HF_HOME": str(tmp_path / "empty_hf_cache"), "TOKENIZERS_PARALLELISM": "false",
                         "OMP_NUM_THREADS": "1", "MKL_NUM_THREADS": "1", "OPENBLAS_NUM_THREADS": "1",
                         "PYTHONDONTWRITEBYTECODE": "1"})
-    for name, expected in [(checkpoint_path.name, reference), (forced_path.name, forced_reference)]:
+    for name, expected in [(checkpoint_path.name, reference), (forced_path.name, forced_reference),
+                           (logit_path.name, logit_reference)]:
         output = tmp_path / (name + ".csv")
         completed = subprocess.run([
             sys.executable, str(script), "--audio_dir", str(tmp_path / "missing_audio"),
             "--label_dir", str(inference_dir), "--ckpt_path", str(portable / name),
             "--output", str(output), "--device", "cpu", "--batch_size", "1",
+            "--cache_dir", str(cache_dir),
+            *base_arguments,
         ], cwd=unrelated, env=environment, text=True, capture_output=True, timeout=90)
         assert completed.returncode == 0, completed.stdout + "\n" + completed.stderr
         rows, actual = _csv_predictions(output)

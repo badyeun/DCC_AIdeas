@@ -38,7 +38,8 @@ else:
 MODEL_FORMAT = "mission3_ver5_neural"
 LAST_FORMAT = "mission3_ver5_last"
 DEFAULTS = {
-    "warmup_epochs": 1, "finetune_epochs": 3, "patience": 2,
+    "warmup_epochs": 1, "finetune_epochs": 1, "patience": 2,
+    "finetune_top_layers": 4,
     "learning_rate": 5e-6, "head_learning_rate": 1e-4,
     "warmup_head_learning_rate": 3e-4, "attention_dim": 256, "dropout": 0.2,
     "batch_size": 2, "window_batch_size": 2,
@@ -202,6 +203,9 @@ def _settings(config):
     for name in ("learning_rate", "head_learning_rate", "warmup_head_learning_rate"):
         if not math.isfinite(float(settings[name])) or float(settings[name]) <= 0:
             raise ValueError(f"{name} must be finite and positive")
+    top_layers = settings["finetune_top_layers"]
+    if isinstance(top_layers, bool) or not isinstance(top_layers, int) or top_layers < -1:
+        raise ValueError("finetune_top_layers must be an integer >= -1 (-1 means the full encoder)")
     if not 0 <= float(settings["dropout"]) < 1 or not 0 <= float(settings["warmup_ratio"]) < 1:
         raise ValueError("dropout/warmup_ratio must be in [0, 1)")
     if float(settings["weight_decay"]) < 0 or not math.isfinite(float(settings["pos_weight_power"])):
@@ -247,15 +251,54 @@ def _phase(epoch, settings):
     return "warmup" if epoch <= settings["warmup_epochs"] else "finetune"
 
 
+def _finetune_blocks(model, settings):
+    """Locate the top BERT/RoBERTa blocks without changing checkpoint structure."""
+    count = settings["finetune_top_layers"]
+    if count <= 0:
+        return []
+    blocks = getattr(getattr(model.encoder, "encoder", None), "layer", None)
+    if not isinstance(blocks, nn.ModuleList) or not len(blocks):
+        raise ValueError("Partial fine-tuning requires a BERT/RoBERTa encoder.layer block list")
+    # Tiny local test models can have fewer blocks than the production model.
+    return list(blocks[-min(count, len(blocks)):])
+
+
 def _configure_phase(model, phase, settings):
-    for parameter in model.encoder.parameters():
-        parameter.requires_grad_(phase == "finetune")
-    if phase == "finetune" and settings["gradient_checkpointing"]:
+    model.encoder.requires_grad_(False)
+    if phase == "finetune":
+        if settings["finetune_top_layers"] == -1:
+            model.encoder.requires_grad_(True)
+        else:
+            for block in _finetune_blocks(model, settings):
+                block.requires_grad_(True)
+    train_encoder = any(parameter.requires_grad for parameter in model.encoder.parameters())
+    if train_encoder and settings["gradient_checkpointing"]:
         model.encoder.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
     else:
         model.encoder.gradient_checkpointing_disable()
     if hasattr(model.encoder.config, "use_cache"):
         model.encoder.config.use_cache = False
+
+
+def _train_mode(model, phase, settings):
+    """Keep frozen feature extraction deterministic while training the top blocks."""
+    model.train()
+    model.encoder.eval()
+    if phase == "finetune":
+        if settings["finetune_top_layers"] == -1:
+            model.encoder.train()
+        else:
+            for block in _finetune_blocks(model, settings):
+                block.train()
+
+
+def _parameter_counts(model):
+    return {
+        "total_parameters": sum(parameter.numel() for parameter in model.parameters()),
+        "trainable_parameters": sum(parameter.numel() for parameter in model.parameters() if parameter.requires_grad),
+        "trainable_encoder_parameters": sum(parameter.numel() for parameter in model.encoder.parameters()
+                                            if parameter.requires_grad),
+    }
 
 
 def _phase_optimizer(model, phase, settings, batches):
@@ -410,9 +453,11 @@ def train_model(train_documents, train_targets, stop_documents, stop_targets,
             optimizer, scheduler = _phase_optimizer(model, phase, settings, len(train_loader))
             stale = 0
         epoch_started = time.monotonic()
-        model.train()
-        if phase == "warmup":
-            model.encoder.eval()
+        _train_mode(model, phase, settings)
+        parameter_counts = _parameter_counts(model)
+        print(f"phase={phase} trainable_parameters={parameter_counts['trainable_parameters']:,}/"
+              f"{parameter_counts['total_parameters']:,} "
+              f"encoder_trainable={parameter_counts['trainable_encoder_parameters']:,}", flush=True)
         optimizer.zero_grad(set_to_none=True)
         loss_sum, document_count = 0.0, 0
         for step, batch in enumerate(train_loader):
@@ -450,7 +495,8 @@ def train_model(train_documents, train_targets, stop_documents, stop_targets,
         row = {"epoch": epoch, "phase": phase,
                "phase_epoch": epoch if phase == "warmup" else epoch - settings["warmup_epochs"],
                "train_loss": loss_sum / document_count, "stop_macro_ap": score,
-               "stop_labels_with_positives": valid_count, "minutes": (time.monotonic() - epoch_started) / 60}
+               "stop_labels_with_positives": valid_count, "minutes": (time.monotonic() - epoch_started) / 60,
+               **parameter_counts}
         history.append(row)
         improved = score > best_ap + 1e-6
         if improved:

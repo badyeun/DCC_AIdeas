@@ -46,6 +46,22 @@ def assets(tmp_path):
     return tokenizer, legacy, checkpoint, documents, targets, stop_targets, settings
 
 
+@pytest.fixture
+def multilayer_assets(assets, tmp_path):
+    tokenizer, _, _, documents, targets, stop_targets, settings = assets
+    config = BertConfig(vocab_size=len(tokenizer), hidden_size=12, num_hidden_layers=4,
+                        num_attention_heads=3, intermediate_size=24, max_position_embeddings=32,
+                        hidden_dropout_prob=0.1, attention_probs_dropout_prob=0.1)
+    torch.manual_seed(7)
+    legacy = LegacyClassifier(BertModel(config), dropout=0.1, window_batch_size=2)
+    checkpoint = tmp_path / "multilayer_fold.ckpt"
+    torch.save({"format_version": 1, "encoder_config": config.to_dict(),
+                "architecture": {"num_labels": 9, "dropout": 0.1, "window_batch_size": 2},
+                "model_state": legacy.state_dict(), "model_name": "local-multilayer-bert",
+                "epoch": 3, "seed": 1051, "stop_ap": 0.5}, checkpoint)
+    return tokenizer, legacy, checkpoint, documents, targets, stop_targets, settings
+
+
 def train(assets, output, **kwargs):
     tokenizer, _, checkpoint, documents, targets, stop_targets, settings = assets
     return neural.train_model(documents, targets, documents[:2], stop_targets,
@@ -122,6 +138,57 @@ def test_long_dialogue_tail_reaches_residual_and_window_microbatch_equivalence(a
     tail_id = tokenizer.convert_tokens_to_ids("omega")
     assert model.encoder.embeddings.word_embeddings.weight.grad[tail_id].abs().sum() > 0
     assert model.token_projection[0].weight.grad.abs().sum() > 0
+
+
+@pytest.mark.parametrize("top_layers", [0, 1, 4, 8, -1])
+def test_partial_tuning_freezes_features_and_limits_optimizer(multilayer_assets, top_layers):
+    tokenizer, _, checkpoint, documents, _, _, config = multilayer_assets
+    settings = neural._settings({**config, "finetune_top_layers": top_layers})
+    model, _ = neural.warm_start(checkpoint, tokenizer, settings)
+    initial = {name: value.clone() for name, value in model.state_dict().items()}
+    neural._configure_phase(model, "finetune", settings)
+    neural._train_mode(model, "finetune", settings)
+    blocks = model.encoder.encoder.layer
+    selected = len(blocks) if top_layers == -1 else min(top_layers, len(blocks))
+    assert model.encoder.embeddings.training == (top_layers == -1)
+    assert all(parameter.requires_grad == (top_layers == -1)
+               for parameter in model.encoder.embeddings.parameters())
+    for index, block in enumerate(blocks):
+        enabled = index >= len(blocks) - selected
+        assert block.training == enabled
+        assert all(parameter.requires_grad == enabled for parameter in block.parameters())
+    assert model.token_projection.training
+    optimizer, _ = neural._phase_optimizer(model, "finetune", settings, 1)
+    included = {id(parameter) for group in optimizer.param_groups for parameter in group["params"]}
+    assert included == {id(parameter) for parameter in model.parameters() if parameter.requires_grad}
+    batch = neural.DialogueCollator(tokenizer)([{"windows": doc} for doc in documents[:2]])
+    model(**batch).sum().backward()
+    for index, block in enumerate(blocks):
+        if index >= len(blocks) - selected:
+            assert any(parameter.grad is not None and parameter.grad.abs().sum() > 0
+                       for parameter in block.parameters())
+        else:
+            assert all(parameter.grad is None for parameter in block.parameters())
+    optimizer.step()
+    for name, parameter in model.named_parameters():
+        if not parameter.requires_grad:
+            torch.testing.assert_close(parameter, initial[name], rtol=0, atol=0)
+    for index in range(len(blocks) - selected, len(blocks)):
+        assert any(not torch.equal(parameter, initial[f"encoder.encoder.layer.{index}.{name}"])
+                   for name, parameter in blocks[index].named_parameters())
+    assert model.token_evidence_weights.abs().sum() > 0
+    counts = neural._parameter_counts(model)
+    assert counts["trainable_parameters"] == sum(parameter.numel() for parameter in model.parameters()
+                                                 if id(parameter) in included)
+    if top_layers == 0:
+        assert counts["trainable_encoder_parameters"] == 0
+        assert not model.encoder.is_gradient_checkpointing
+
+
+@pytest.mark.parametrize("value", [-2, 1.5, True])
+def test_invalid_partial_tuning_settings_are_rejected(value):
+    with pytest.raises(ValueError, match="finetune_top_layers"):
+        neural._settings({"finetune_top_layers": value})
 
 
 def test_actual_warmup_finetune_resume_rng_and_best_fingerprint(assets, tmp_path):
@@ -206,9 +273,10 @@ def test_document_accumulation_handles_short_final_group(assets, tmp_path):
         torch.testing.assert_close(first[name], second[name], rtol=1e-4, atol=2e-6)
 
 
-def test_resume_inside_finetune_restores_adam_and_scheduler_states(assets, tmp_path):
-    settings = {**assets[-1], "finetune_epochs": 2}
-    configured = (*assets[:-1], settings)
+@pytest.mark.parametrize("top_layers", [1, -1])
+def test_resume_inside_finetune_restores_adam_and_scheduler_states(multilayer_assets, tmp_path, top_layers):
+    settings = {**multilayer_assets[-1], "finetune_epochs": 2, "finetune_top_layers": top_layers}
+    configured = (*multilayer_assets[:-1], settings)
     uninterrupted = tmp_path / "uninterrupted.ckpt"
     train(configured, uninterrupted)
     interrupted = tmp_path / "interrupted.ckpt"
@@ -235,3 +303,10 @@ def test_resume_inside_finetune_restores_adam_and_scheduler_states(assets, tmp_p
             torch.testing.assert_close(value, second["optimizer"]["state"][parameter][name], rtol=0, atol=0)
     assert first["best_epoch"] == second["best_epoch"]
     assert first["best_stop_ap"] == second["best_stop_ap"]
+    assert first["history"][1]["trainable_encoder_parameters"] == 0
+    assert first["history"][2]["trainable_encoder_parameters"] > 0
+    if top_layers == 1:
+        for name, value in multilayer_assets[1].state_dict().items():
+            if name.startswith("encoder.") and not name.startswith("encoder.encoder.layer.3."):
+                torch.testing.assert_close(first["model_state"][name], value, rtol=0, atol=0)
+        assert first["history"][2]["trainable_parameters"] < first["history"][2]["total_parameters"] / 2

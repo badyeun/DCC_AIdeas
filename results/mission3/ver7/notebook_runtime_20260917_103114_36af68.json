@@ -1,0 +1,10 @@
+{
+  "preparation_minutes": 2.2095253397833328,
+  "pretrained_preparation_minutes": 0.5247748369499997,
+  "training_and_calibration_minutes": 41.528414107333326,
+  "inference_and_evaluation_minutes": 1.5251852155333305,
+  "output_dir": "/content/drive/MyDrive/DCC_AIdeas/results/mission3/ver7",
+  "prediction_csv": "/content/drive/MyDrive/DCC_AIdeas/results/mission3/ver7/predictions/20260917_103114_36af68/mission3.csv",
+  "candidate_prediction_csv": "/content/drive/MyDrive/DCC_AIdeas/results/mission3/ver7/predictions/20260917_103114_36af68/candidate_only.csv",
+  "note": "벽시계 시간이며 CU 측정값이 아닙니다. 패키지 설치 시간은 제외합니다."
+}

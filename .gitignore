@@ -28,3 +28,6 @@ venv/
 /results/mission3/ver4/fold_3.ckpt
 /results/mission3/ver4/fold_4.ckpt
 /results/mission3/ver4/fold_5.ckpt
+
+# Reusable raw inference probabilities (regenerated when absent)
+/results/mission3/prediction_cache/
