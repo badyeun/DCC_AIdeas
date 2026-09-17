@@ -295,6 +295,12 @@ python src/mission1/train_mfcc_rf.py \
 - 여러 weight를 같은 Validation split에서 탐색해 얻은 작은 차이이므로, 아직 fusion을 최종 모델로 확정하지 않습니다.
 - **현재 권장 최종 후보는 EXP-006 (3-chunk WavLM 단독)**입니다. EXP-007은 3-chunk head의 seed 재현 뒤에도 고정 weight `WavLM 0.85 / RF 0.15`가 일관되게 이길 때만 채택합니다.
 
+## 최종 모델 선정
+
+> **최종 모델: WavLM-base-plus + 3-chunk inference — Validation Accuracy 97.50%**
+
+추가 실험으로 MFCC+F0 RandomForest late fusion을 적용했을 때 Validation Accuracy 97.55%를 기록했습니다. 다만 fusion weight(WavLM 0.85, RF 0.15)를 Validation 결과를 기준으로 결정했고, 단독 WavLM 3-chunk 대비 향상 폭도 0.05%p(순개선 2개 샘플)로 작았습니다. 따라서 최종 모델은 재현과 제출이 더 단순한 **WavLM-base-plus + 3-chunk inference**로 선정합니다.
+
 ## 다음 실험 계획 — WavLM 기반 성별 분류
 
 현재 최종 기준선은 **EXP-006 (WavLM 3-chunk test-time averaging, Validation Macro F1 0.9748)**입니다. EXP-007의 fusion 최고값은 0.9754이지만, validation weight 탐색에 따른 작은 차이여서 재현 전까지는 기준선으로 승격하지 않습니다.
