@@ -1,0 +1,72 @@
+{
+  "scope": "Original Training calibration at frozen baseline fitted thresholds; descriptive, not cross-fit",
+  "samples": 2880,
+  "seed": 42,
+  "requested_per_error": 20,
+  "review_rows": 120,
+  "per_symptom": {
+    "고열": {
+      "tp": 352,
+      "fp": 120,
+      "fn": 167,
+      "support": 519
+    },
+    "구토": {
+      "tp": 221,
+      "fp": 101,
+      "fn": 225,
+      "support": 446
+    },
+    "두통": {
+      "tp": 153,
+      "fp": 120,
+      "fn": 137,
+      "support": 290,
+      "review_fp": 20,
+      "review_fn": 20
+    },
+    "복통": {
+      "tp": 538,
+      "fp": 60,
+      "fn": 139,
+      "support": 677
+    },
+    "어지러움": {
+      "tp": 455,
+      "fp": 217,
+      "fn": 178,
+      "support": 633
+    },
+    "열상": {
+      "tp": 317,
+      "fp": 41,
+      "fn": 29,
+      "support": 346
+    },
+    "오심": {
+      "tp": 181,
+      "fp": 386,
+      "fn": 153,
+      "support": 334,
+      "review_fp": 20,
+      "review_fn": 20
+    },
+    "전신쇠약": {
+      "tp": 322,
+      "fp": 208,
+      "fn": 209,
+      "support": 531,
+      "review_fp": 20,
+      "review_fn": 20
+    },
+    "호흡곤란": {
+      "tp": 288,
+      "fp": 92,
+      "fn": 105,
+      "support": 393
+    }
+  },
+  "labels_modified": false,
+  "reviews_used_for_training": false,
+  "note": "Absent text evidence or an apparent label mismatch is not a confirmed annotation error."
+}

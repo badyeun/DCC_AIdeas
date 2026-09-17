@@ -1,0 +1,143 @@
+{
+  "signature": "7ea6b6a3f63e852b9560f469de1660aa8625329cf7bfb5e0327bbbf7fc6193a3",
+  "config": {
+    "head_type": "token",
+    "initialization_type": "public",
+    "model_name": "klue/roberta-large",
+    "max_length": 512,
+    "stride": 64,
+    "max_epochs": 3,
+    "patience": 2,
+    "stop_crossfit_splits": 3,
+    "learning_rate": 1.5e-05,
+    "head_learning_rate": 0.0001,
+    "attention_dim": 256,
+    "dropout": 0.1,
+    "batch_size": 4,
+    "window_batch_size": 4,
+    "gradient_accumulation_steps": 8,
+    "inference_batch_size": 8,
+    "gradient_checkpointing": true,
+    "device": "cuda",
+    "log_every": 100,
+    "layerwise_lr_decay": 0.95,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.1,
+    "tapt_steps": 500,
+    "tapt_max_length": 256,
+    "tapt_batch_size": 4,
+    "tapt_accumulation_steps": 8,
+    "tapt_learning_rate": 2e-05,
+    "tapt_mask_probability": 0.15,
+    "tapt_save_every": 100,
+    "seed": 42,
+    "init_fold": 1,
+    "require_cuda": true,
+    "profiles": [
+      "B"
+    ],
+    "audit_per_error": 20,
+    "keep_completed_resume_states": false,
+    "bundle_base": false,
+    "min_calibration_gain": 0.002,
+    "min_calibration_improved_folds": 3
+  },
+  "provenance": {
+    "config": {
+      "head_type": "token",
+      "initialization_type": "public",
+      "model_name": "klue/roberta-large",
+      "max_length": 512,
+      "stride": 64,
+      "max_epochs": 3,
+      "patience": 2,
+      "stop_crossfit_splits": 3,
+      "learning_rate": 1.5e-05,
+      "head_learning_rate": 0.0001,
+      "attention_dim": 256,
+      "dropout": 0.1,
+      "batch_size": 4,
+      "window_batch_size": 4,
+      "gradient_accumulation_steps": 8,
+      "inference_batch_size": 8,
+      "gradient_checkpointing": true,
+      "device": "cuda",
+      "log_every": 100,
+      "layerwise_lr_decay": 0.95,
+      "weight_decay": 0.01,
+      "warmup_ratio": 0.1,
+      "tapt_steps": 500,
+      "tapt_max_length": 256,
+      "tapt_batch_size": 4,
+      "tapt_accumulation_steps": 8,
+      "tapt_learning_rate": 2e-05,
+      "tapt_mask_probability": 0.15,
+      "tapt_save_every": 100,
+      "seed": 42,
+      "init_fold": 1,
+      "require_cuda": true,
+      "profiles": [
+        "B"
+      ],
+      "audit_per_error": 20,
+      "keep_completed_resume_states": false,
+      "bundle_base": false,
+      "min_calibration_gain": 0.002,
+      "min_calibration_improved_folds": 3
+    },
+    "base_signature": "46a4dd257751e2df066a68d4fcc3b6bbbfea41ac74b210ac56161a5a9a030772",
+    "public_pretrained": {
+      "model_id": "klue/roberta-large",
+      "revision": "28d911204e9022eda172571ca8cc61eaffd942f7",
+      "files": {
+        "config.json": {
+          "size": 705,
+          "sha256": "7f18956fd8463cce4540bca705424fa40f610254315e92ef7b3a9f03921bb15d"
+        },
+        "model.safetensors": {
+          "size": 1346809984,
+          "sha256": "a9fba569b600bfe1f2ca4ef2f868981874023e5ac577e3ad331937e491e4e0ee"
+        },
+        "special_tokens_map.json": {
+          "size": 971,
+          "sha256": "63cd5b53789b3b5ae2c3d7aa377bcba1557ff0b41dc69ce07b94350ea32291c2"
+        },
+        "tokenizer.json": {
+          "size": 751999,
+          "sha256": "4a45131245e310d1650c760a22038de8180f7311ace3575ad96b24f85ef38e1b"
+        },
+        "tokenizer_config.json": {
+          "size": 1314,
+          "sha256": "aea34e2ddddd2b9a7acecee7acf50143595848f218e62a076c0fe838b23e110e"
+        },
+        "vocab.txt": {
+          "size": 248477,
+          "sha256": "1ad4978b5dbe269dcc402a3c6eb71ceab21d712bca3b7d3b9994845e54cdcb39"
+        }
+      }
+    },
+    "base_artifact_sha256": {
+      "fold_1.ckpt": "52b08ddad5a43c60a8d3a78d1fca3eda5ea9961ee9c769561ce2094f947daba7",
+      "fold_2.ckpt": "e1ba4aca430c89a480cf7e66427ac6861d4327892126321d0ab0f99d14058ee8",
+      "fold_3.ckpt": "8a5086ec10047218b1cebd5eeaf31bb5da11c99b1494516a023a5dfb281e9982",
+      "fold_4.ckpt": "abd6cab55e6776794db00f7664ad31d7d23982520383686f05ddfd67b261a165",
+      "fold_5.ckpt": "f06cb4f0fe7ca6cecfb2395392028067f9d428dd90bf069ed49e2aa19ddc9230",
+      "mission3_ver4_model.ckpt": "014e45d5096e9c4aec7d40da909b3d1bec6178069f6c269473948289917736bb",
+      "sparse.joblib": "12e56a27e49e23e7837c631ed5717aa4d198ca255775d042c2c000b3f83c1ab0",
+      "tokenizer/special_tokens_map.json": "63cd5b53789b3b5ae2c3d7aa377bcba1557ff0b41dc69ce07b94350ea32291c2",
+      "tokenizer/tokenizer.json": "4a45131245e310d1650c760a22038de8180f7311ace3575ad96b24f85ef38e1b",
+      "tokenizer/tokenizer_config.json": "aea34e2ddddd2b9a7acecee7acf50143595848f218e62a076c0fe838b23e110e",
+      "tokenizer/vocab.txt": "1ad4978b5dbe269dcc402a3c6eb71ceab21d712bca3b7d3b9994845e54cdcb39"
+    },
+    "calibration_cache_sha256": "c31d428388ef5369a9c1bd5e91dafd8ed63aebf007aea855c1d573c40a877fee",
+    "splits_sha256": "b0900e65a346f92e09d29ba59c93427a7cd1665419fe18e36f5cc683ea68d926",
+    "code_sha256": "d1d9d9e315ab36ef20ebe84f550502419dbbf7b4d13b203985e21159c2a6ad4d",
+    "versions": {
+      "torch": "2.11.0+cu128",
+      "transformers": "4.57.1",
+      "numpy": "2.1.3",
+      "scikit-learn": "1.6.1",
+      "iterative-stratification": "0.1.9"
+    }
+  }
+}
