@@ -1,5 +1,6 @@
 # Data and generated results
 data/
+/DATA/
 models/
 saved_models/
 outputs/
@@ -16,18 +17,16 @@ venv/
 # macOS
 .DS_Store
 
-# Local artifacts exceeding GitHub's 100 MiB file limit
+# Large model weights, training resume states, and result archives
+# Keep small manifests, metrics, CSVs, and experiment logs versioned.
 /results/mission3/ver3/mission3_ver3_model.ckpt
-/results/mission3/ver4-20260905T170334Z-1-001.zip
-/results/mission3/ver4-20260905T170334Z-1-002.zip
-/results/mission3/ver4-20260905T170334Z-1-003.zip
-/results/mission3/ver4-20260905T170334Z-1-004.zip
-/results/mission3/ver4-20260905T170334Z-1-005.zip
-/results/mission3/ver4/fold_1.ckpt
-/results/mission3/ver4/fold_2.ckpt
-/results/mission3/ver4/fold_3.ckpt
-/results/mission3/ver4/fold_4.ckpt
-/results/mission3/ver4/fold_5.ckpt
+/results/**/candidate_best*.ckpt
+/results/**/best*.ckpt
+/results/**/fold_*.ckpt
+/results/**/*.safetensors
+/results/**/*.pt
+/results/**/*.pth
+/results/**/*.zip
 
 # Reusable raw inference probabilities (regenerated when absent)
 /results/mission3/prediction_cache/
