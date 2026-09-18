@@ -10,6 +10,7 @@
 
 Mission 1 baseline의 학습 및 주최 측 규격 추론 명령은 [Mission 1 안내](src/mission1/mission1.md)를 참고합니다.
 Mission 2 MFCC+RandomForest baseline의 학습 및 제출 명령은 [Mission 2 안내](src/mission2/mission2.md)를 참고합니다.
+Mission 3 TF-IDF+Logistic Regression baseline의 학습 및 제출 명령은 [Mission 3 안내](src/mission3/mission3.md)를 참고합니다.
 
 ## 노트북
 
