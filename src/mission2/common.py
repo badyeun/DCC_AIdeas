@@ -14,6 +14,7 @@ from typing import Any
 import librosa
 import numpy as np
 import soundfile
+from sklearn.cluster import KMeans
 
 
 SAMPLE_RATE = 16_000
@@ -168,3 +169,131 @@ def waveform_to_feature(waveform: np.ndarray, n_mfcc: int = 20) -> np.ndarray:
         np.percentile(values, 25, axis=1), np.percentile(values, 75, axis=1),
         np.array([np.log1p(len(waveform) / SAMPLE_RATE)], dtype=np.float32),
     )).astype(np.float32)
+
+
+# 발화 특징의 앞 65개 열은 MFCC(20)·Δ(20)·Δ²(20)·spectral(5)의 프레임 평균이다.
+# 통화 안에서 화자를 갈라내는 데 가장 직접적인 단서라 상대 비교의 기준으로 쓴다.
+MEAN_BLOCK = 65
+CALL_CONTEXT_CHOICES = ("none", "center", "full")
+
+
+def call_context_width(width: int, mode: str) -> int:
+    """통화 맥락을 붙였을 때의 특징 차원."""
+    if mode == "none":
+        return width
+    if mode == "center":
+        return width * 2
+    if mode == "full":
+        return width * 2 + MEAN_BLOCK + 1
+    raise ValueError(f"Unknown call context mode: {mode}")
+
+
+def rank_within_call(values: np.ndarray) -> np.ndarray:
+    """열마다 통화 안에서의 상대 위치를 0~1로 돌려준다.
+
+    같은 값은 같은 순위를 받는다. 동점을 앞뒤 자리로 가르면 발화를 늘어놓은
+    차례가 결과에 스며들어, 순서를 쓰지 않는다는 규칙이 깨진다.
+    """
+    count = values.shape[0]
+    if count < 2:
+        return np.full(values.shape, 0.5, dtype=np.float32)
+    ranks = np.empty(values.shape, dtype=np.float32)
+    for column in range(values.shape[1]):
+        item = values[:, column]
+        ordered = np.sort(item)
+        left = np.searchsorted(ordered, item, side="left")
+        right = np.searchsorted(ordered, item, side="right")
+        ranks[:, column] = (left + right - 1) / 2.0 / (count - 1)
+    return ranks
+
+
+def add_call_context(features: np.ndarray, mode: str) -> np.ndarray:
+    """한 통화의 발화 특징에 통화 안에서의 상대값을 덧붙인다.
+
+    조각 하나만 보면 "이 정도면 조용한가"를 절대 기준으로 판단해야 하는데,
+    통화마다 회선 상태와 주변 소음이 달라 그 기준이 흔들린다. 같은 통화의
+    중앙값을 빼면 그 편차가 사라지고 "이 통화 안에서 어느 쪽인가"만 남는다.
+
+    발화 순서는 사용하지 않는다. 중앙값과 순위는 모두 발화를 늘어놓은 차례와
+    무관한 값이라, 조각을 아무 순서로 섞어 넣어도 결과가 같다.
+    """
+    base = np.asarray(features, dtype=np.float32)
+    if mode == "none":
+        return base
+    if base.ndim != 2:
+        raise ValueError("Call features must be 2-dimensional")
+    centered = base - np.median(base, axis=0, keepdims=True)
+    if mode == "center":
+        return np.hstack((base, centered)).astype(np.float32)
+    if mode != "full":
+        raise ValueError(f"Unknown call context mode: {mode}")
+    columns = np.concatenate((np.arange(MEAN_BLOCK), np.array([base.shape[1] - 1])))
+    ranks = rank_within_call(base[:, columns])
+    return np.hstack((base, centered, ranks)).astype(np.float32)
+
+
+def speaker_probability(classifier, features: np.ndarray) -> np.ndarray:
+    """신고자(1)일 확률을 돌려준다. 열 순서를 classes_로 확인한다."""
+    classes = list(classifier.classes_)
+    if 1 not in classes:
+        raise ValueError("Classifier was not trained on speaker label 1")
+    return classifier.predict_proba(features)[:, classes.index(1)].astype(np.float64)
+
+
+def cluster_speakers(
+    base_features: np.ndarray,
+    probabilities: np.ndarray,
+    min_utterances: int = 6,
+    margin: float = 0.10,
+    seed: int = 42,
+) -> np.ndarray:
+    """통화 안의 발화를 두 군집으로 묶고 군집 단위로 화자를 정한다.
+
+    같은 사람의 발화는 녹음 환경이 같아 음향이 서로 닮는다. 군집 평균 확률로
+    라벨을 정하면 개별 발화에서 삐끗한 예측이 같은 군집 다수에 의해 교정된다.
+
+    발화가 너무 적거나 두 군집의 평균 확률이 비슷해 어느 쪽이 신고자인지
+    분명하지 않으면 묶기를 포기하고 발화별 예측을 그대로 둔다. 한 사람만
+    말한 통화를 억지로 둘로 가르지 않기 위한 안전장치다.
+    """
+    probabilities = np.asarray(probabilities, dtype=np.float64)
+    single = (probabilities >= 0.5).astype(np.int64)
+    if len(probabilities) < min_utterances:
+        return single
+    base = np.asarray(base_features, dtype=np.float32)[:, :MEAN_BLOCK]
+    spread = base.std(axis=0)
+    spread[spread < 1e-6] = 1.0
+    scaled = (base - base.mean(axis=0)) / spread
+    # KMeans의 초기값은 행 순서에 따라 달라진다. 값으로만 정해지는 차례로 한 번
+    # 정렬한 뒤 군집을 나누고 되돌리면, 발화를 어떤 순서로 넣어도 결과가 같다.
+    order = np.lexsort(scaled.T[::-1])
+    inverse = np.argsort(order)
+    try:
+        assignment = KMeans(n_clusters=2, n_init=4, random_state=seed).fit_predict(scaled[order])[inverse]
+    except ValueError:
+        return single
+    first = probabilities[assignment == 0]
+    second = probabilities[assignment == 1]
+    if first.size == 0 or second.size == 0:
+        return single
+    if abs(float(first.mean()) - float(second.mean())) < margin:
+        return single
+    caller = 0 if first.mean() > second.mean() else 1
+    return (assignment == caller).astype(np.int64)
+
+
+def predict_call(
+    classifier,
+    base_features: np.ndarray,
+    call_context: str,
+    cluster: bool,
+    min_utterances: int = 6,
+    margin: float = 0.10,
+    seed: int = 42,
+) -> np.ndarray:
+    """통화 하나의 발화 전체를 한 번에 판정한다."""
+    context = add_call_context(base_features, call_context)
+    if not cluster:
+        return classifier.predict(context).astype(np.int64)
+    probabilities = speaker_probability(classifier, context)
+    return cluster_speakers(base_features, probabilities, min_utterances, margin, seed)
