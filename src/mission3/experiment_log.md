@@ -6,7 +6,7 @@
 
 ## 기록 범위와 버전 대응
 
-버전은 **실행 코드의 ver1~ver8**를 기준으로 구분합니다. 기존 [ver4 실행 안내](mission3_ver4/README.md)의 결과 대응표는 `mission3_all_in_one_ver2.ipynb`의 결과를 `results/mission3/ver1`에 연결합니다. 따라서 이 폴더의 점수는 EXP-002에 기록하고, ver1과 ver2의 독립된 두 번의 실행 결과로 중복 집계하지 않습니다. ver5는 Colab의 `ver5_efficient` 결과를 로컬 `results/mission3/ver5/`에 보관한 실행입니다.
+버전은 **실행 코드의 ver1~ver9**를 기준으로 구분합니다. 기존 [ver4 실행 안내](mission3_ver4/README.md)의 결과 대응표는 `mission3_all_in_one_ver2.ipynb`의 결과를 `results/mission3/ver1`에 연결합니다. 따라서 이 폴더의 점수는 EXP-002에 기록하고, ver1과 ver2의 독립된 두 번의 실행 결과로 중복 집계하지 않습니다. ver5는 Colab의 `ver5_efficient` 결과를 로컬 `results/mission3/ver5/`에 보관한 실행입니다.
 
 | 실험 | 실행 버전 | 코드 / 노트북 | 확인된 결과 |
 | --- | --- | --- | --- |
@@ -18,6 +18,7 @@
 | EXP-006 | ver6 | `mission3_ver6.ipynb`, `mission3_ver6/*.py` | `results/mission3/ver6/`의 A–F 비교·D 미세조정·보정 fallback·Validation 결과 |
 | EXP-007 | ver7 | `mission3_ver7.ipynb`, `mission3_ver7/*.py` | `results/mission3/ver7/`의 KoELECTRA 전체 학습 3 epoch·보정 fallback·최종/후보 단독 Validation 결과 |
 | EXP-008 | ver8 | `mission3_ver8.ipynb`, `mission3_ver8/*.py` | `results/mission3/ver8/`의 RoBERTa-large 후보 B 3 epoch 기록·보정 fallback·최종/후보 단독 CSV; 로컬 후보 체크포인트는 최종 기록과 불일치 |
+| EXP-009 | ver9 | `mission3_ver9.ipynb`, `mission3_ver9/*.py` | `results/mission3/ver9/`의 DeBERTa 2-fold·각 3 epoch 학습·NB-LR·보정 fallback·최종/후보 단독 Validation 결과 |
 
 - 입력은 양측 대화의 전사 `text`이며, 대상은 `고열, 구토, 두통, 복통, 어지러움, 열상, 오심, 전신쇠약, 호흡곤란` 9개입니다. 각 증상의 유무를 독립적으로 예측합니다.
 - 평가 지표는 **9개 증상의 Macro F1**입니다. 한 통화에 여러 증상이 있을 수 있으므로 아래 표의 증상별 Support 합계는 통화 수와 다릅니다.
@@ -27,6 +28,7 @@
 - 현재 ver1~ver5 실험 노트북에는 셀 출력이 저장되어 있지 않습니다. 구체적인 CPU/GPU 기종, 저장되지 않은 학습 시간·손실은 확인할 수 없습니다. ver3·ver4·ver5의 학습 이력은 별도 JSON에 남아 있으며, ver5의 평가 폴더에는 `20260915_171404` 시각 문자열이 있습니다. 이는 전체 실행의 시작·종료 시각 기록은 아닙니다.
 - 2026-09-17에 ver7의 최종·후보 단독 CSV 각각을 같은 Validation JSON 3,640개와 대조했습니다. 두 CSV 모두 파일명 중복·누락·추가 행이 없고, 재계산한 Precision·Recall·F1·Support가 저장된 JSON과 부동소수점 반올림 오차 범위에서 일치했습니다. ver7 노트북에는 셀 출력이 없으므로 실제 실행 설정·장치·학습 이력·시간은 결과 JSON을 근거로 기록합니다. 이번 검증은 저장된 CSV 재평가이며 GPU 재학습·재추론은 수행하지 않았습니다.
 - 2026-09-17에 ver8의 최종·후보 단독 CSV도 Validation JSON 3,640개와 대조해 저장된 모든 증상별 지표와 Macro F1을 확인했습니다. 다만 로컬 `trials/B/best.ckpt`는 epoch 0이며 완료 기록의 epoch 3·SHA256과 다릅니다. CSV 재평가 성공과 저장된 가중치의 재현 가능성을 구분하며, 상세 내용은 EXP-008의 보관 상태에 기록합니다.
+- 2026-09-19에 ver9 최종·후보 단독 CSV를 같은 Validation JSON 3,640개와 대조해 저장된 지표를 확인했습니다. 최종 선택은 기존 ver4이며 새 후보 비중은 0입니다. manifest가 참조하는 17개 파일의 SHA256과 실행 코드 24개의 해시도 일치했습니다. GPU 재학습·재추론은 수행하지 않았습니다.
 
 ## EXP-001 — ver1: 문자 TF-IDF + Logistic Regression 모듈형 baseline
 
@@ -1146,7 +1148,191 @@ python results/mission3/ver7/submission/ver4_runtime/evaluate.py \
 
 따라서 epoch 1부터 복구할 필요가 없고 최종 epoch 3 모델을 정상 확보했다면 `best_last-002.ckpt`는 삭제할 수 있습니다. **현재는 최종 후보 가중치가 불일치하므로 먼저 올바른 최종 파일을 확보한 뒤 삭제하는 편이 안전합니다.** 이 중간 파일을 `best.ckpt`로 이름만 바꿔 대체할 수는 없습니다. 이번 로그 정리에서는 체크포인트를 수정·이동·삭제하지 않았습니다.
 
-## ver1~ver8 결과 요약
+## EXP-009 — ver9: 한국어 DeBERTa-v3 2-fold + NB-log-count LR
+
+| 항목 | 결과 |
+| --- | --- |
+| 구현 / 결과 확인일 | 구현 2026-09-17 / 로컬 결과 확인 2026-09-19 |
+| 실행 코드 | `src/mission3/mission3_ver9.ipynb`, `mission3_ver9/*.py`; 현재 노트북 셀 출력 없음 |
+| 결과 위치 | `results/mission3/ver9/`; 실제 설정·학습 이력·시간은 저장된 JSON 기준 |
+| 기록된 실행 시각 | 2026-09-17 23:51:12.794 ~ 2026-09-18 01:49:02.116 KST; `runtime.json`의 시작 timestamp와 경과 시간 기준 |
+| 실행 환경 | NVIDIA L4 1개, BF16; torch `2.11.0+cu128`, CUDA `12.8`, transformers `4.57.1`, numpy `2.1.3`, scikit-learn `1.6.1` |
+| 입력 / 데이터 | 서울 Training 29,200개 / Validation 3,640개; 양측 발화 text, WAV 미사용 |
+| Training 내부 분할 | 기존 ver4 분할 재사용: calibration 2,880개, 나머지 26,320개; fold 1 fit 21,032 / stop 5,288, fold 2 fit 21,053 / stop 5,267 |
+| 새 encoder | `team-lucid/deberta-v3-base-korean`, 고정 revision `47a3b00828c5dc2b8b080c6738ef7a58ebd419d5` |
+| 새 후보 | DeBERTa 2개 fold 모델의 확률 평균 0.75 + NB-log-count-ratio Logistic Regression 0.25; 사전 고정 비율 |
+| 실제 학습 / 최적 epoch | 두 fold 모두 전체 encoder·분류기를 3 epoch 학습, **각 epoch 3 선택**; `resumed=false`, 시간 부족 중단 없음 |
+| 최종 구성 선택 | **ver4_baseline**; 새 후보 가중치 9개 모두 0 |
+| Calibration cross-fit | 기존 0.659670866 / 새 후보 포함 최선 혼합 0.659546589 / 후보 단독 0.597860936 |
+| 최종 Validation Macro F1 | **0.656765674** (원본 `0.6567656741534235`) |
+| 후보 단독 Validation Macro F1 | **0.603570283** (원본 `0.6035702825813318`); 최종 구성보다 **-5.3195%p** |
+| 전체 경과 시간 | **117.8220분 (약 1시간 58분)**; 설정 셀부터 설치·입력 복원·학습·최종/후보 평가까지 |
+| 실행 상태 | `complete=true`, `status=selection_frozen`, `failures=[]`, 최종 Validation 완료 |
+| 근거 | [학습 결과](../../results/mission3/ver9/training_metrics.json), [epoch 이력](../../results/mission3/ver9/candidate_history.json), [실행 설정](../../results/mission3/ver9/run_identity.json), [교차 보정](../../results/mission3/ver9/calibration_comparison.json), [최종 Validation](../../results/mission3/ver9/validation_metrics.json), [후보 단독 Validation](../../results/mission3/ver9/candidate_validation_metrics.json), [시간](../../results/mission3/ver9/runtime.json) |
+
+### 저장된 학습 설정
+
+| 항목 | 설정 |
+| --- | --- |
+| 대화 처리 / head | 최대 512-token window, overlap 64; CLS + mean pooling, 증상별 window attention |
+| 초기화 / 학습 범위 | 공개 사전학습 DeBERTa + 새 분류기; 전체 encoder·분류기 공동 미세조정 |
+| 손실 / 최대 epoch | unweighted BCE / 3 epoch, patience 2 |
+| Learning rate | encoder `2e-5`, head `1e-4`, layerwise decay 0.95 |
+| Batch | 통화 4 / window 4 / accumulation 8 / 유효 batch 최대 32; 후보 추론 batch 4 |
+| 정규화·메모리 | weight decay 0.01, warmup 0.1, dropout 0.1, gradient checkpointing, BF16 |
+| Seed | config 42; 실행 코드의 fold 학습 seed는 1,051 / 2,060 |
+| Epoch 선택 | 각 Training stop의 그룹 분리 3-fold threshold 교차평가 Macro F1 우선, AP 동점 보조 |
+| 모델 수 | 최대 2개; 첫 fold 실측 시간과 남은 예산으로 두 번째 실행 여부 판단, 이번 실행은 2개 모두 완료 |
+| 희소 모델 | calibration 제외 Training 26,320개; 문자·단어 TF-IDF에 증상별 NB log-count-ratio를 곱한 Logistic Regression |
+| 희소 설정 — 실행 코드 기본값 | 문자 최대 80,000 / 단어 최대 20,000 특징, `min_df=2`, `C=1.0`, `max_iter=500`, `alpha=1.0`, `class_weight=None` |
+| 혼합 채택 기준 | 별도 calibration 5-fold에서 기존 대비 F1 최소 +0.002, 최소 3/5 fold 개선 |
+| 실행 예산 | 설정 셀부터 10,800초; 최종 추론 1,500초 + Training 보정 600초 예약 |
+
+기존 ver4 `splits.json`의 SHA256이 이번 `run_identity.json`과 일치하며 위 분할 개수는 해당 파일로 확인했습니다. 공식 Validation은 epoch·혼합·임계값 선택에 사용하지 않았다는 실행 기록(`official_validation_used_for_selection=false`)이 있습니다. NB-LR도 공통 calibration을 제외하고 학습하며 neural epoch 선택에는 관여하지 않습니다. 기존 ver4의 5개 신경망은 재학습하지 않았습니다. 설계 배경은 [ver9 RESEARCH](mission3_ver9/RESEARCH.md)에 있습니다.
+
+### 모든 epoch 학습 이력
+
+| Fold | Epoch | 단계 | Train loss | Stop Macro F1 | Stop Macro AP | 시간 (분) | 최적 |
+| ---: | ---: | --- | ---: | ---: | ---: | ---: | :---: |
+| 1 | 0 | 초기 공개 encoder 평가 | — | 0.269861692 | 0.158024656 | 0.8261 |  |
+| 1 | 1 | 전체 encoder·분류기 학습 | 0.440643 | 0.420873017 | 0.346833630 | 16.1847 |  |
+| 1 | 2 | 전체 encoder·분류기 학습 | 0.330545 | 0.530754054 | 0.524465262 | 16.2114 |  |
+| 1 | 3 | 전체 encoder·분류기 학습 | 0.300209 | 0.548217257 | 0.558071991 | 16.2435 | ✓ |
+| 2 | 0 | 초기 공개 encoder 평가 | — | 0.273575504 | 0.164720287 | 0.8132 |  |
+| 2 | 1 | 전체 encoder·분류기 학습 | 0.437663 | 0.432816768 | 0.375082343 | 16.2377 |  |
+| 2 | 2 | 전체 encoder·분류기 학습 | 0.323816 | 0.540373370 | 0.554906139 | 16.3060 |  |
+| 2 | 3 | 전체 encoder·분류기 학습 | 0.294254 | 0.558498197 | 0.576185676 | 16.2485 | ✓ |
+
+학습 epoch 1~3의 합계는 fold 1 **48.6395분**, fold 2 **48.7922분**, 총 **97.4318분**입니다. epoch 0 평가와 보정·저장·최종 추론은 이 합계에 포함하지 않습니다. 두 fold 모두 epoch 3까지 stop F1이 상승해 최종 epoch를 선택했으며, 기록상 예산 중단이나 재개는 없습니다. `candidate_history.json`과 `training_metrics.json`의 이력은 일치합니다. stop F1은 반복적인 epoch 선택에 사용한 내부 지표로, 공식 Validation이나 모델 수준 OOF 점수가 아닙니다.
+
+### 교차 보정과 기존 구성 유지
+
+| 구성 | Calibration cross-fit Macro F1 | 기존 대비 (%p) | 최종 선택 |
+| --- | ---: | ---: | :---: |
+| 기존 ver4 | **0.659670866** | — | ✓ |
+| 새 후보 포함 raw 확률 혼합 | 0.659546589 | -0.0124 | |
+| 새 후보 포함 logit 혼합 | 0.659284140 | -0.0387 | |
+| 새 후보 단독 진단 | 0.597860936 | -6.1810 | |
+
+혼합 후보 중 raw가 더 좋았지만 기존 대비 **-0.000124277 F1 (-0.0124%p)**이고 개선 fold도 **2/5**였습니다. 최소 +0.002와 최소 3개 fold 개선 조건을 모두 충족하지 못해 `fallback_reason=candidate_gain_below_minimum`으로 기존 구성을 유지했습니다.
+
+| Fold | raw 혼합 − 기존 F1 | 차이 (%p) | 개선 |
+| ---: | ---: | ---: | :---: |
+| 1 | -0.000565350 | -0.0565 |  |
+| 2 | -0.000018807 | -0.0019 |  |
+| 3 | +0.004222992 | +0.4223 | ✓ |
+| 4 | -0.006989464 | -0.6989 |  |
+| 5 | +0.001466004 | +0.1466 | ✓ |
+
+최종 calibration fit F1은 **0.669459793**, 후보 단독 fit F1은 **0.608642912**입니다. 같은 calibration 표본으로 보정·평가한 값이며 위 cross-fit과 구분합니다. 혼합 방식 선택에도 cross-fit 점수를 재사용하므로 선택 후 점수를 독립된 일반화 성능 추정이나 통계적 유의성 검정으로 해석하지 않습니다. 이번 로그 반영에서는 학습·보정을 재실행하지 않았습니다.
+
+### 최종 혼합 비율과 후보 단독 임계값
+
+| Class | 기존 neural α | 새 후보 β | 최종 threshold | 후보 단독 threshold |
+| --- | ---: | ---: | ---: | ---: |
+| 고열 | 1.00 | 0.00 | 0.527061 | 0.374144 |
+| 구토 | 0.75 | 0.00 | 0.585741 | 0.285509 |
+| 두통 | 0.75 | 0.00 | 0.414659 | 0.213756 |
+| 복통 | 0.75 | 0.00 | 0.525984 | 0.389285 |
+| 어지러움 | 1.00 | 0.00 | 0.491587 | 0.338866 |
+| 열상 | 1.00 | 0.00 | 0.527157 | 0.362315 |
+| 오심 | 0.75 | 0.00 | 0.411040 | 0.206591 |
+| 전신쇠약 | 1.00 | 0.00 | 0.472925 | 0.311621 |
+| 호흡곤란 | 0.75 | 0.00 | 0.585972 | 0.394687 |
+
+최종 예측은 `α × 기존 ver4 neural + (1−α) × 기존 sparse`에 원래 임계값을 적용합니다. 새 후보 β는 전부 0입니다. 후보 단독은 **DeBERTa 2개 평균 + NB-LR의 고정 혼합**이며, DeBERTa만 평가한 점수가 아닙니다.
+
+### 최종 Validation 상세
+
+| Class | Precision | Recall | F1-score | Support |
+| --- | ---: | ---: | ---: | ---: |
+| 고열 | 0.7705 | 0.6386 | 0.6984 | 678 |
+| 구토 | 0.6945 | 0.5419 | 0.6088 | 537 |
+| 두통 | 0.5686 | 0.5321 | 0.5497 | 374 |
+| 복통 | 0.8931 | 0.7673 | 0.8254 | 838 |
+| 어지러움 | 0.6183 | 0.7054 | 0.6590 | 774 |
+| 열상 | 0.8805 | 0.9071 | 0.8936 | 463 |
+| 오심 | 0.3205 | 0.5431 | 0.4031 | 429 |
+| 전신쇠약 | 0.5645 | 0.6252 | 0.5933 | 651 |
+| 호흡곤란 | 0.7188 | 0.6443 | 0.6795 | 492 |
+| **Macro avg** | **0.6699** | **0.6561** | **0.656766** | **5,236** |
+
+### 새 후보 단독 Validation 상세
+
+| Class | Precision | Recall | F1-score | Support | 최종 구성 대비 F1 (%p) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 고열 | 0.7102 | 0.5457 | 0.6172 | 678 | -8.1206 |
+| 구토 | 0.5723 | 0.5531 | 0.5625 | 537 | -4.6287 |
+| 두통 | 0.5364 | 0.3743 | 0.4409 | 374 | -10.8779 |
+| 복통 | 0.8821 | 0.7232 | 0.7948 | 838 | -3.0663 |
+| 어지러움 | 0.5998 | 0.6680 | 0.6320 | 774 | -2.6993 |
+| 열상 | 0.8706 | 0.8575 | 0.8640 | 463 | -2.9634 |
+| 오심 | 0.3094 | 0.5431 | 0.3942 | 429 | -0.8867 |
+| 전신쇠약 | 0.4813 | 0.5730 | 0.5231 | 651 | -7.0153 |
+| 호흡곤란 | 0.6700 | 0.5488 | 0.6034 | 492 | -7.6176 |
+| **Macro avg** | **0.6258** | **0.5985** | **0.603570** | **5,236** | **-5.3195** |
+
+- 2026-09-19에 [최종 CSV](../../results/mission3/ver9/inference.csv)·[후보 단독 CSV](../../results/mission3/ver9/candidate_inference.csv)를 로컬 Validation JSON **3,640개**와 대조했습니다. 두 CSV 모두 파일명 중복·누락·추가 행이 없고 지정 9개 증상만 포함하며, 재계산한 모든 Precision·Recall·F1·Support와 Macro F1이 저장된 JSON과 일치했습니다.
+- 후보 단독은 최종 구성과 통화 **1,567개**, 이진 판정 **2,195개**가 다르며 9개 증상 F1이 모두 낮습니다. 후보 단독 0.603570은 ver8 후보 단독 0.645292보다 **-4.1722%p** 낮습니다.
+- 최종 CSV와 기존 버전의 차이는 다음과 같습니다. 같은 파일명을 맞춰 증상 집합을 비교했으며 행 순서·문자열 표현 차이는 제외했습니다.
+
+| 비교 대상 | 예측이 다른 통화 | 다른 이진 판정 |
+| --- | ---: | ---: |
+| ver4 | 3 | 3 |
+| ver5 | 495 | 539 |
+| ver6 | 2 | 2 |
+| ver7 | 2 | 2 |
+| ver8 | 2 | 2 |
+
+ver6·ver7·ver8 대비 달라진 2개 판정은 모두 **전신쇠약 오탐이 제거된 경우**입니다. 최종 점수는 ver8보다 **+0.0096%p**, 기존 최고였던 ver5보다 **+0.0048%p** 높습니다. 그러나 최종 선택은 기존 ver4이고 새 후보 비중은 0이므로 **새 DeBERTa/NB-LR 학습으로 인한 개선이 아닙니다.** 같은 기존 모델 구성의 재추론 결과에서 소수 판정이 달라진 것이며, 그 차이가 발생한 정확한 수치 연산 원인은 이번 CSV 대조만으로 확정하지 않습니다.
+
+### 실제 실행 시간과 해석
+
+| 단계 | 시간 (분) |
+| --- | ---: |
+| 패키지 설치 | 0.2449 |
+| 입력 복원 | 2.4230 |
+| 공개 사전학습 모델 준비 | 0.7628 |
+| 후보 학습·보정·최종 선택 저장 | 106.0268 |
+| 최종 Validation 추론·평가 | 5.7203 |
+| 후보 단독 진단 | 2.6166 |
+| **단계 시간 합계** | **117.7945** |
+| **전체 경과 시간** | **117.8220** |
+
+전체 경과 **7,069.3224초**로 10,800초 예산 안에 최종·후보 단독 평가까지 완료됐습니다. 단계 합계와 전체 경과의 약 1.65초 차이는 단계 밖 경과 시간입니다. `training_metrics.json`의 내부 학습 처리 시간 105.8436분과 epoch 합계 97.4318분은 위 학습 단계 안에 포함되므로 중복 합산하지 않습니다. GPU CU·요금은 기록되지 않았습니다.
+
+encoder 계열·손실·희소 특징·새 모델 수를 함께 바꾼 실행이므로 개별 변경의 기여를 분리할 수 없습니다. 두 fold의 stop F1은 학습 중 상승했지만 후보 단독과 혼합 모두 기존 구성을 넘지 못했습니다. 이 결과만으로 DeBERTa 계열 전체의 성능을 단정하지 않습니다.
+
+### 결과 보관 및 재현 방법
+
+- `mission3_ver9_model.ckpt`는 실제 신경망 가중치가 아닌 **최종 조합·상대 경로·SHA256을 담은 JSON manifest**입니다. `base/`의 기존 5개 fold 가중치·sparse·tokenizer와 새 `candidate_1.ckpt`, `candidate_2.ckpt`, `nb_ratio_lr.joblib`, `tokenizer/`를 함께 보관합니다.
+- 로컬에서 manifest가 참조하는 **17개 파일 전체의 SHA256이 모두 일치**했습니다. `submission/`과 현재 `src/mission3/mission3_ver9/`의 실행 Python 파일 24개도 각각 `run_identity.json`의 코드 해시와 일치합니다. 저장된 모델 파일의 무결성 확인이며, GPU 재학습·재추론 검증은 아닙니다.
+- 같은 상위 폴더의 `ver9-20260919T052548Z-1-001.zip`~`005.zip`에도 가중치·결과가 분산 보관돼 있습니다. ZIP 이름의 2026-09-19는 위 실제 실행 시각과 구분합니다. 이번 확인에서는 원본 결과나 ZIP을 수정하지 않았습니다.
+- [노트북](mission3_ver9.ipynb)과 기존 `mission3_ver5_inputs.zip`으로 같은 설정의 Colab GPU 실행을 재현할 수 있습니다. 새로운 실험은 `OUTPUT_DIR`를 다른 폴더로 지정합니다. 현재 노트북에는 셀 출력이 없으므로 학습 이력과 환경은 위 결과 JSON을 근거로 합니다.
+
+프로젝트 루트에서 저장된 CSV만 재평가하려면 다음을 실행합니다.
+
+```bash
+python src/mission3/evaluate.py \
+  --label_dir "DATA/대학부 데이터/Validation/2.라벨링데이터/VL_서울_구급" \
+  --prediction results/mission3/ver9/inference.csv
+
+python src/mission3/evaluate.py \
+  --label_dir "DATA/대학부 데이터/Validation/2.라벨링데이터/VL_서울_구급" \
+  --prediction results/mission3/ver9/candidate_inference.csv
+```
+
+저장된 모델의 재추론 명령은 다음과 같습니다. 아래는 재현 방법이며 이번 로그 반영 중 실행한 명령은 아닙니다.
+
+```bash
+python results/mission3/ver9/submission/inference.py \
+  --audio_dir "DATA/대학부 데이터/Validation/1.원천데이터/VS_서울_구급" \
+  --label_dir "DATA/대학부 데이터/Validation/2.라벨링데이터/VL_서울_구급" \
+  --ckpt_path results/mission3/ver9/mission3_ver9_model.ckpt \
+  --output outputs/mission3/ver9/inference.csv
+```
+
+## ver1~ver9 결과 요약
 
 | 실행 버전 | Training 내부 지표 | Validation Macro F1 | 비교 범위 |
 | --- | --- | --- | --- |
@@ -1158,13 +1344,16 @@ python results/mission3/ver7/submission/ver4_runtime/evaluate.py \
 | ver6 A–F 비교 + D 미세조정 | 후보 cross-fit F1 0.662117, 최종 선택 0.659671 | 0.656670 | 기존 ver4로 fallback; D head epoch 2, encoder 추가 미세조정 미채택 |
 | ver7 KoELECTRA 전체 공동 학습 | 혼합 cross-fit F1 0.658666, 최종 선택 0.659671; 후보 단독 0.631152 | 최종 **0.656670** / 후보 단독 **0.638110** | 기존 ver4로 fallback; 새 후보 최적 epoch 2, 최종 CSV는 ver6과 동일 |
 | ver8 RoBERTa-large + token attention (B) | 혼합 cross-fit F1 0.657451, 최종 선택 0.659671; 후보 단독 0.650081 | 최종 **0.656670** / 후보 단독 **0.645292** | 기존 ver4로 fallback; 기록상 최적 epoch 3, 최종 CSV는 ver6·ver7과 동일; 로컬 후보 가중치 불일치 |
+| ver9 DeBERTa-v3 2-fold + NB-LR | 혼합 cross-fit F1 0.659547, 최종 선택 0.659671; 후보 단독 0.597861 | 최종 **0.656766** / 후보 단독 **0.603570** | 기존 ver4로 fallback; 두 fold 모두 최적 epoch 3; 최종 점수의 미세 차이는 새 후보 학습 효과가 아님 |
 
 Training 내부 수치는 분할과 선택 절차가 달라 직접적인 성능 순위에 사용하지 않습니다. 위 Validation 비교는 동일한 3,640개 파일에 대한 저장된 예측을 기준으로 하며, 별도의 Test 점수나 반복 seed 실험 결과는 보관되어 있지 않습니다.
 
-ver5의 저장된 점수가 수치상 가장 높지만 ver4와의 차이는 매우 작습니다. 이번 실행에서 추가 학습으로 인한 실질적인 성능 개선은 확인되지 않았습니다.
+ver9의 최종 저장 점수 0.656766이 수치상 가장 높지만 이전 최고 ver5와의 차이는 +0.0048%p에 불과합니다. ver9도 기존 ver4 구성을 선택했고 새 후보 비중은 0이므로 이 미세 차이를 새 모델 학습의 성능 개선으로 해석하지 않습니다. ver5 역시 최적 후보가 추가 학습 전 epoch 0으로, 추가 학습으로 인한 실질적인 개선은 확인되지 않았습니다.
 
 ver6도 큰 성능 향상을 확인하지 못했으며, ver6의 최종 CSV는 새 D 후보가 아닌 기존 ver4 구성을 사용한 결과입니다.
 
 ver7은 새 KoELECTRA 전체를 3 epoch 학습했으나 혼합 채택 기준을 통과하지 못했습니다. 최종 결과는 ver6과 같고, 별도로 평가한 후보 단독도 최종 구성보다 1.8560%p 낮았습니다. **이번 실행에서도 최종 성능 개선은 확인되지 않았습니다.**
 
 ver8은 RoBERTa-large 후보 B를 3 epoch 학습한 기록이 있으며 후보 단독 F1은 ver7보다 높아졌습니다. 그러나 혼합 채택 기준을 통과하지 못해 **최종 예측은 ver6·ver7과 동일하며 성능 개선은 확인되지 않았습니다.** 저장된 CSV의 점수는 검증했지만 현재 로컬 후보 체크포인트가 최종 기록과 달라, 제출·재추론 전에 올바른 가중치를 다시 확보해야 합니다.
+
+ver9는 DeBERTa 2개를 각각 3 epoch 학습하고 NB-LR과 혼합했으나, Training 교차 보정의 개선 폭·개선 fold 수 조건을 모두 통과하지 못했습니다. 후보 단독은 최종 구성보다 5.3195%p 낮았고 **새 후보의 성능 개선은 확인되지 않았습니다.** 설치·입력 복원·학습·최종/후보 평가까지 약 117.82분이 걸렸으며, 보관된 모델 파일의 해시는 모두 일치합니다.

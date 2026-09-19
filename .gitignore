@@ -21,6 +21,8 @@ venv/
 # Keep small manifests, metrics, CSVs, and experiment logs versioned.
 /results/mission3/ver3/mission3_ver3_model.ckpt
 /results/**/candidate_best*.ckpt
+/results/**/candidate_*.ckpt
+/results/**/nb_ratio_lr.joblib
 /results/**/best*.ckpt
 /results/**/fold_*.ckpt
 /results/**/*.safetensors

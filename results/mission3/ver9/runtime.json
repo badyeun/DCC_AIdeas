@@ -1,0 +1,17 @@
+{
+  "start_epoch": 1789656672.7935388,
+  "deadline_epoch": 1789667472.7935388,
+  "elapsed_seconds": 7069.3224041461945,
+  "budget_seconds": 10800,
+  "stages_seconds": {
+    "dependencies": 14.695978879928589,
+    "input_restore": 145.38112354278564,
+    "public_pretrained": 45.76928353309631,
+    "training": 6361.609363555908,
+    "final_validation": 343.220445394516,
+    "candidate_diagnostic": 156.9938988685608
+  },
+  "failures": [],
+  "final_validation_completed_this_run": true,
+  "final_csv_exists": true
+}
