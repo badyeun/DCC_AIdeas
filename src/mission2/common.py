@@ -6,12 +6,14 @@
 
 from __future__ import annotations
 
+import io
 import json
 from pathlib import Path
 from typing import Any
 
 import librosa
 import numpy as np
+import soundfile
 
 
 SAMPLE_RATE = 16_000
@@ -19,12 +21,19 @@ SPEAKER_TO_INDEX = {"0": 0, "1": 1}
 UTTERANCE_KEYS = ("utterances", "utterences")
 
 
-def load_annotation(path: Path) -> dict[str, Any]:
-    with path.open("r", encoding="utf-8") as file:
-        annotation = json.load(file)
+def decode_annotation(data: bytes) -> dict[str, Any]:
+    """이미 읽어둔 바이트에서 annotation을 만든다."""
+    annotation = json.loads(data.decode("utf-8"))
     if not isinstance(annotation, dict):
-        raise ValueError(f"Annotation must be an object: {path}")
+        raise ValueError("Annotation must be an object")
     return annotation
+
+
+def load_annotation(path: Path) -> dict[str, Any]:
+    try:
+        return decode_annotation(path.read_bytes())
+    except ValueError as error:
+        raise ValueError(f"{error}: {path}") from error
 
 
 def get_utterances(annotation: dict[str, Any]) -> list[dict[str, Any]]:
@@ -100,18 +109,44 @@ def slice_utterance(
     return waveform[start:end]
 
 
-def load_waveform(path: Path) -> np.ndarray:
-    waveform, _ = librosa.load(path, sr=SAMPLE_RATE, mono=True)
+def decode_waveform(data: bytes) -> np.ndarray:
+    """이미 읽어둔 바이트를 16kHz mono 파형으로 디코딩한다.
+
+    Google Drive 같은 원격 파일시스템은 조각 단위 읽기마다 왕복이 생기므로,
+    호출하는 쪽에서 파일을 통째로 읽어 두고 이 함수에 넘긴다.
+    """
+    with io.BytesIO(data) as buffer:
+        waveform, sample_rate = soundfile.read(buffer, dtype="float32", always_2d=False)
+    if waveform.ndim > 1:  # soundfile은 (frame, channel) 순서로 돌려준다.
+        waveform = waveform.mean(axis=1)
+    if sample_rate != SAMPLE_RATE:
+        waveform = librosa.resample(waveform, orig_sr=sample_rate, target_sr=SAMPLE_RATE)
     if waveform.size == 0:
         raise ValueError("Empty audio")
-    return waveform
+    return np.ascontiguousarray(waveform, dtype=np.float32)
+
+
+def load_waveform(path: Path) -> np.ndarray:
+    try:
+        return decode_waveform(path.read_bytes())
+    except RuntimeError:  # soundfile이 못 읽는 포맷은 librosa에 맡긴다.
+        waveform, _ = librosa.load(path, sr=SAMPLE_RATE, mono=True)
+        if waveform.size == 0:
+            raise ValueError("Empty audio")
+        return np.ascontiguousarray(waveform, dtype=np.float32)
 
 
 def waveform_to_feature(waveform: np.ndarray, n_mfcc: int = 20) -> np.ndarray:
-    """MFCC 및 통화 환경 단서(RMS/ZCR/spectral) 통계 특징을 만든다."""
+    """MFCC 및 통화 환경 단서(RMS/ZCR/spectral) 통계 특징을 만든다.
+
+    MFCC와 spectral 특징이 같은 STFT를 공유한다. 각자 `y=`로 호출하면
+    동일한 STFT를 네 번 반복 계산하게 되어 발화당 비용이 몇 배로 늘어난다.
+    """
     if waveform.size < 512:
         waveform = np.pad(waveform, (0, 512 - waveform.size))
-    mfcc = librosa.feature.mfcc(y=waveform, sr=SAMPLE_RATE, n_mfcc=n_mfcc)
+    magnitude = np.abs(librosa.stft(waveform))
+    mel = librosa.feature.melspectrogram(S=magnitude ** 2, sr=SAMPLE_RATE)
+    mfcc = librosa.feature.mfcc(S=librosa.power_to_db(mel), n_mfcc=n_mfcc)
     frame_count = mfcc.shape[1]
     if frame_count < 3:
         delta = np.zeros_like(mfcc)
@@ -123,9 +158,9 @@ def waveform_to_feature(waveform: np.ndarray, n_mfcc: int = 20) -> np.ndarray:
     spectral = np.vstack((
         librosa.feature.rms(y=waveform),
         librosa.feature.zero_crossing_rate(waveform),
-        librosa.feature.spectral_centroid(y=waveform, sr=SAMPLE_RATE),
-        librosa.feature.spectral_bandwidth(y=waveform, sr=SAMPLE_RATE),
-        librosa.feature.spectral_rolloff(y=waveform, sr=SAMPLE_RATE),
+        librosa.feature.spectral_centroid(S=magnitude, sr=SAMPLE_RATE),
+        librosa.feature.spectral_bandwidth(S=magnitude, sr=SAMPLE_RATE),
+        librosa.feature.spectral_rolloff(S=magnitude, sr=SAMPLE_RATE),
     ))
     values = np.concatenate((mfcc, delta, delta2, spectral), axis=0)
     return np.concatenate((
