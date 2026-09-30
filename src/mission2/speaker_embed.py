@@ -1,0 +1,206 @@
+"""Mission 2 화자 임베딩 모델 코드.
+
+사전학습 화자 인식 모델(SpeechBrain ECAPA-TDNN, VoxCeleb)로 발화마다 192차원
+"목소리 지문"을 뽑고, 같은 통화 안의 발화끼리 그 지문을 직접 비교해 화자를 정한다.
+
+판정은 두 단계다.
+
+1. 1단계: 발화 임베딩과 통화 안에서의 상대값(통화 평균을 뺀 값, 통화 중심과의
+   유사도)으로 신고자 확률을 낸다.
+2. 2단계: 같은 통화의 다른 발화들이 1단계에서 받은 확률을, 나와 목소리가 얼마나
+   닮았는지로 가중 평균해 다시 판정한다. "나와 닮은 발화들이 신고자 쪽이면 나도
+   신고자"라는 뜻이다.
+
+EXP-002의 군집 묶기는 통화를 두 덩어리로 딱 잘라 덩어리째 뒤집었고, 덩어리가
+화자가 아닌 기준으로 갈리면 크게 틀렸다. 2단계는 자르지 않고 유사도로 가중만
+하므로, 비슷한 발화가 애매하면 영향도 작다.
+
+발화 순서는 쓰지 않는다. 모든 비교는 유사도 행렬과 합·평균으로만 이루어져,
+발화를 어떤 차례로 넣어도 결과가 같다.
+"""
+
+from __future__ import annotations
+
+import shutil
+from pathlib import Path
+
+import numpy as np
+
+from common import SAMPLE_RATE, add_call_context
+
+
+ECAPA_SOURCE = "speechbrain/spkrec-ecapa-voxceleb"
+EMBED_DIM = 192
+# ECAPA는 0.5초보다 짧으면 임베딩이 불안정하다. 짧은 조각은 반복해서 늘린다.
+MIN_SAMPLES = SAMPLE_RATE // 2
+# 긴 조각은 가운데 20초만 쓴다. 화자 정보는 충분하고 GPU 메모리가 일정해진다.
+MAX_SAMPLES = SAMPLE_RATE * 20
+# 2단계에서 "나와 가장 닮은 발화"로 볼 개수.
+NEIGHBORS = 3
+STAGE2_COLUMNS = ("p", "similar_to_caller", "similar_to_operator", "difference", "neighbor_vote", "others_mean")
+
+
+def load_encoder(savedir: Path, device: str):
+    """ECAPA 인코더를 불러온다. savedir에 받아 둔 파일이 있으면 인터넷 없이 쓴다."""
+    try:
+        from speechbrain.inference.speaker import EncoderClassifier
+    except ImportError:  # speechbrain 0.5 계열
+        from speechbrain.pretrained import EncoderClassifier
+    savedir = Path(savedir)
+    local = (savedir / "hyperparams.yaml").is_file()
+    return EncoderClassifier.from_hparams(
+        source=str(savedir) if local else ECAPA_SOURCE,
+        savedir=str(savedir),
+        run_opts={"device": device},
+    )
+
+
+def bundle_encoder(savedir: Path, target: Path) -> None:
+    """추론이 인터넷 없이 돌도록 인코더 파일을 체크포인트 옆에 복사한다."""
+    target.mkdir(parents=True, exist_ok=True)
+    for path in Path(savedir).iterdir():
+        if path.is_file() or path.is_symlink():
+            # 허깅페이스 캐시는 심볼릭 링크로 받아지므로 실제 파일 내용을 복사한다.
+            shutil.copyfile(path.resolve(), target / path.name)
+
+
+def fit_length(segment: np.ndarray) -> np.ndarray:
+    """짧은 조각은 반복해 늘리고 긴 조각은 가운데를 잘라 길이를 맞춘다."""
+    segment = np.asarray(segment, dtype=np.float32)
+    if segment.size == 0:
+        raise ValueError("Empty segment")
+    if segment.size < MIN_SAMPLES:
+        segment = np.tile(segment, int(np.ceil(MIN_SAMPLES / segment.size)))[:MIN_SAMPLES]
+    if segment.size > MAX_SAMPLES:
+        start = (segment.size - MAX_SAMPLES) // 2
+        segment = segment[start:start + MAX_SAMPLES]
+    return segment
+
+
+def embed_segments(encoder, segments: list[np.ndarray], batch_size: int = 32) -> np.ndarray:
+    """발화 조각들의 임베딩을 돌려준다. 길이가 비슷한 것끼리 묶어 padding 낭비를 줄인다."""
+    import torch
+
+    prepared = [fit_length(segment) for segment in segments]
+    output = np.zeros((len(prepared), EMBED_DIM), dtype=np.float32)
+    if not prepared:
+        return output
+    # 길이로 정렬하는 것은 값에 따른 차례라 발화 순서와 무관하다. 결과는 제자리로 되돌린다.
+    order = np.argsort([segment.size for segment in prepared], kind="stable")
+    for begin in range(0, len(order), batch_size):
+        chosen = order[begin:begin + batch_size]
+        longest = max(prepared[index].size for index in chosen)
+        batch = np.zeros((len(chosen), longest), dtype=np.float32)
+        lengths = np.zeros(len(chosen), dtype=np.float32)
+        for row, index in enumerate(chosen):
+            batch[row, :prepared[index].size] = prepared[index]
+            lengths[row] = prepared[index].size / longest
+        with torch.no_grad():
+            vectors = encoder.encode_batch(torch.from_numpy(batch), torch.from_numpy(lengths))
+        output[chosen] = vectors.reshape(len(chosen), -1).float().cpu().numpy()
+    return output
+
+
+def normalize(vectors: np.ndarray) -> np.ndarray:
+    norm = np.linalg.norm(vectors, axis=-1, keepdims=True)
+    return (vectors / np.maximum(norm, 1e-8)).astype(np.float32)
+
+
+def stage1_width(use_mfcc: bool, mfcc_width: int = 261) -> int:
+    return EMBED_DIM * 2 + 2 + (mfcc_width * 2 if use_mfcc else 0)
+
+
+def stage1_features(embeddings: np.ndarray, mfcc: np.ndarray | None = None) -> np.ndarray:
+    """통화 하나의 1단계 특징. 임베딩 + 통화 평균 기준 상대값 (+ MFCC와 그 상대값)."""
+    unit = normalize(np.asarray(embeddings, dtype=np.float32))
+    count = len(unit)
+    mean = unit.mean(axis=0, keepdims=True)
+    centroid = normalize(mean)
+    similarity = unit @ unit.T
+    to_centroid = unit @ centroid.T
+    if count > 1:
+        to_others = (similarity.sum(axis=1) - np.diag(similarity)) / (count - 1)
+    else:
+        to_others = np.ones(count, dtype=np.float32)
+    parts = [unit, unit - mean, to_centroid.reshape(count, 1), to_others.reshape(count, 1)]
+    if mfcc is not None:
+        parts.append(add_call_context(mfcc, "center"))
+    return np.hstack(parts).astype(np.float32)
+
+
+def stage2_features(embeddings: np.ndarray, probabilities: np.ndarray) -> np.ndarray:
+    """같은 통화의 다른 발화가 받은 1단계 확률을 목소리 유사도로 가중해 모은다.
+
+    - similar_to_caller: 신고자 같은 발화들과 평균적으로 얼마나 닮았는가
+    - similar_to_operator: 대원 같은 발화들과 평균적으로 얼마나 닮았는가
+    - neighbor_vote: 나와 가장 닮은 발화 몇 개의 평균 확률
+    """
+    probabilities = np.asarray(probabilities, dtype=np.float64)
+    count = len(probabilities)
+    output = np.zeros((count, len(STAGE2_COLUMNS)), dtype=np.float32)
+    output[:, 0] = probabilities
+    if count < 2:
+        output[:, 4] = probabilities
+        output[:, 5] = probabilities
+        return output
+    unit = normalize(np.asarray(embeddings, dtype=np.float32)).astype(np.float64)
+    similarity = unit @ unit.T
+    others = ~np.eye(count, dtype=bool)
+    caller_weight = probabilities[None, :] * others
+    operator_weight = (1.0 - probabilities)[None, :] * others
+    to_caller = (similarity * caller_weight).sum(axis=1) / np.maximum(caller_weight.sum(axis=1), 1e-8)
+    to_operator = (similarity * operator_weight).sum(axis=1) / np.maximum(operator_weight.sum(axis=1), 1e-8)
+    # 가장 닮은 k개는 k번째 유사도 이상인 발화 전부로 정한다. 동점을 차례로 가르지
+    # 않으므로 발화 순서가 결과에 스며들지 않는다.
+    k = min(NEIGHBORS, count - 1)
+    vote = np.empty(count, dtype=np.float64)
+    for row in range(count):
+        values = similarity[row, others[row]]
+        threshold = np.partition(values, count - 1 - k)[count - 1 - k]
+        vote[row] = probabilities[others[row]][values >= threshold].mean()
+    output[:, 1] = to_caller
+    output[:, 2] = to_operator
+    output[:, 3] = to_caller - to_operator
+    output[:, 4] = vote
+    output[:, 5] = (probabilities.sum() - probabilities) / (count - 1)
+    return output
+
+
+def iter_calls(counts: np.ndarray):
+    """통화 경계로 행 구간을 돌려준다."""
+    start = 0
+    for value in counts:
+        size = int(value)
+        yield start, start + size
+        start += size
+
+
+def build_stage1(embeddings: np.ndarray, counts: np.ndarray, mfcc: np.ndarray | None) -> np.ndarray:
+    width = stage1_width(mfcc is not None, 0 if mfcc is None else mfcc.shape[1])
+    output = np.empty((len(embeddings), width), dtype=np.float32)
+    for start, end in iter_calls(counts):
+        if end > start:
+            output[start:end] = stage1_features(embeddings[start:end], None if mfcc is None else mfcc[start:end])
+    return output
+
+
+def build_stage2(embeddings: np.ndarray, probabilities: np.ndarray, counts: np.ndarray) -> np.ndarray:
+    output = np.empty((len(embeddings), len(STAGE2_COLUMNS)), dtype=np.float32)
+    for start, end in iter_calls(counts):
+        if end > start:
+            output[start:end] = stage2_features(embeddings[start:end], probabilities[start:end])
+    return output
+
+
+def positive_probability(classifier, features: np.ndarray) -> np.ndarray:
+    """신고자(1)일 확률. 열 순서를 classes_로 확인한다."""
+    classes = list(classifier.classes_)
+    return classifier.predict_proba(features)[:, classes.index(1)].astype(np.float64)
+
+
+def predict_call(checkpoint: dict, embeddings: np.ndarray, mfcc: np.ndarray | None) -> np.ndarray:
+    """통화 하나의 발화 전체를 한 번에 판정한다."""
+    probabilities = positive_probability(checkpoint["stage1"], stage1_features(embeddings, mfcc))
+    if checkpoint.get("use_stage2"):
+        probabilities = positive_probability(checkpoint["stage2"], stage2_features(embeddings, probabilities))
+    return (probabilities >= 0.5).astype(np.int64)

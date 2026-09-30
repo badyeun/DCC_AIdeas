@@ -7,3 +7,4 @@ joblib
 soundfile
 pandas
 matplotlib
+speechbrain

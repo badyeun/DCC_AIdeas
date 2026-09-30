@@ -63,18 +63,56 @@ MFCC·Δ·Δ²의 분포 통계에 RMS, zero-crossing rate, spectral centroid/ba
 | `center` | 522 | 통화 중앙값을 뺀 값을 추가 (기본값) |
 | `full` | 588 | 위에 더해 통화 안에서의 순위(0~1)를 추가 |
 
-`--cluster`(기본 켜짐)는 통화의 발화를 음향 유사도로 두 군집에 묶고, 군집 평균
+`--cluster`는 통화의 발화를 음향 유사도로 두 군집에 묶고, 군집 평균
 확률로 화자를 정합니다. 같은 사람의 발화는 녹음 환경이 같아 서로 닮으므로,
 개별 발화에서 삐끗한 예측이 같은 군집 다수에 의해 교정됩니다. 발화가
 `--cluster_min_utterances`(기본 6)보다 적거나 두 군집의 평균 확률 차이가
 `--cluster_margin`(기본 0.10)보다 작으면 묶기를 건너뛰고 발화별 예측을 씁니다.
 한 사람만 말한 통화를 억지로 둘로 가르지 않기 위한 안전장치입니다.
 
-끄려면 `--call_context none --no_cluster`를 줍니다. 이전 동작과 같아집니다.
+| `--cluster` | 동작 |
+| --- | --- |
+| `auto` (기본) | 군집 없음/있음 중 Validation 정확도가 높은 쪽을 체크포인트에 저장 |
+| `on` | 항상 군집 묶기 |
+| `off` (= `--no_cluster`) | 군집 묶기 안 함 |
+
+실데이터(EXP-002)에서는 군집 묶기가 정확도를 0.8537 → 0.6676으로 떨어뜨렸습니다.
+그래서 기본값을 `auto`로 바꿔, 나빠지는 설정이 체크포인트에 저장되지 않게 했습니다.
+이전 동작으로 돌리려면 `--call_context none --no_cluster`를 줍니다.
 
 학습은 두 결과를 모두 출력합니다. 군집 묶기가 얼마나 기여했는지 구분해서
-기록하기 위해서입니다. 체크포인트에는 `--cluster` 설정이 그대로 저장되고,
-`inference.py`가 그 설정을 읽어 학습과 같은 방식으로 판정합니다.
+기록하기 위해서입니다. 체크포인트에는 선택된 설정이 저장되고, `inference.py`가
+그 설정을 읽어 학습과 같은 방식으로 판정합니다.
+
+## 화자 임베딩 + 통화 내 비교 (`train_speaker_embed.py`)
+
+사전학습 화자 인식 모델(SpeechBrain ECAPA-TDNN, VoxCeleb 학습)로 발화마다 192차원
+화자 임베딩을 뽑고, 같은 통화의 발화끼리 그 임베딩을 직접 비교합니다. 예선 규칙
+(p5)의 "공개 오픈소스 라이브러리(pre-trained) 사용 허용"에 해당합니다.
+
+| 단계 | 입력 | 모델 |
+| --- | --- | --- |
+| 1단계 | 임베딩, 통화 평균을 뺀 임베딩, 통화 중심·다른 발화와의 유사도 (+ MFCC 522) | HistGradientBoosting |
+| 2단계 | 1단계 확률을 목소리 유사도로 가중한 "신고자 쪽/대원 쪽과 닮은 정도", 가장 닮은 발화 3개의 평균 확률 | HistGradientBoosting |
+
+2단계는 군집처럼 통화를 두 덩어리로 자르지 않고 유사도로 가중만 합니다. 2단계의
+학습 입력은 통화 단위 fold로 만든 out-of-fold 확률입니다. `--stage2 auto`(기본)는
+1단계만/2단계까지 중 Validation 정확도가 높은 쪽을 저장합니다.
+
+```bash
+python src/mission2/train_speaker_embed.py \
+  --data_root /path/to/data_root \
+  --ckpt_path saved_models/mission2/mission2_speaker.ckpt \
+  --embed_cache_dir cache/mission2_embed \
+  --mfcc_cache_dir cache/mission2
+```
+
+- 임베딩도 shard로 저장되어 중단 후 이어받습니다. **GPU 권장**입니다(CPU는 수십 시간).
+- `--mfcc_cache_dir`는 읽기만 합니다. 설정이나 통화 수가 다르면 캐시를 건드리지
+  않고 멈춥니다. 빼면 임베딩만으로 학습합니다.
+- 체크포인트 옆 `ecapa_voxceleb/` 폴더에 인코더 파일을 복사합니다. 제출 시
+  체크포인트와 이 폴더를 함께 두면 `inference.py`가 인터넷 없이 동작합니다.
+- `inference.py`는 체크포인트 종류를 읽어 MFCC-RF와 화자 임베딩을 알아서 고릅니다.
 
 ## 예전 캐시 이어쓰기
 
@@ -90,5 +128,7 @@ MFCC·Δ·Δ²의 분포 통계에 RMS, zero-crossing rate, spectral centroid/ba
 
 `center`는 특징이 두 배가 됩니다. 서울 Training 88.9만 발화 기준으로 학습 배열이
 약 1.9GB이고, 원본 배열과 합쳐 한때 약 2.8GB를 씁니다. RAM이 빠듯하면
-`--call_context none --cluster`로 군집 묶기만 켜도 됩니다. 이쪽은 차원이 늘지
-않습니다.
+`--call_context none`으로 상대값을 빼면 차원이 늘지 않습니다.
+
+예전 캐시는 처음 한 번 JSON에서 통화 경계를 복원해 `{split}_counts.npy`로 저장합니다.
+다음 실행부터는 그 파일을 써서 복원(실데이터 약 20분)을 건너뜁니다.

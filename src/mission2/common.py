@@ -293,7 +293,9 @@ def predict_call(
 ) -> np.ndarray:
     """통화 하나의 발화 전체를 한 번에 판정한다."""
     context = add_call_context(base_features, call_context)
-    if not cluster:
-        return classifier.predict(context).astype(np.int64)
     probabilities = speaker_probability(classifier, context)
+    if not cluster:
+        # 학습의 Validation 점수와 같은 규칙(확률 0.5 이상이면 신고자)으로 판정한다.
+        # classifier.predict는 0.5 동점을 대원(0)으로 보내 점수가 어긋난다.
+        return (probabilities >= 0.5).astype(np.int64)
     return cluster_speakers(base_features, probabilities, min_utterances, margin, seed)

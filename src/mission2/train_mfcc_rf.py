@@ -43,8 +43,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--timestamp_unit", choices=("auto", "seconds", "milliseconds"), default="auto")
     parser.add_argument("--call_context", choices=CALL_CONTEXT_CHOICES, default="center",
                         help="통화 안의 상대값을 특징에 더한다. none이면 발화 조각만 본다.")
-    parser.add_argument("--no_cluster", dest="cluster", action="store_false",
-                        help="통화 안 두 군집 묶기를 끈다.")
+    parser.add_argument("--cluster", choices=("auto", "on", "off"), default="auto",
+                        help="통화 안 두 군집 묶기. auto는 Validation 정확도가 더 높은 쪽을 저장한다.")
+    parser.add_argument("--no_cluster", dest="cluster", action="store_const", const="off",
+                        help="--cluster off와 같다.")
     parser.add_argument("--cluster_min_utterances", type=int, default=6,
                         help="이보다 발화가 적은 통화는 묶지 않는다.")
     parser.add_argument("--cluster_margin", type=float, default=0.10,
@@ -83,6 +85,11 @@ def shard_path(cache_dir: Path, split: str, index: int) -> Path:
     return cache_dir / f"{split}_{index:05d}.npz"
 
 
+def counts_path(cache_dir: Path, split: str) -> Path:
+    """예전 캐시에서 복원한 통화 경계를 담아 두는 파일. 다음 실행은 JSON을 다시 읽지 않는다."""
+    return cache_dir / f"{split}_counts.npy"
+
+
 def load_shards(
     cache_dir: Path, split: str, signature: dict[str, object]
 ) -> tuple[list[np.ndarray], list[np.ndarray], list[np.ndarray], int, int, bool]:
@@ -98,6 +105,7 @@ def load_shards(
         print(f"[{split}] 캐시 설정이 달라 기존 shard를 삭제합니다.")
         for path in cache_dir.glob(f"{split}_*.npz"):
             path.unlink()
+        counts_path(cache_dir, split).unlink(missing_ok=True)
     meta_path.write_text(json.dumps(signature, ensure_ascii=False), encoding="utf-8")
     blocks: list[np.ndarray] = []
     label_blocks: list[np.ndarray] = []
@@ -234,14 +242,22 @@ def build_features(
         if done and not complete:
             # 통화 경계를 저장하기 전에 만든 캐시다. JSON만 다시 읽어 복원한다.
             restored = sum(int(block.shape[0]) for block in blocks)
-            count_blocks = [reconstruct_counts(pairs[:done], f"[{desc}] 통화 경계 복원", prefetch)]
-            rebuilt = int(count_blocks[0].sum())
-            if rebuilt != restored:
-                raise ValueError(
-                    f"[{desc}] 통화 경계 복원 실패: JSON 발화 {rebuilt:,}개 vs 캐시 행 {restored:,}개. "
-                    f"캐시를 지우고 다시 추출하세요: {cache_dir}"
-                )
-            print(f"[{desc}] 통화 경계 복원 완료: 발화 {rebuilt:,}개가 캐시와 일치")
+            saved_path = counts_path(cache_dir, split)
+            saved = np.load(saved_path) if saved_path.is_file() else None
+            # 저장해 둔 경계는 통화 수와 발화 합이 모두 캐시와 맞을 때만 믿는다.
+            if saved is not None and len(saved) == done and int(saved.sum()) == restored:
+                count_blocks = [saved.astype(np.int64)]
+                print(f"[{desc}] 저장된 통화 경계 사용: 발화 {restored:,}개가 캐시와 일치")
+            else:
+                count_blocks = [reconstruct_counts(pairs[:done], f"[{desc}] 통화 경계 복원", prefetch)]
+                rebuilt = int(count_blocks[0].sum())
+                if rebuilt != restored:
+                    raise ValueError(
+                        f"[{desc}] 통화 경계 복원 실패: JSON 발화 {rebuilt:,}개 vs 캐시 행 {restored:,}개. "
+                        f"캐시를 지우고 다시 추출하세요: {cache_dir}"
+                    )
+                np.save(saved_path, count_blocks[0])
+                print(f"[{desc}] 통화 경계 복원 완료: 발화 {rebuilt:,}개가 캐시와 일치")
     pending_features: list[np.ndarray] = []
     pending_labels: list[int] = []
     pending_counts: list[int] = []
@@ -347,8 +363,11 @@ def main() -> None:
     cluster_accuracy = accuracy_score(y_val, clustered)
     print(f"Validation Accuracy (통화 군집): {cluster_accuracy:.4f}")
     print(classification_report(y_val, clustered, labels=[0, 1], target_names=["119대원(0)", "신고자(1)"], digits=4, zero_division=0))
-    selected = cluster_accuracy if args.cluster else accuracy
-    print(f"선택한 설정: call_context={args.call_context}, cluster={args.cluster} → Accuracy {selected:.4f}")
+    # EXP-002에서 군집 묶기를 무조건 켰다가 0.8537이 0.6676으로 떨어진 채 저장됐다.
+    # auto는 두 결과 중 나은 쪽만 체크포인트에 남겨 추론이 같은 사고를 겪지 않게 한다.
+    use_cluster = args.cluster == "on" or (args.cluster == "auto" and cluster_accuracy > accuracy)
+    selected = cluster_accuracy if use_cluster else accuracy
+    print(f"선택한 설정: call_context={args.call_context}, cluster={use_cluster} (--cluster {args.cluster}) → Accuracy {selected:.4f}")
     fallback_speaker = int(np.bincount(y_train, minlength=2).argmax())
     args.ckpt_path.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump({
@@ -358,7 +377,7 @@ def main() -> None:
         "timestamp_unit": args.timestamp_unit,
         "fallback_speaker": fallback_speaker,
         "call_context": args.call_context,
-        "cluster": bool(args.cluster),
+        "cluster": bool(use_cluster),
         "cluster_min_utterances": args.cluster_min_utterances,
         "cluster_margin": args.cluster_margin,
         "seed": args.seed,
