@@ -166,6 +166,45 @@ def stage2_features(embeddings: np.ndarray, probabilities: np.ndarray) -> np.nda
     return output
 
 
+BANK_COLUMNS = ("operator_max", "operator_top", "caller_max", "caller_top", "operator_minus_caller")
+BANK_TOP = 5
+
+
+def fit_bank(embeddings: np.ndarray, labels: np.ndarray, clusters: int, seed: int) -> dict[str, np.ndarray]:
+    """Train 발화 임베딩을 화자 종류별로 요약한 목소리 사전을 만든다.
+
+    119 대원은 서울 상황실의 한정된 인원이라 여러 통화에 같은 사람이 반복해 나온다.
+    대원 임베딩을 군집 중심 몇백 개로 요약해 두면, 새 발화가 "이미 들어 본 대원
+    목소리"와 얼마나 닮았는지 잴 수 있다. 신고자 쪽 사전은 비교 기준으로 함께 둔다.
+    """
+    from sklearn.cluster import MiniBatchKMeans
+
+    unit = normalize(embeddings)
+    bank: dict[str, np.ndarray] = {}
+    for name, value in (("operator", 0), ("caller", 1)):
+        rows = unit[labels == value]
+        count = min(clusters, len(rows))
+        model = MiniBatchKMeans(n_clusters=count, batch_size=4096, n_init=3, random_state=seed).fit(rows)
+        bank[name] = normalize(model.cluster_centers_.astype(np.float32))
+    return bank
+
+
+def bank_features(embeddings: np.ndarray, bank: dict[str, np.ndarray], chunk: int = 50_000) -> np.ndarray:
+    """목소리 사전과의 유사도. 가장 닮은 중심, 상위 몇 개 평균, 대원 쪽과 신고자 쪽의 차이."""
+    unit = normalize(np.asarray(embeddings, dtype=np.float32))
+    output = np.zeros((len(unit), len(BANK_COLUMNS)), dtype=np.float32)
+    for begin in range(0, len(unit), chunk):
+        block = unit[begin:begin + chunk]
+        for column, name in ((0, "operator"), (2, "caller")):
+            similarity = block @ bank[name].T
+            top = min(BANK_TOP, similarity.shape[1])
+            best = np.partition(similarity, similarity.shape[1] - top, axis=1)[:, -top:]
+            output[begin:begin + chunk, column] = best.max(axis=1)
+            output[begin:begin + chunk, column + 1] = best.mean(axis=1)
+    output[:, 4] = output[:, 0] - output[:, 2]
+    return output
+
+
 def iter_calls(counts: np.ndarray):
     """통화 경계로 행 구간을 돌려준다."""
     start = 0
@@ -200,7 +239,10 @@ def positive_probability(classifier, features: np.ndarray) -> np.ndarray:
 
 def predict_call(checkpoint: dict, embeddings: np.ndarray, mfcc: np.ndarray | None) -> np.ndarray:
     """통화 하나의 발화 전체를 한 번에 판정한다."""
-    probabilities = positive_probability(checkpoint["stage1"], stage1_features(embeddings, mfcc))
+    features = stage1_features(embeddings, mfcc)
+    if checkpoint.get("bank") is not None:
+        features = np.hstack((features, bank_features(embeddings, checkpoint["bank"])))
+    probabilities = positive_probability(checkpoint["stage1"], features)
     if checkpoint.get("use_stage2"):
         probabilities = positive_probability(checkpoint["stage2"], stage2_features(embeddings, probabilities))
     return (probabilities >= 0.5).astype(np.int64)

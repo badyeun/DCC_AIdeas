@@ -27,8 +27,8 @@ from common import (
     get_utterances, slice_utterance,
 )
 from speaker_embed import (
-    ECAPA_SOURCE, EMBED_DIM, MAX_SAMPLES, MIN_SAMPLES, STAGE2_COLUMNS, build_stage1, build_stage2,
-    bundle_encoder, embed_segments, load_encoder, positive_probability,
+    ECAPA_SOURCE, EMBED_DIM, MAX_SAMPLES, MIN_SAMPLES, STAGE2_COLUMNS, bank_features, build_stage1,
+    build_stage2, bundle_encoder, embed_segments, fit_bank, load_encoder, positive_probability,
 )
 from train_mfcc_rf import build_features, collect_pairs, iter_prefetched, load_shards, shard_path
 
@@ -56,6 +56,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--timestamp_unit", choices=("auto", "seconds", "milliseconds"), default="auto")
     parser.add_argument("--folds", type=int, default=4, help="2단계 학습용 out-of-fold 확률을 만들 fold 수")
     parser.add_argument("--max_iter", type=int, default=300, help="1단계 부스팅 반복 수 상한")
+    parser.add_argument("--learning_rate", type=float, default=0.1, help="1단계 부스팅 학습률")
+    parser.add_argument("--bank_clusters", type=int, default=0,
+                        help="Train 대원/신고자 목소리 사전의 군집 수. 0이면 사용하지 않는다(EXP-003).")
     parser.add_argument("--stage2", choices=("auto", "on", "off"), default="auto",
                         help="2단계 사용 여부. auto는 Validation 정확도가 더 높은 쪽을 저장한다.")
     parser.add_argument("--seed", type=int, default=42)
@@ -184,9 +187,9 @@ def load_mfcc(
     return features
 
 
-def make_classifier(max_iter: int, seed: int) -> HistGradientBoostingClassifier:
+def make_classifier(max_iter: int, seed: int, learning_rate: float = 0.1) -> HistGradientBoostingClassifier:
     return HistGradientBoostingClassifier(
-        max_iter=max_iter, learning_rate=0.1, max_leaf_nodes=63, early_stopping=True,
+        max_iter=max_iter, learning_rate=learning_rate, max_leaf_nodes=63, early_stopping=True,
         validation_fraction=0.1, n_iter_no_change=20, random_state=seed,
     )
 
@@ -233,8 +236,27 @@ def main() -> None:
 
     x_train = build_stage1(emb_train, train_counts, mfcc_train)
     x_val = build_stage1(emb_val, val_counts, mfcc_val)
+    duration_val = np.expm1(mfcc_val[:, -1]) if mfcc_val is not None else None
     del mfcc_train, mfcc_val
-    print(f"1단계 특징: {x_train.shape[1]}차원 (MFCC {'포함' if args.mfcc_cache_dir else '제외'})")
+    groups = np.repeat(np.arange(len(train_counts)), train_counts)
+    folds = list(GroupKFold(n_splits=args.folds).split(x_train, y_train, groups))
+
+    bank = None
+    if args.bank_clusters > 0:
+        # Train 발화의 사전 특징은 그 발화가 속한 fold를 빼고 만든 사전으로 잰다. 자기 통화의
+        # 목소리가 사전에 들어 있으면 유사도가 Validation보다 높게 나와 모델이 과신한다.
+        start = time.perf_counter()
+        bank_train = np.zeros((len(y_train), 5), dtype=np.float32)
+        for fit_rows, held_rows in folds:
+            fold_bank = fit_bank(emb_train[fit_rows], y_train[fit_rows], args.bank_clusters, args.seed)
+            bank_train[held_rows] = bank_features(emb_train[held_rows], fold_bank)
+        bank = fit_bank(emb_train, y_train, args.bank_clusters, args.seed)
+        x_train = np.hstack((x_train, bank_train))
+        x_val = np.hstack((x_val, bank_features(emb_val, bank)))
+        del bank_train
+        print(f"목소리 사전: 대원/신고자 각 {args.bank_clusters}개 중심 ({elapsed(start)})")
+    print(f"1단계 특징: {x_train.shape[1]}차원 (MFCC {'포함' if args.mfcc_cache_dir else '제외'}, "
+          f"목소리 사전 {'포함' if bank is not None else '제외'})")
     print(f"Train 발화: {len(y_train):,}, Validation 발화: {len(y_val):,}")
     print(f"다수 클래스 기준선: {float(np.bincount(y_val, minlength=2).max() / len(y_val)):.4f}")
 
@@ -242,14 +264,13 @@ def main() -> None:
     # 자신으로 학습한 모델로 내면 지나치게 정확해 2단계가 과신한다. 그래서 통화 단위
     # fold로 나눠, 각 통화의 확률은 그 통화를 보지 않은 모델에서 얻는다.
     start = time.perf_counter()
-    groups = np.repeat(np.arange(len(train_counts)), train_counts)
     out_of_fold = np.zeros(len(y_train), dtype=np.float64)
-    for fold, (fit_rows, held_rows) in enumerate(GroupKFold(n_splits=args.folds).split(x_train, y_train, groups), 1):
-        model = make_classifier(args.max_iter, args.seed).fit(x_train[fit_rows], y_train[fit_rows])
+    for fold, (fit_rows, held_rows) in enumerate(folds, 1):
+        model = make_classifier(args.max_iter, args.seed, args.learning_rate).fit(x_train[fit_rows], y_train[fit_rows])
         out_of_fold[held_rows] = positive_probability(model, x_train[held_rows])
         held_accuracy = accuracy_score(y_train[held_rows], out_of_fold[held_rows] >= 0.5)
         print(f"[fold {fold}/{args.folds}] 반복 {model.n_iter_}, held-out Accuracy {held_accuracy:.4f} ({elapsed(start)})")
-    stage1 = make_classifier(args.max_iter, args.seed).fit(x_train, y_train)
+    stage1 = make_classifier(args.max_iter, args.seed, args.learning_rate).fit(x_train, y_train)
     val_stage1 = positive_probability(stage1, x_val)
     print(f"1단계 학습 소요: {elapsed(start)} (전체 모델 반복 {stage1.n_iter_})")
     stage1_accuracy = report("1단계, 발화별", y_val, val_stage1)
@@ -265,6 +286,13 @@ def main() -> None:
     print(f"선택한 설정: stage2={use_stage2} (--stage2 {args.stage2}) → Accuracy {selected:.4f}")
 
     args.ckpt_path.parent.mkdir(parents=True, exist_ok=True)
+    # 오류 분석용. 어떤 통화·길이에서 틀리는지 다음 실험을 고르는 데 쓴다.
+    predictions_path = args.ckpt_path.with_name(args.ckpt_path.stem + "_val_predictions.npz")
+    np.savez_compressed(
+        predictions_path, labels=y_val, counts=val_counts, stage1=val_stage1, stage2=val_stage2,
+        duration=duration_val if duration_val is not None else np.zeros(0),
+    )
+    print(f"Validation 예측 저장: {predictions_path}")
     # 추론이 인터넷 없이 돌도록 ECAPA 파일을 체크포인트 옆에 함께 둔다.
     bundle_encoder(args.encoder_dir, args.ckpt_path.parent / ENCODER_DIRNAME)
     joblib.dump({
@@ -273,6 +301,7 @@ def main() -> None:
         "stage2": stage2,
         "use_stage2": bool(use_stage2),
         "use_mfcc": args.mfcc_cache_dir is not None,
+        "bank": bank,
         "n_mfcc": args.n_mfcc,
         "timestamp_unit": args.timestamp_unit,
         "encoder_dir": ENCODER_DIRNAME,
