@@ -267,13 +267,16 @@ def main() -> None:
         stage1_accuracy = report("1단계, 발화별", y_val, val_stage1)
     else:
         stage1, bank, out_of_fold, val_stage1 = train_stage1(
-            args, emb_train, y_train, train_counts, mfcc_train, emb_val, val_counts, mfcc_val, folds)
+            args, emb_train, y_train, train_counts, mfcc_train, emb_val, val_counts, mfcc_val, folds,
+            stage1_signature)
         stage1_accuracy = report("1단계, 발화별", y_val, val_stage1)
         if args.stage1_cache is not None:
             args.stage1_cache.parent.mkdir(parents=True, exist_ok=True)
             joblib.dump({"signature": stage1_signature, "stage1": stage1, "bank": bank,
                          "out_of_fold": out_of_fold, "val_stage1": val_stage1}, args.stage1_cache)
             print(f"1단계 캐시 저장: {args.stage1_cache}")
+            for index in range(1, args.folds + 1):
+                fold_cache_path(args.stage1_cache, index).unlink(missing_ok=True)
     del mfcc_train, mfcc_val
 
     # 2단계를 여러 회차 반복한다. 회차마다 바로 앞 회차의 확률로 통화 내 비교를 다시 한다.
@@ -350,8 +353,17 @@ def main() -> None:
     print(f"전체 소요: {elapsed(total_start)}")
 
 
-def train_stage1(args, emb_train, y_train, train_counts, mfcc_train, emb_val, val_counts, mfcc_val, folds):
-    """1단계를 학습하고 Train out-of-fold 확률과 Validation 확률을 돌려준다."""
+def fold_cache_path(stage1_cache: Path, index: int) -> Path:
+    return stage1_cache.with_name(f"{stage1_cache.stem}.fold{index}.npz")
+
+
+def train_stage1(args, emb_train, y_train, train_counts, mfcc_train, emb_val, val_counts, mfcc_val, folds,
+                 signature: dict):
+    """1단계를 학습하고 Train out-of-fold 확률과 Validation 확률을 돌려준다.
+
+    `--stage1_cache`를 주면 fold가 끝날 때마다 그 확률을 저장한다. Colab이 중간에
+    실행을 멈춰도 다음 실행은 끝난 fold를 건너뛴다(반복 1000이면 fold 하나에 약 25분).
+    """
     x_train = build_stage1(emb_train, train_counts, mfcc_train)
     x_val = build_stage1(emb_val, val_counts, mfcc_val)
     bank = None
@@ -376,11 +388,22 @@ def train_stage1(args, emb_train, y_train, train_counts, mfcc_train, emb_val, va
     # fold로 나눠, 각 통화의 확률은 그 통화를 보지 않은 모델에서 얻는다.
     start = time.perf_counter()
     out_of_fold = np.zeros(len(y_train), dtype=np.float64)
+    signature_text = json.dumps(signature, sort_keys=True)
     for fold, (fit_rows, held_rows) in enumerate(folds, 1):
+        saved_path = fold_cache_path(args.stage1_cache, fold) if args.stage1_cache is not None else None
+        if saved_path is not None and saved_path.is_file():
+            with np.load(saved_path) as saved:
+                if str(saved["signature"]) == signature_text and len(saved["probabilities"]) == len(held_rows):
+                    out_of_fold[held_rows] = saved["probabilities"]
+                    print(f"[fold {fold}/{args.folds}] 저장된 결과 사용: {saved_path.name}")
+                    continue
         model = make_classifier(args.max_iter, args.seed, args.learning_rate).fit(x_train[fit_rows], y_train[fit_rows])
         out_of_fold[held_rows] = positive_probability(model, x_train[held_rows])
         held_accuracy = accuracy_score(y_train[held_rows], out_of_fold[held_rows] >= 0.5)
         print(f"[fold {fold}/{args.folds}] 반복 {model.n_iter_}, held-out Accuracy {held_accuracy:.4f} ({elapsed(start)})")
+        if saved_path is not None:
+            saved_path.parent.mkdir(parents=True, exist_ok=True)
+            np.savez(saved_path, probabilities=out_of_fold[held_rows], signature=signature_text)
     stage1 = make_classifier(args.max_iter, args.seed, args.learning_rate).fit(x_train, y_train)
     val_stage1 = positive_probability(stage1, x_val)
     print(f"1단계 학습 소요: {elapsed(start)} (전체 모델 반복 {stage1.n_iter_})")
