@@ -128,13 +128,93 @@ def stage1_features(embeddings: np.ndarray, mfcc: np.ndarray | None = None) -> n
     return np.hstack(parts).astype(np.float32)
 
 
-def stage2_features(embeddings: np.ndarray, probabilities: np.ndarray) -> np.ndarray:
-    """같은 통화의 다른 발화가 받은 1단계 확률을 목소리 유사도로 가중해 모은다.
+# 2단계 v2에서 더한 입력. EXP-004 오류 분석에서 오류의 76%가 0.5~2초 발화에 몰려
+# 있었다. 짧은 발화는 임베딩이 흔들리므로, 길이를 알려 주고(얼마나 남을 믿을지),
+# 확실한 발화(앵커)와 직접 비교하고, 목소리 대신 회선 소리(MFCC 평균)로도 비교한다.
+STAGE2_EXTRA_COLUMNS = (
+    "log_duration", "anchor_caller", "anchor_operator", "anchor_difference",
+    "channel_to_caller", "channel_to_operator", "channel_difference",
+)
+# 회선 비교에 쓰는 MFCC 열: MFCC 평균 20개 + spectral 평균 5개. Δ·Δ² 평균은 거의 0이라
+# 표준화하면 잡음만 키운다(EXP-002 군집 실패의 원인 후보).
+CHANNEL_COLUMNS = tuple(range(20)) + tuple(range(60, 65))
+ANCHOR = 0.8
+ANCHOR_TOP = 3
+
+
+def stage2_aux(mfcc: np.ndarray | None) -> np.ndarray | None:
+    """2단계 v2가 쓰는 MFCC 열만 남긴다. 회선 열 25개 + 마지막 열(log 발화 길이)."""
+    if mfcc is None:
+        return None
+    return np.ascontiguousarray(mfcc[:, list(CHANNEL_COLUMNS) + [mfcc.shape[1] - 1]], dtype=np.float32)
+
+
+def fit_channel_scale(aux: np.ndarray) -> dict[str, np.ndarray]:
+    channel = aux[:, :-1]
+    return {"mean": channel.mean(axis=0), "std": np.maximum(channel.std(axis=0), 1e-6)}
+
+
+def weighted_to_sides(similarity: np.ndarray, probabilities: np.ndarray, others: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """신고자 같은 발화들 / 대원 같은 발화들과의 확률 가중 평균 유사도."""
+    caller_weight = probabilities[None, :] * others
+    operator_weight = (1.0 - probabilities)[None, :] * others
+    to_caller = (similarity * caller_weight).sum(axis=1) / np.maximum(caller_weight.sum(axis=1), 1e-8)
+    to_operator = (similarity * operator_weight).sum(axis=1) / np.maximum(operator_weight.sum(axis=1), 1e-8)
+    return to_caller, to_operator
+
+
+def top_mean(similarity: np.ndarray, mask: np.ndarray, fallback: np.ndarray) -> np.ndarray:
+    """mask 안에서 가장 닮은 몇 개의 평균 유사도. 값만 정렬하므로 발화 순서와 무관하다."""
+    masked = np.where(mask, similarity, -np.inf)
+    ordered = -np.sort(-masked, axis=1)[:, :ANCHOR_TOP]
+    finite = np.isfinite(ordered)
+    sums = np.where(finite, ordered, 0.0).sum(axis=1)
+    sizes = finite.sum(axis=1)
+    return np.where(sizes > 0, sums / np.maximum(sizes, 1), fallback)
+
+
+def stage2_features(
+    embeddings: np.ndarray, probabilities: np.ndarray, aux: np.ndarray | None = None,
+    channel_scale: dict[str, np.ndarray] | None = None, version: int = 1,
+) -> np.ndarray:
+    """같은 통화의 다른 발화가 받은 확률을 목소리 유사도로 가중해 모은다.
 
     - similar_to_caller: 신고자 같은 발화들과 평균적으로 얼마나 닮았는가
     - similar_to_operator: 대원 같은 발화들과 평균적으로 얼마나 닮았는가
     - neighbor_vote: 나와 가장 닮은 발화 몇 개의 평균 확률
+    - (v2) anchor_*: 확률이 0.8 이상/0.2 이하인 확실한 발화 중 가장 닮은 몇 개와의 유사도
+    - (v2) channel_*: 목소리 대신 회선 소리(MFCC 평균)로 잰 같은 비교
     """
+    base = stage2_base(embeddings, probabilities)
+    if version == 1:
+        return base
+    probabilities = np.asarray(probabilities, dtype=np.float64)
+    count = len(probabilities)
+    extra = np.zeros((count, len(STAGE2_EXTRA_COLUMNS)), dtype=np.float32)
+    if aux is not None:
+        extra[:, 0] = aux[:, -1]
+    if count < 2:
+        return np.hstack((base, extra))
+    unit = normalize(np.asarray(embeddings, dtype=np.float32)).astype(np.float64)
+    similarity = unit @ unit.T
+    others = ~np.eye(count, dtype=bool)
+    neutral = (similarity * others).sum(axis=1) / (count - 1)
+    extra[:, 1] = top_mean(similarity, others & (probabilities >= ANCHOR)[None, :], neutral)
+    extra[:, 2] = top_mean(similarity, others & (probabilities <= 1.0 - ANCHOR)[None, :], neutral)
+    extra[:, 3] = extra[:, 1] - extra[:, 2]
+    if aux is not None and channel_scale is not None:
+        channel = (aux[:, :-1] - channel_scale["mean"]) / channel_scale["std"]
+        # 통화 평균을 빼면 두 화자가 함께 겪는 회선 상태는 지워지고 둘의 차이만 남는다.
+        channel = normalize(channel - channel.mean(axis=0, keepdims=True)).astype(np.float64)
+        to_caller, to_operator = weighted_to_sides(channel @ channel.T, probabilities, others)
+        extra[:, 4] = to_caller
+        extra[:, 5] = to_operator
+        extra[:, 6] = to_caller - to_operator
+    return np.hstack((base, extra))
+
+
+def stage2_base(embeddings: np.ndarray, probabilities: np.ndarray) -> np.ndarray:
+    """EXP-003/004의 2단계 입력 6개."""
     probabilities = np.asarray(probabilities, dtype=np.float64)
     count = len(probabilities)
     output = np.zeros((count, len(STAGE2_COLUMNS)), dtype=np.float32)
@@ -146,10 +226,7 @@ def stage2_features(embeddings: np.ndarray, probabilities: np.ndarray) -> np.nda
     unit = normalize(np.asarray(embeddings, dtype=np.float32)).astype(np.float64)
     similarity = unit @ unit.T
     others = ~np.eye(count, dtype=bool)
-    caller_weight = probabilities[None, :] * others
-    operator_weight = (1.0 - probabilities)[None, :] * others
-    to_caller = (similarity * caller_weight).sum(axis=1) / np.maximum(caller_weight.sum(axis=1), 1e-8)
-    to_operator = (similarity * operator_weight).sum(axis=1) / np.maximum(operator_weight.sum(axis=1), 1e-8)
+    to_caller, to_operator = weighted_to_sides(similarity, probabilities, others)
     # 가장 닮은 k개는 k번째 유사도 이상인 발화 전부로 정한다. 동점을 차례로 가르지
     # 않으므로 발화 순서가 결과에 스며들지 않는다.
     k = min(NEIGHBORS, count - 1)
@@ -223,11 +300,21 @@ def build_stage1(embeddings: np.ndarray, counts: np.ndarray, mfcc: np.ndarray | 
     return output
 
 
-def build_stage2(embeddings: np.ndarray, probabilities: np.ndarray, counts: np.ndarray) -> np.ndarray:
-    output = np.empty((len(embeddings), len(STAGE2_COLUMNS)), dtype=np.float32)
+def stage2_width(version: int) -> int:
+    return len(STAGE2_COLUMNS) + (len(STAGE2_EXTRA_COLUMNS) if version >= 2 else 0)
+
+
+def build_stage2(
+    embeddings: np.ndarray, probabilities: np.ndarray, counts: np.ndarray,
+    aux: np.ndarray | None = None, channel_scale: dict[str, np.ndarray] | None = None, version: int = 1,
+) -> np.ndarray:
+    output = np.empty((len(embeddings), stage2_width(version)), dtype=np.float32)
     for start, end in iter_calls(counts):
         if end > start:
-            output[start:end] = stage2_features(embeddings[start:end], probabilities[start:end])
+            output[start:end] = stage2_features(
+                embeddings[start:end], probabilities[start:end],
+                None if aux is None else aux[start:end], channel_scale, version,
+            )
     return output
 
 
@@ -244,5 +331,11 @@ def predict_call(checkpoint: dict, embeddings: np.ndarray, mfcc: np.ndarray | No
         features = np.hstack((features, bank_features(embeddings, checkpoint["bank"])))
     probabilities = positive_probability(checkpoint["stage1"], features)
     if checkpoint.get("use_stage2"):
-        probabilities = positive_probability(checkpoint["stage2"], stage2_features(embeddings, probabilities))
+        # 예전 체크포인트는 2단계 모델 하나(v1)만 있다. v2는 여러 회차를 차례로 적용한다.
+        version = int(checkpoint.get("stage2_version", 1))
+        models = checkpoint.get("stage2_models") or [checkpoint["stage2"]]
+        aux = stage2_aux(mfcc) if version >= 2 else None
+        for model in models:
+            stage2 = stage2_features(embeddings, probabilities, aux, checkpoint.get("channel_scale"), version)
+            probabilities = positive_probability(model, stage2)
     return (probabilities >= 0.5).astype(np.int64)

@@ -27,8 +27,9 @@ from common import (
     get_utterances, slice_utterance,
 )
 from speaker_embed import (
-    ECAPA_SOURCE, EMBED_DIM, MAX_SAMPLES, MIN_SAMPLES, STAGE2_COLUMNS, bank_features, build_stage1,
-    build_stage2, bundle_encoder, embed_segments, fit_bank, load_encoder, positive_probability,
+    ECAPA_SOURCE, EMBED_DIM, MAX_SAMPLES, MIN_SAMPLES, STAGE2_COLUMNS, STAGE2_EXTRA_COLUMNS, bank_features,
+    build_stage1, build_stage2, bundle_encoder, embed_segments, fit_bank, fit_channel_scale, load_encoder,
+    positive_probability, stage2_aux,
 )
 from train_mfcc_rf import build_features, collect_pairs, iter_prefetched, load_shards, shard_path
 
@@ -60,7 +61,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--bank_clusters", type=int, default=0,
                         help="Train 대원/신고자 목소리 사전의 군집 수. 0이면 사용하지 않는다(EXP-003).")
     parser.add_argument("--stage2", choices=("auto", "on", "off"), default="auto",
-                        help="2단계 사용 여부. auto는 Validation 정확도가 더 높은 쪽을 저장한다.")
+                        help="2단계 사용 여부. auto는 Validation 정확도가 가장 높은 회차까지 저장한다.")
+    parser.add_argument("--stage2_version", type=int, choices=(1, 2), default=2,
+                        help="1: EXP-003/004 입력 6개. 2: 발화 길이·확실한 발화와의 비교·회선 비교 추가")
+    parser.add_argument("--rounds", type=int, default=2, help="2단계 반복 회차 수 (EXP-003/004는 1)")
+    parser.add_argument("--stage1_cache", type=Path, default=None,
+                        help="1단계 모델과 확률을 저장/재사용할 파일. 설정이 같으면 1단계 학습(약 40분)을 건너뛴다.")
     parser.add_argument("--seed", type=int, default=42)
     return parser.parse_args()
 
@@ -204,8 +210,8 @@ def report(name: str, labels: np.ndarray, probabilities: np.ndarray) -> float:
 
 def main() -> None:
     args = parse_args()
-    if not args.data_root.is_dir() or args.folds < 2 or args.max_iter < 1 or args.batch_size < 1:
-        raise ValueError("data_root, folds(2 이상), max_iter, batch_size를 확인하세요.")
+    if not args.data_root.is_dir() or args.folds < 2 or args.max_iter < 1 or args.batch_size < 1 or args.rounds < 0:
+        raise ValueError("data_root, folds(2 이상), max_iter, batch_size, rounds를 확인하세요.")
     if args.mfcc_cache_dir is not None and args.mfcc_cache_dir.resolve() == args.embed_cache_dir.resolve():
         raise ValueError("임베딩 캐시는 MFCC 캐시와 다른 폴더를 쓰세요.")
     import torch
@@ -234,13 +240,120 @@ def main() -> None:
         mfcc_val = load_mfcc(args, val_pairs, "val", "Validation MFCC", y_val, val_counts)
         print(f"MFCC 캐시 로딩 소요: {elapsed(start)}")
 
+    duration_val = np.expm1(mfcc_val[:, -1]) if mfcc_val is not None else None
+    aux_train, aux_val = stage2_aux(mfcc_train), stage2_aux(mfcc_val)
+    channel_scale = fit_channel_scale(aux_train) if aux_train is not None else None
+    groups = np.repeat(np.arange(len(train_counts)), train_counts)
+    folds = list(GroupKFold(n_splits=args.folds).split(emb_train, y_train, groups))
+    print(f"Train 발화: {len(y_train):,}, Validation 발화: {len(y_val):,}")
+    print(f"다수 클래스 기준선: {float(np.bincount(y_val, minlength=2).max() / len(y_val)):.4f}")
+
+    stage1_signature = {
+        "max_iter": args.max_iter, "learning_rate": args.learning_rate, "bank_clusters": args.bank_clusters,
+        "folds": args.folds, "seed": args.seed, "use_mfcc": args.mfcc_cache_dir is not None,
+        "train_rows": len(y_train), "val_rows": len(y_val),
+    }
+    cached = None
+    if args.stage1_cache is not None and args.stage1_cache.is_file():
+        cached = joblib.load(args.stage1_cache)
+        if cached.get("signature") != stage1_signature:
+            print(f"1단계 캐시 설정이 달라 다시 학습합니다: {cached.get('signature')}")
+            cached = None
+    if cached is not None:
+        # 2단계만 바꾸는 실험은 1단계(약 40분)를 다시 학습하지 않는다.
+        stage1, bank = cached["stage1"], cached["bank"]
+        out_of_fold, val_stage1 = cached["out_of_fold"], cached["val_stage1"]
+        print(f"1단계 캐시 사용: {args.stage1_cache}")
+        stage1_accuracy = report("1단계, 발화별", y_val, val_stage1)
+    else:
+        stage1, bank, out_of_fold, val_stage1 = train_stage1(
+            args, emb_train, y_train, train_counts, mfcc_train, emb_val, val_counts, mfcc_val, folds)
+        stage1_accuracy = report("1단계, 발화별", y_val, val_stage1)
+        if args.stage1_cache is not None:
+            args.stage1_cache.parent.mkdir(parents=True, exist_ok=True)
+            joblib.dump({"signature": stage1_signature, "stage1": stage1, "bank": bank,
+                         "out_of_fold": out_of_fold, "val_stage1": val_stage1}, args.stage1_cache)
+            print(f"1단계 캐시 저장: {args.stage1_cache}")
+    del mfcc_train, mfcc_val
+
+    # 2단계를 여러 회차 반복한다. 회차마다 바로 앞 회차의 확률로 통화 내 비교를 다시 한다.
+    # Train 입력 확률은 매번 통화 단위 fold의 out-of-fold 값이라 과신하지 않는다.
+    start = time.perf_counter()
+    columns = STAGE2_COLUMNS + (STAGE2_EXTRA_COLUMNS if args.stage2_version >= 2 else ())
+    print(f"2단계 v{args.stage2_version} 입력: {', '.join(columns)}")
+    train_probability, val_probability = out_of_fold, val_stage1
+    stage2_models: list[HistGradientBoostingClassifier] = []
+    round_accuracy = [stage1_accuracy]
+    round_probability = [val_stage1]
+    for round_index in range(1, args.rounds + 1):
+        x2_train = build_stage2(emb_train, train_probability, train_counts, aux_train, channel_scale, args.stage2_version)
+        x2_val = build_stage2(emb_val, val_probability, val_counts, aux_val, channel_scale, args.stage2_version)
+        model = make_classifier(200, args.seed).fit(x2_train, y_train)
+        val_probability = positive_probability(model, x2_val)
+        stage2_models.append(model)
+        round_probability.append(val_probability)
+        round_accuracy.append(report(f"2단계 {round_index}회차, 통화 내 비교", y_val, val_probability))
+        if round_index < args.rounds:
+            next_probability = np.zeros(len(y_train), dtype=np.float64)
+            for fit_rows, held_rows in folds:
+                fold_model = make_classifier(200, args.seed).fit(x2_train[fit_rows], y_train[fit_rows])
+                next_probability[held_rows] = positive_probability(fold_model, x2_train[held_rows])
+            train_probability = next_probability
+    print(f"2단계 학습 소요: {elapsed(start)} ({args.rounds}회차)")
+
+    if args.stage2 == "off":
+        rounds_used = 0
+    elif args.stage2 == "on":
+        rounds_used = args.rounds
+    else:
+        rounds_used = int(np.argmax(round_accuracy))
+    selected = round_accuracy[rounds_used]
+    stage2_accuracy = max(round_accuracy[1:]) if args.rounds else stage1_accuracy
+    print(f"회차별 Accuracy: {' → '.join(f'{value:.4f}' for value in round_accuracy)}")
+    print(f"선택한 설정: 2단계 {rounds_used}회차 (--stage2 {args.stage2}) → Accuracy {selected:.4f}")
+
+    args.ckpt_path.parent.mkdir(parents=True, exist_ok=True)
+    # 오류 분석용. 어떤 통화·길이에서 틀리는지 다음 실험을 고르는 데 쓴다.
+    predictions_path = args.ckpt_path.with_name(args.ckpt_path.stem + "_val_predictions.npz")
+    np.savez_compressed(
+        predictions_path, labels=y_val, counts=val_counts, stage1=val_stage1,
+        stage2=round_probability[max(rounds_used, 1)] if args.rounds else val_stage1,
+        rounds=np.vstack(round_probability),
+        duration=duration_val if duration_val is not None else np.zeros(0),
+    )
+    print(f"Validation 예측 저장: {predictions_path}")
+    # 추론이 인터넷 없이 돌도록 ECAPA 파일을 체크포인트 옆에 함께 둔다.
+    bundle_encoder(args.encoder_dir, args.ckpt_path.parent / ENCODER_DIRNAME)
+    joblib.dump({
+        "model_type": "mission2_speaker_embedding",
+        "stage1": stage1,
+        "stage2": stage2_models[0] if stage2_models else None,
+        "stage2_models": stage2_models[:rounds_used],
+        "stage2_version": args.stage2_version,
+        "channel_scale": channel_scale,
+        "use_stage2": rounds_used > 0,
+        "use_mfcc": args.mfcc_cache_dir is not None,
+        "bank": bank,
+        "n_mfcc": args.n_mfcc,
+        "timestamp_unit": args.timestamp_unit,
+        "encoder_dir": ENCODER_DIRNAME,
+        "encoder_source": ECAPA_SOURCE,
+        "batch_size": args.batch_size,
+        "fallback_speaker": int(np.bincount(y_train, minlength=2).argmax()),
+        "seed": args.seed,
+        "validation_accuracy": float(selected),
+        "validation_accuracy_stage1": stage1_accuracy,
+        "validation_accuracy_stage2": stage2_accuracy,
+        "validation_accuracy_rounds": round_accuracy,
+    }, args.ckpt_path)
+    print(f"저장 완료: {args.ckpt_path} (+ {args.ckpt_path.parent / ENCODER_DIRNAME})")
+    print(f"전체 소요: {elapsed(total_start)}")
+
+
+def train_stage1(args, emb_train, y_train, train_counts, mfcc_train, emb_val, val_counts, mfcc_val, folds):
+    """1단계를 학습하고 Train out-of-fold 확률과 Validation 확률을 돌려준다."""
     x_train = build_stage1(emb_train, train_counts, mfcc_train)
     x_val = build_stage1(emb_val, val_counts, mfcc_val)
-    duration_val = np.expm1(mfcc_val[:, -1]) if mfcc_val is not None else None
-    del mfcc_train, mfcc_val
-    groups = np.repeat(np.arange(len(train_counts)), train_counts)
-    folds = list(GroupKFold(n_splits=args.folds).split(x_train, y_train, groups))
-
     bank = None
     if args.bank_clusters > 0:
         # Train 발화의 사전 특징은 그 발화가 속한 fold를 빼고 만든 사전으로 잰다. 자기 통화의
@@ -257,8 +370,6 @@ def main() -> None:
         print(f"목소리 사전: 대원/신고자 각 {args.bank_clusters}개 중심 ({elapsed(start)})")
     print(f"1단계 특징: {x_train.shape[1]}차원 (MFCC {'포함' if args.mfcc_cache_dir else '제외'}, "
           f"목소리 사전 {'포함' if bank is not None else '제외'})")
-    print(f"Train 발화: {len(y_train):,}, Validation 발화: {len(y_val):,}")
-    print(f"다수 클래스 기준선: {float(np.bincount(y_val, minlength=2).max() / len(y_val)):.4f}")
 
     # 2단계는 "다른 발화가 받은 1단계 확률"을 입력으로 쓴다. Train에서 그 확률을 자기
     # 자신으로 학습한 모델로 내면 지나치게 정확해 2단계가 과신한다. 그래서 통화 단위
@@ -273,48 +384,7 @@ def main() -> None:
     stage1 = make_classifier(args.max_iter, args.seed, args.learning_rate).fit(x_train, y_train)
     val_stage1 = positive_probability(stage1, x_val)
     print(f"1단계 학습 소요: {elapsed(start)} (전체 모델 반복 {stage1.n_iter_})")
-    stage1_accuracy = report("1단계, 발화별", y_val, val_stage1)
-
-    start = time.perf_counter()
-    stage2 = make_classifier(200, args.seed).fit(build_stage2(emb_train, out_of_fold, train_counts), y_train)
-    val_stage2 = positive_probability(stage2, build_stage2(emb_val, val_stage1, val_counts))
-    print(f"2단계 학습 소요: {elapsed(start)} (입력: {', '.join(STAGE2_COLUMNS)})")
-    stage2_accuracy = report("2단계, 통화 내 비교", y_val, val_stage2)
-
-    use_stage2 = args.stage2 == "on" or (args.stage2 == "auto" and stage2_accuracy > stage1_accuracy)
-    selected = stage2_accuracy if use_stage2 else stage1_accuracy
-    print(f"선택한 설정: stage2={use_stage2} (--stage2 {args.stage2}) → Accuracy {selected:.4f}")
-
-    args.ckpt_path.parent.mkdir(parents=True, exist_ok=True)
-    # 오류 분석용. 어떤 통화·길이에서 틀리는지 다음 실험을 고르는 데 쓴다.
-    predictions_path = args.ckpt_path.with_name(args.ckpt_path.stem + "_val_predictions.npz")
-    np.savez_compressed(
-        predictions_path, labels=y_val, counts=val_counts, stage1=val_stage1, stage2=val_stage2,
-        duration=duration_val if duration_val is not None else np.zeros(0),
-    )
-    print(f"Validation 예측 저장: {predictions_path}")
-    # 추론이 인터넷 없이 돌도록 ECAPA 파일을 체크포인트 옆에 함께 둔다.
-    bundle_encoder(args.encoder_dir, args.ckpt_path.parent / ENCODER_DIRNAME)
-    joblib.dump({
-        "model_type": "mission2_speaker_embedding",
-        "stage1": stage1,
-        "stage2": stage2,
-        "use_stage2": bool(use_stage2),
-        "use_mfcc": args.mfcc_cache_dir is not None,
-        "bank": bank,
-        "n_mfcc": args.n_mfcc,
-        "timestamp_unit": args.timestamp_unit,
-        "encoder_dir": ENCODER_DIRNAME,
-        "encoder_source": ECAPA_SOURCE,
-        "batch_size": args.batch_size,
-        "fallback_speaker": int(np.bincount(y_train, minlength=2).argmax()),
-        "seed": args.seed,
-        "validation_accuracy": float(selected),
-        "validation_accuracy_stage1": stage1_accuracy,
-        "validation_accuracy_stage2": stage2_accuracy,
-    }, args.ckpt_path)
-    print(f"저장 완료: {args.ckpt_path} (+ {args.ckpt_path.parent / ENCODER_DIRNAME})")
-    print(f"전체 소요: {elapsed(total_start)}")
+    return stage1, bank, out_of_fold, val_stage1
 
 
 if __name__ == "__main__":
