@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import tempfile
 import time
 from pathlib import Path
 
@@ -264,11 +265,30 @@ def main() -> None:
         stage1, bank = cached["stage1"], cached["bank"]
         out_of_fold, val_stage1 = cached["out_of_fold"], cached["val_stage1"]
         print(f"1단계 캐시 사용: {args.stage1_cache}")
+        del mfcc_train, mfcc_val
         stage1_accuracy = report("1단계, 발화별", y_val, val_stage1)
     else:
-        stage1, bank, out_of_fold, val_stage1 = train_stage1(
-            args, emb_train, y_train, train_counts, mfcc_train, emb_val, val_counts, mfcc_val, folds,
-            stage1_signature)
+        x_train, x_val, bank = build_stage1_inputs(
+            args, emb_train, y_train, train_counts, mfcc_train, emb_val, val_counts, mfcc_val, folds)
+        # 1단계 행렬을 만든 뒤에는 MFCC 원본이 필요 없다. 학습 중 메모리 정점을 낮추려 먼저 지운다.
+        del mfcc_train, mfcc_val
+        # HistGradientBoosting은 입력을 float64로 바꿔 복사한다(Train 전체 약 6GB). float32 원본까지
+        # 메모리에 두면 표준 Colab RAM(12.7GB)을 넘겨 실행이 죽는다(EXP-005 첫 시도 2회).
+        # 원본은 로컬 디스크에 두고 필요한 행만 float64로 읽어 온다.
+        spill_path = Path(tempfile.gettempdir()) / "mission2_stage1_x_train.npy"
+        np.save(spill_path, x_train)
+        del x_train
+        x_train = np.load(spill_path, mmap_mode="r")
+        start = time.perf_counter()
+        out_of_fold = fold_probabilities(args, x_train, y_train, folds, stage1_signature)
+        full = rows_as_float64(x_train, np.arange(len(y_train)))
+        del x_train
+        spill_path.unlink(missing_ok=True)
+        stage1 = make_classifier(args.max_iter, args.seed, args.learning_rate).fit(full, y_train)
+        del full
+        val_stage1 = positive_probability(stage1, x_val)
+        del x_val
+        print(f"1단계 학습 소요: {elapsed(start)} (전체 모델 반복 {stage1.n_iter_})")
         stage1_accuracy = report("1단계, 발화별", y_val, val_stage1)
         if args.stage1_cache is not None:
             args.stage1_cache.parent.mkdir(parents=True, exist_ok=True)
@@ -277,7 +297,6 @@ def main() -> None:
             print(f"1단계 캐시 저장: {args.stage1_cache}")
             for index in range(1, args.folds + 1):
                 fold_cache_path(args.stage1_cache, index).unlink(missing_ok=True)
-    del mfcc_train, mfcc_val
 
     # 2단계를 여러 회차 반복한다. 회차마다 바로 앞 회차의 확률로 통화 내 비교를 다시 한다.
     # Train 입력 확률은 매번 통화 단위 fold의 out-of-fold 값이라 과신하지 않는다.
@@ -357,13 +376,8 @@ def fold_cache_path(stage1_cache: Path, index: int) -> Path:
     return stage1_cache.with_name(f"{stage1_cache.stem}.fold{index}.npz")
 
 
-def train_stage1(args, emb_train, y_train, train_counts, mfcc_train, emb_val, val_counts, mfcc_val, folds,
-                 signature: dict):
-    """1단계를 학습하고 Train out-of-fold 확률과 Validation 확률을 돌려준다.
-
-    `--stage1_cache`를 주면 fold가 끝날 때마다 그 확률을 저장한다. Colab이 중간에
-    실행을 멈춰도 다음 실행은 끝난 fold를 건너뛴다(반복 1000이면 fold 하나에 약 25분).
-    """
+def build_stage1_inputs(args, emb_train, y_train, train_counts, mfcc_train, emb_val, val_counts, mfcc_val, folds):
+    """1단계 입력 행렬을 만든다. 목소리 사전을 쓰면 그 유사도 열도 붙인다."""
     x_train = build_stage1(emb_train, train_counts, mfcc_train)
     x_val = build_stage1(emb_val, val_counts, mfcc_val)
     bank = None
@@ -382,10 +396,27 @@ def train_stage1(args, emb_train, y_train, train_counts, mfcc_train, emb_val, va
         print(f"목소리 사전: 대원/신고자 각 {args.bank_clusters}개 중심 ({elapsed(start)})")
     print(f"1단계 특징: {x_train.shape[1]}차원 (MFCC {'포함' if args.mfcc_cache_dir else '제외'}, "
           f"목소리 사전 {'포함' if bank is not None else '제외'})")
+    return x_train, x_val, bank
 
-    # 2단계는 "다른 발화가 받은 1단계 확률"을 입력으로 쓴다. Train에서 그 확률을 자기
-    # 자신으로 학습한 모델로 내면 지나치게 정확해 2단계가 과신한다. 그래서 통화 단위
-    # fold로 나눠, 각 통화의 확률은 그 통화를 보지 않은 모델에서 얻는다.
+
+def rows_as_float64(x: np.ndarray, rows: np.ndarray, chunk: int = 50_000) -> np.ndarray:
+    """필요한 행만 float64로 바로 복사한다. float32 사본을 한 번 더 만들지 않는다."""
+    output = np.empty((len(rows), x.shape[1]), dtype=np.float64)
+    for begin in range(0, len(rows), chunk):
+        output[begin:begin + chunk] = x[rows[begin:begin + chunk]]
+    return output
+
+
+def fold_probabilities(args, x_train, y_train, folds, signature: dict) -> np.ndarray:
+    """통화 단위 fold로 Train out-of-fold 확률을 만든다.
+
+    2단계는 "다른 발화가 받은 1단계 확률"을 입력으로 쓴다. Train에서 그 확률을 자기
+    자신으로 학습한 모델로 내면 지나치게 정확해 2단계가 과신한다. 그래서 각 통화의
+    확률은 그 통화를 보지 않은 모델에서 얻는다.
+
+    `--stage1_cache`를 주면 fold가 끝날 때마다 그 확률을 저장한다. Colab이 중간에
+    실행을 멈춰도 다음 실행은 끝난 fold를 건너뛴다(반복 1000이면 fold 하나에 약 25분).
+    """
     start = time.perf_counter()
     out_of_fold = np.zeros(len(y_train), dtype=np.float64)
     signature_text = json.dumps(signature, sort_keys=True)
@@ -397,18 +428,16 @@ def train_stage1(args, emb_train, y_train, train_counts, mfcc_train, emb_val, va
                     out_of_fold[held_rows] = saved["probabilities"]
                     print(f"[fold {fold}/{args.folds}] 저장된 결과 사용: {saved_path.name}")
                     continue
-        model = make_classifier(args.max_iter, args.seed, args.learning_rate).fit(x_train[fit_rows], y_train[fit_rows])
-        out_of_fold[held_rows] = positive_probability(model, x_train[held_rows])
+        fit_x = rows_as_float64(x_train, fit_rows)
+        model = make_classifier(args.max_iter, args.seed, args.learning_rate).fit(fit_x, y_train[fit_rows])
+        del fit_x
+        out_of_fold[held_rows] = positive_probability(model, rows_as_float64(x_train, held_rows))
         held_accuracy = accuracy_score(y_train[held_rows], out_of_fold[held_rows] >= 0.5)
         print(f"[fold {fold}/{args.folds}] 반복 {model.n_iter_}, held-out Accuracy {held_accuracy:.4f} ({elapsed(start)})")
         if saved_path is not None:
             saved_path.parent.mkdir(parents=True, exist_ok=True)
             np.savez(saved_path, probabilities=out_of_fold[held_rows], signature=signature_text)
-    stage1 = make_classifier(args.max_iter, args.seed, args.learning_rate).fit(x_train, y_train)
-    val_stage1 = positive_probability(stage1, x_val)
-    print(f"1단계 학습 소요: {elapsed(start)} (전체 모델 반복 {stage1.n_iter_})")
-    return stage1, bank, out_of_fold, val_stage1
-
+    return out_of_fold
 
 if __name__ == "__main__":
     main()
