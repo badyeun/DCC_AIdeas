@@ -291,13 +291,30 @@ def iter_calls(counts: np.ndarray):
         start += size
 
 
-def build_stage1(embeddings: np.ndarray, counts: np.ndarray, mfcc: np.ndarray | None) -> np.ndarray:
+def build_stage1(
+    embeddings: np.ndarray, counts: np.ndarray, mfcc: np.ndarray | None, extra_columns: int = 0,
+) -> np.ndarray:
+    """1단계 행렬. extra_columns만큼 빈 열을 미리 두어, 뒤에 열을 붙일 때 전체를 복사하지 않는다."""
     width = stage1_width(mfcc is not None, 0 if mfcc is None else mfcc.shape[1])
-    output = np.empty((len(embeddings), width), dtype=np.float32)
+    output = np.zeros((len(embeddings), width + extra_columns), dtype=np.float32)
     for start, end in iter_calls(counts):
         if end > start:
-            output[start:end] = stage1_features(embeddings[start:end], None if mfcc is None else mfcc[start:end])
+            output[start:end, :width] = stage1_features(embeddings[start:end], None if mfcc is None else mfcc[start:end])
     return output
+
+
+class BoosterClassifier:
+    """LightGBM Booster를 scikit-learn 분류기처럼 쓰게 감싼다 (`classes_`, `predict_proba`)."""
+
+    classes_ = np.array([0, 1])
+
+    def __init__(self, booster) -> None:
+        self.booster = booster
+        self.n_iter_ = booster.current_iteration()
+
+    def predict_proba(self, features: np.ndarray) -> np.ndarray:
+        positive = self.booster.predict(np.asarray(features, dtype=np.float32))
+        return np.column_stack((1.0 - positive, positive))
 
 
 def stage2_width(version: int) -> int:

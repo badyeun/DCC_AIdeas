@@ -92,7 +92,7 @@ MFCC·Δ·Δ²의 분포 통계에 RMS, zero-crossing rate, spectral centroid/ba
 
 | 단계 | 입력 | 모델 |
 | --- | --- | --- |
-| 1단계 | 임베딩, 통화 평균을 뺀 임베딩, 통화 중심·다른 발화와의 유사도 (+ MFCC 522) | HistGradientBoosting |
+| 1단계 | 임베딩, 통화 평균을 뺀 임베딩, 통화 중심·다른 발화와의 유사도 (+ MFCC 522) | LightGBM (EXP-003/004는 HistGradientBoosting) |
 | 2단계 | 1단계 확률을 목소리 유사도로 가중한 "신고자 쪽/대원 쪽과 닮은 정도", 가장 닮은 발화 3개의 평균 확률 | HistGradientBoosting |
 
 2단계는 군집처럼 통화를 두 덩어리로 자르지 않고 유사도로 가중만 합니다. 2단계의

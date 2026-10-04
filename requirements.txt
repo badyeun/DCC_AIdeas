@@ -8,3 +8,5 @@ soundfile
 pandas
 matplotlib
 speechbrain
+lightgbm
+psutil

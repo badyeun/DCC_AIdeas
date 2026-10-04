@@ -28,7 +28,8 @@ from common import (
     get_utterances, slice_utterance,
 )
 from speaker_embed import (
-    ECAPA_SOURCE, EMBED_DIM, MAX_SAMPLES, MIN_SAMPLES, STAGE2_COLUMNS, STAGE2_EXTRA_COLUMNS, bank_features,
+    BANK_COLUMNS, ECAPA_SOURCE, EMBED_DIM, MAX_SAMPLES, MIN_SAMPLES, STAGE2_COLUMNS, STAGE2_EXTRA_COLUMNS,
+    BoosterClassifier, bank_features,
     build_stage1, build_stage2, bundle_encoder, embed_segments, fit_bank, fit_channel_scale, load_encoder,
     positive_probability, stage2_aux,
 )
@@ -252,7 +253,7 @@ def main() -> None:
     stage1_signature = {
         "max_iter": args.max_iter, "learning_rate": args.learning_rate, "bank_clusters": args.bank_clusters,
         "folds": args.folds, "seed": args.seed, "use_mfcc": args.mfcc_cache_dir is not None,
-        "train_rows": len(y_train), "val_rows": len(y_val),
+        "train_rows": len(y_train), "val_rows": len(y_val), "learner": "lightgbm",
     }
     cached = None
     if args.stage1_cache is not None and args.stage1_cache.is_file():
@@ -272,23 +273,31 @@ def main() -> None:
             args, emb_train, y_train, train_counts, mfcc_train, emb_val, val_counts, mfcc_val, folds)
         # 1단계 행렬을 만든 뒤에는 MFCC 원본이 필요 없다. 학습 중 메모리 정점을 낮추려 먼저 지운다.
         del mfcc_train, mfcc_val
-        # HistGradientBoosting은 입력을 float64로 바꿔 복사한다(Train 전체 약 6GB). float32 원본까지
-        # 메모리에 두면 표준 Colab RAM(12.7GB)을 넘겨 실행이 죽는다(EXP-005 첫 시도 2회).
-        # 원본은 로컬 디스크에 두고 필요한 행만 float64로 읽어 온다.
+        print(f"[메모리] 1단계 행렬 완성: {memory_status()}")
+        # EXP-005 첫 세 시도는 첫 fold 시작 직후 메모리 부족(^C)으로 죽었다. scikit-learn
+        # HistGradientBoosting이 입력을 float64로 복사하고, 조기 종료용 분할에서 그 사본을 한 번
+        # 더 복사하기 때문이다. LightGBM은 float32를 그대로 받아 전체를 한 번만 구간화하고,
+        # fold와 조기 종료 분할은 그 구간화 결과를 행 번호로만 나눠 쓴다.
+        # 원본 행렬은 로컬 디스크에 두고 필요한 행만 읽는다.
         spill_path = Path(tempfile.gettempdir()) / "mission2_stage1_x_train.npy"
         np.save(spill_path, x_train)
         del x_train
         x_train = np.load(spill_path, mmap_mode="r")
         start = time.perf_counter()
-        out_of_fold = fold_probabilities(args, x_train, y_train, folds, stage1_signature)
-        full = rows_as_float64(x_train, np.arange(len(y_train)))
-        del x_train
-        spill_path.unlink(missing_ok=True)
-        stage1 = make_classifier(args.max_iter, args.seed, args.learning_rate).fit(full, y_train)
-        del full
+        dataset = make_dataset(x_train, y_train)
+        print(f"[메모리] LightGBM 구간화 완료 ({elapsed(start)}): {memory_status()}")
+        out_of_fold, best_rounds = fold_probabilities(args, x_train, y_train, folds, groups, dataset, stage1_signature)
+        # 전체 모델은 조기 종료할 검증 데이터가 따로 없으므로 fold에서 찾은 반복 수의 평균을 쓴다.
+        final_rounds = max(1, int(round(float(np.mean(best_rounds)))))
+        stage1 = train_booster(args, dataset, None, None, final_rounds)
+        del dataset, x_train
+        try:
+            spill_path.unlink(missing_ok=True)
+        except PermissionError:  # Windows에서 매핑이 늦게 풀리는 경우. 임시 폴더라 남아도 무해하다.
+            pass
         val_stage1 = positive_probability(stage1, x_val)
         del x_val
-        print(f"1단계 학습 소요: {elapsed(start)} (전체 모델 반복 {stage1.n_iter_})")
+        print(f"1단계 학습 소요: {elapsed(start)} (fold 반복 {best_rounds} → 전체 모델 반복 {final_rounds})")
         stage1_accuracy = report("1단계, 발화별", y_val, val_stage1)
         if args.stage1_cache is not None:
             args.stage1_cache.parent.mkdir(parents=True, exist_ok=True)
@@ -377,37 +386,78 @@ def fold_cache_path(stage1_cache: Path, index: int) -> Path:
 
 
 def build_stage1_inputs(args, emb_train, y_train, train_counts, mfcc_train, emb_val, val_counts, mfcc_val, folds):
-    """1단계 입력 행렬을 만든다. 목소리 사전을 쓰면 그 유사도 열도 붙인다."""
-    x_train = build_stage1(emb_train, train_counts, mfcc_train)
-    x_val = build_stage1(emb_val, val_counts, mfcc_val)
+    """1단계 입력 행렬을 만든다. 목소리 사전을 쓰면 그 유사도 열도 채운다."""
+    extra = len(BANK_COLUMNS) if args.bank_clusters > 0 else 0
+    x_train = build_stage1(emb_train, train_counts, mfcc_train, extra)
+    x_val = build_stage1(emb_val, val_counts, mfcc_val, extra)
     bank = None
-    if args.bank_clusters > 0:
+    if extra:
         # Train 발화의 사전 특징은 그 발화가 속한 fold를 빼고 만든 사전으로 잰다. 자기 통화의
         # 목소리가 사전에 들어 있으면 유사도가 Validation보다 높게 나와 모델이 과신한다.
         start = time.perf_counter()
-        bank_train = np.zeros((len(y_train), 5), dtype=np.float32)
         for fit_rows, held_rows in folds:
             fold_bank = fit_bank(emb_train[fit_rows], y_train[fit_rows], args.bank_clusters, args.seed)
-            bank_train[held_rows] = bank_features(emb_train[held_rows], fold_bank)
+            x_train[held_rows, -extra:] = bank_features(emb_train[held_rows], fold_bank)
         bank = fit_bank(emb_train, y_train, args.bank_clusters, args.seed)
-        x_train = np.hstack((x_train, bank_train))
-        x_val = np.hstack((x_val, bank_features(emb_val, bank)))
-        del bank_train
+        x_val[:, -extra:] = bank_features(emb_val, bank)
         print(f"목소리 사전: 대원/신고자 각 {args.bank_clusters}개 중심 ({elapsed(start)})")
     print(f"1단계 특징: {x_train.shape[1]}차원 (MFCC {'포함' if args.mfcc_cache_dir else '제외'}, "
           f"목소리 사전 {'포함' if bank is not None else '제외'})")
     return x_train, x_val, bank
 
 
-def rows_as_float64(x: np.ndarray, rows: np.ndarray, chunk: int = 50_000) -> np.ndarray:
-    """필요한 행만 float64로 바로 복사한다. float32 사본을 한 번 더 만들지 않는다."""
-    output = np.empty((len(rows), x.shape[1]), dtype=np.float64)
-    for begin in range(0, len(rows), chunk):
-        output[begin:begin + chunk] = x[rows[begin:begin + chunk]]
-    return output
+def memory_status() -> str:
+    """Colab에서 메모리 부족으로 죽을 때 어디까지 갔는지 보이도록 사용량을 찍는다."""
+    try:
+        import psutil
+    except ImportError:
+        return "psutil 없음"
+    memory = psutil.virtual_memory()
+    gigabyte = 1024 ** 3
+    return f"사용 {memory.used / gigabyte:.1f}GB / 전체 {memory.total / gigabyte:.1f}GB (여유 {memory.available / gigabyte:.1f}GB)"
 
 
-def fold_probabilities(args, x_train, y_train, folds, signature: dict) -> np.ndarray:
+def stage1_params(args) -> dict:
+    """EXP-003/004의 HistGradientBoosting(잎 63개, 학습률 0.1, 잎 최소 20행)과 같은 크기로 맞춘다."""
+    return {
+        "objective": "binary", "learning_rate": args.learning_rate, "num_leaves": 63,
+        "min_data_in_leaf": 20, "lambda_l2": 0.0, "max_bin": 255, "seed": args.seed,
+        "deterministic": True, "force_row_wise": True, "verbose": -1,
+    }
+
+
+def make_dataset(x_train: np.ndarray, y_train: np.ndarray):
+    """Train 전체를 한 번만 구간화한다. 각 fold는 이 결과를 행 번호로 나눠 쓴다."""
+    import lightgbm as lgb
+
+    return lgb.Dataset(x_train, label=y_train, params={"max_bin": 255, "verbose": -1}, free_raw_data=True).construct()
+
+
+def train_booster(args, dataset, train_rows, stop_rows, rounds: int) -> BoosterClassifier:
+    """train_rows로 학습한다. stop_rows가 있으면 그 성능이 20회 연속 나아지지 않을 때 멈춘다."""
+    import lightgbm as lgb
+
+    train_set = dataset if train_rows is None else dataset.subset(np.sort(train_rows))
+    if stop_rows is None:
+        return BoosterClassifier(lgb.train(stage1_params(args), train_set, num_boost_round=rounds))
+    stop_set = dataset.subset(np.sort(stop_rows))
+    booster = lgb.train(stage1_params(args), train_set, num_boost_round=rounds, valid_sets=[stop_set],
+                        callbacks=[lgb.early_stopping(20, verbose=False)])
+    # 조기 종료 지점 이후의 나무는 버린다. 저장과 예측 모두 가장 좋았던 반복까지만 쓴다.
+    best = lgb.Booster(model_str=booster.model_to_string(num_iteration=booster.best_iteration))
+    return BoosterClassifier(best)
+
+
+def stopping_split(fit_rows: np.ndarray, groups: np.ndarray, seed: int) -> tuple[np.ndarray, np.ndarray]:
+    """fit 행의 통화 10%를 조기 종료 판단용으로 떼어 낸다. 같은 통화의 발화는 한쪽에만 둔다."""
+    calls = np.unique(groups[fit_rows])
+    rng = np.random.default_rng(seed)
+    held_calls = rng.choice(calls, size=max(1, len(calls) // 10), replace=False)
+    is_stop = np.isin(groups[fit_rows], held_calls)
+    return fit_rows[~is_stop], fit_rows[is_stop]
+
+
+def fold_probabilities(args, x_train, y_train, folds, groups, dataset, signature: dict) -> tuple[np.ndarray, list[int]]:
     """통화 단위 fold로 Train out-of-fold 확률을 만든다.
 
     2단계는 "다른 발화가 받은 1단계 확률"을 입력으로 쓴다. Train에서 그 확률을 자기
@@ -415,10 +465,11 @@ def fold_probabilities(args, x_train, y_train, folds, signature: dict) -> np.nda
     확률은 그 통화를 보지 않은 모델에서 얻는다.
 
     `--stage1_cache`를 주면 fold가 끝날 때마다 그 확률을 저장한다. Colab이 중간에
-    실행을 멈춰도 다음 실행은 끝난 fold를 건너뛴다(반복 1000이면 fold 하나에 약 25분).
+    실행을 멈춰도 다음 실행은 끝난 fold를 건너뛴다.
     """
     start = time.perf_counter()
     out_of_fold = np.zeros(len(y_train), dtype=np.float64)
+    best_rounds: list[int] = []
     signature_text = json.dumps(signature, sort_keys=True)
     for fold, (fit_rows, held_rows) in enumerate(folds, 1):
         saved_path = fold_cache_path(args.stage1_cache, fold) if args.stage1_cache is not None else None
@@ -426,18 +477,20 @@ def fold_probabilities(args, x_train, y_train, folds, signature: dict) -> np.nda
             with np.load(saved_path) as saved:
                 if str(saved["signature"]) == signature_text and len(saved["probabilities"]) == len(held_rows):
                     out_of_fold[held_rows] = saved["probabilities"]
+                    best_rounds.append(int(saved["rounds"]))
                     print(f"[fold {fold}/{args.folds}] 저장된 결과 사용: {saved_path.name}")
                     continue
-        fit_x = rows_as_float64(x_train, fit_rows)
-        model = make_classifier(args.max_iter, args.seed, args.learning_rate).fit(fit_x, y_train[fit_rows])
-        del fit_x
-        out_of_fold[held_rows] = positive_probability(model, rows_as_float64(x_train, held_rows))
+        print(f"[fold {fold}/{args.folds}] 학습 시작 ({elapsed(start)}), {memory_status()}")
+        train_rows, stop_rows = stopping_split(fit_rows, groups, args.seed + fold)
+        model = train_booster(args, dataset, train_rows, stop_rows, args.max_iter)
+        out_of_fold[held_rows] = positive_probability(model, x_train[held_rows])
+        best_rounds.append(model.n_iter_)
         held_accuracy = accuracy_score(y_train[held_rows], out_of_fold[held_rows] >= 0.5)
         print(f"[fold {fold}/{args.folds}] 반복 {model.n_iter_}, held-out Accuracy {held_accuracy:.4f} ({elapsed(start)})")
         if saved_path is not None:
             saved_path.parent.mkdir(parents=True, exist_ok=True)
-            np.savez(saved_path, probabilities=out_of_fold[held_rows], signature=signature_text)
-    return out_of_fold
+            np.savez(saved_path, probabilities=out_of_fold[held_rows], rounds=model.n_iter_, signature=signature_text)
+    return out_of_fold, best_rounds
 
 if __name__ == "__main__":
     main()
