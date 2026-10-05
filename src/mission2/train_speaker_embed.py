@@ -28,9 +28,10 @@ from common import (
     get_utterances, slice_utterance,
 )
 from speaker_embed import (
-    BANK_COLUMNS, ECAPA_SOURCE, MAX_SAMPLES, MIN_SAMPLES, STAGE2_COLUMNS, STAGE2_EXTRA_COLUMNS, WAVLM_SOURCE,
-    BoosterClassifier, EcapaEncoder, WavLMEncoder, bank_features, build_stage1, build_stage2, combine_embeddings,
-    fit_bank, fit_channel_scale, fit_projection, positive_probability, project, stage2_aux,
+    BANK_COLUMNS, ECAPA_SOURCE, EMBED_DIM, MAX_SAMPLES, MIN_SAMPLES, PAIR_COLUMNS, PAIR_STAGE2_COLUMNS, STAGE2_COLUMNS,
+    STAGE2_EXTRA_COLUMNS, WAVLM_SOURCE, BoosterClassifier, EcapaEncoder, WavLMEncoder, bank_features,
+    build_pair_training, build_stage1, build_stage2, combine_embeddings, fit_bank, fit_channel_scale, fit_projection,
+    positive_probability, project, same_speaker_matrices, stage2_aux,
 )
 from train_mfcc_rf import build_features, collect_pairs, iter_prefetched, load_shards, shard_path
 
@@ -64,8 +65,12 @@ def parse_args() -> argparse.Namespace:
                         help="Train 대원/신고자 목소리 사전의 군집 수. 0이면 사용하지 않는다(EXP-003).")
     parser.add_argument("--stage2", choices=("auto", "on", "off"), default="auto",
                         help="2단계 사용 여부. auto는 Validation 정확도가 가장 높은 회차까지 저장한다.")
-    parser.add_argument("--stage2_version", type=int, choices=(1, 2), default=2,
-                        help="1: EXP-003/004 입력 6개. 2: 발화 길이·확실한 발화와의 비교·회선 비교 추가")
+    parser.add_argument("--stage2_version", type=int, choices=(1, 2, 3), default=2,
+                        help="1: EXP-003/004 입력 6개. 2: 발화 길이·확실한 발화와의 비교·회선 비교 추가. "
+                             "3: 같은 화자 판별기로 잰 비교 추가(EXP-007)")
+    parser.add_argument("--pair_samples", type=int, default=120,
+                        help="2단계 v3 판별기 학습에 통화마다 쓰는 발화 쌍 수 상한")
+    parser.add_argument("--pair_max_iter", type=int, default=500, help="2단계 v3 판별기 부스팅 반복 수 상한")
     parser.add_argument("--rounds", type=int, default=2, help="2단계 반복 회차 수 (EXP-003/004는 1)")
     parser.add_argument("--stage1_cache", type=Path, default=None,
                         help="1단계 모델과 확률을 저장/재사용할 파일. 설정이 같으면 1단계 학습(약 40분)을 건너뛴다.")
@@ -298,7 +303,9 @@ def main() -> None:
     cached = None
     if args.stage1_cache is not None and args.stage1_cache.is_file():
         cached = joblib.load(args.stage1_cache)
-        if cached.get("signature") != stage1_signature:
+        # EXP-005 캐시는 EXP-006에서 더한 설정 키가 없다. 없는 키는 그때의 기본값으로 본다.
+        saved_signature = {**STAGE1_SIGNATURE_DEFAULTS, **cached.get("signature", {})}
+        if saved_signature != stage1_signature:
             print(f"1단계 캐시 설정이 달라 다시 학습합니다: {cached.get('signature')}")
             cached = None
     if cached is not None:
@@ -347,29 +354,45 @@ def main() -> None:
             for index in range(1, args.folds + 1):
                 fold_cache_path(args.stage1_cache, index).unlink(missing_ok=True)
 
+    stage1_oof_accuracy = float(accuracy_score(y_train, out_of_fold >= 0.5))
+    print(f"Train out-of-fold Accuracy (1단계): {stage1_oof_accuracy:.4f}")
+    embed_split = EMBED_DIM if projection is not None else None
+    pair_model = same_train = same_val = None
+    if args.stage2_version >= 3:
+        if aux_train is None:
+            raise ValueError("2단계 v3는 발화 길이와 회선 특징이 필요합니다. --mfcc_cache_dir를 주세요.")
+        pair_model, same_train, same_val = train_pair_model(
+            args, emb_train, y_train, train_counts, aux_train, emb_val, val_counts, aux_val,
+            channel_scale, embed_split, folds, groups)
+
     # 2단계를 여러 회차 반복한다. 회차마다 바로 앞 회차의 확률로 통화 내 비교를 다시 한다.
     # Train 입력 확률은 매번 통화 단위 fold의 out-of-fold 값이라 과신하지 않는다.
     start = time.perf_counter()
-    columns = STAGE2_COLUMNS + (STAGE2_EXTRA_COLUMNS if args.stage2_version >= 2 else ())
+    columns = (STAGE2_COLUMNS + (STAGE2_EXTRA_COLUMNS if args.stage2_version >= 2 else ())
+               + (PAIR_STAGE2_COLUMNS if args.stage2_version >= 3 else ()))
     print(f"2단계 v{args.stage2_version} 입력: {', '.join(columns)}")
     train_probability, val_probability = out_of_fold, val_stage1
     stage2_models: list[HistGradientBoostingClassifier] = []
     round_accuracy = [stage1_accuracy]
+    round_oof_accuracy = [stage1_oof_accuracy]
     round_probability = [val_stage1]
     for round_index in range(1, args.rounds + 1):
-        x2_train = build_stage2(emb_train, train_probability, train_counts, aux_train, channel_scale, args.stage2_version)
-        x2_val = build_stage2(emb_val, val_probability, val_counts, aux_val, channel_scale, args.stage2_version)
+        x2_train = build_stage2(emb_train, train_probability, train_counts, aux_train, channel_scale,
+                                args.stage2_version, same_train)
+        x2_val = build_stage2(emb_val, val_probability, val_counts, aux_val, channel_scale, args.stage2_version, same_val)
         model = make_classifier(200, args.seed).fit(x2_train, y_train)
         val_probability = positive_probability(model, x2_val)
         stage2_models.append(model)
         round_probability.append(val_probability)
         round_accuracy.append(report(f"2단계 {round_index}회차, 통화 내 비교", y_val, val_probability))
-        if round_index < args.rounds:
-            next_probability = np.zeros(len(y_train), dtype=np.float64)
-            for fit_rows, held_rows in folds:
-                fold_model = make_classifier(200, args.seed).fit(x2_train[fit_rows], y_train[fit_rows])
-                next_probability[held_rows] = positive_probability(fold_model, x2_train[held_rows])
-            train_probability = next_probability
+        # 회차마다 Train out-of-fold 정확도를 잰다. 설정 선택은 Validation이 아니라 이 값으로 한다.
+        next_probability = np.zeros(len(y_train), dtype=np.float64)
+        for fit_rows, held_rows in folds:
+            fold_model = make_classifier(200, args.seed).fit(x2_train[fit_rows], y_train[fit_rows])
+            next_probability[held_rows] = positive_probability(fold_model, x2_train[held_rows])
+        train_probability = next_probability
+        round_oof_accuracy.append(float(accuracy_score(y_train, next_probability >= 0.5)))
+        print(f"Train out-of-fold Accuracy (2단계 {round_index}회차): {round_oof_accuracy[-1]:.4f}")
     print(f"2단계 학습 소요: {elapsed(start)} ({args.rounds}회차)")
 
     if args.stage2 == "off":
@@ -377,10 +400,12 @@ def main() -> None:
     elif args.stage2 == "on":
         rounds_used = args.rounds
     else:
-        rounds_used = int(np.argmax(round_accuracy))
+        # Validation으로 고르면 그 점수가 낙관적으로 부풀므로 Train out-of-fold로 고른다(EXP-007부터).
+        rounds_used = int(np.argmax(round_oof_accuracy))
     selected = round_accuracy[rounds_used]
     stage2_accuracy = max(round_accuracy[1:]) if args.rounds else stage1_accuracy
-    print(f"회차별 Accuracy: {' → '.join(f'{value:.4f}' for value in round_accuracy)}")
+    print(f"회차별 Validation Accuracy: {' → '.join(f'{value:.4f}' for value in round_accuracy)}")
+    print(f"회차별 Train out-of-fold Accuracy: {' → '.join(f'{value:.4f}' for value in round_oof_accuracy)}")
     print(f"선택한 설정: 2단계 {rounds_used}회차 (--stage2 {args.stage2}) → Accuracy {selected:.4f}")
 
     args.ckpt_path.parent.mkdir(parents=True, exist_ok=True)
@@ -415,6 +440,8 @@ def main() -> None:
         "second_encoder_dir": SECOND_ENCODER_DIRNAME if projection is not None else None,
         "second_encoder_source": WAVLM_SOURCE if projection is not None else None,
         "projection": projection,
+        "pair_model": pair_model,
+        "embed_split": embed_split,
         "batch_size": args.batch_size,
         "fallback_speaker": int(np.bincount(y_train, minlength=2).argmax()),
         "seed": args.seed,
@@ -422,9 +449,82 @@ def main() -> None:
         "validation_accuracy_stage1": stage1_accuracy,
         "validation_accuracy_stage2": stage2_accuracy,
         "validation_accuracy_rounds": round_accuracy,
+        "train_oof_accuracy_rounds": round_oof_accuracy,
     }, args.ckpt_path)
     print(f"저장 완료: {args.ckpt_path} (+ {args.ckpt_path.parent / ENCODER_DIRNAME})")
     print(f"전체 소요: {elapsed(total_start)}")
+
+
+# EXP-006에서 1단계 캐시 설정에 더한 키와 그 전의 값. 예전 캐시(EXP-005)를 그대로 쓰기 위해 둔다.
+STAGE1_SIGNATURE_DEFAULTS = {"second_encoder": "none", "second_dims": 0, "feature_fraction": 1.0, "bagging_fraction": 1.0}
+
+
+def train_pair_model(args, emb_train, y_train, train_counts, aux_train, emb_val, val_counts, aux_val,
+                     channel_scale, embed_split, folds, groups):
+    """2단계 v3의 같은 화자 판별기를 학습하고, Train/Validation의 같은 화자 확률 행렬을 만든다.
+
+    Train 통화의 행렬은 그 통화를 보지 않은 fold 판별기로 만든다(1단계 out-of-fold와 같은
+    fold). 자기 통화로 학습한 판별기는 그 통화의 쌍을 지나치게 잘 맞혀 2단계가 과신한다.
+    """
+    import lightgbm as lgb
+    from sklearn.metrics import roc_auc_score
+
+    start = time.perf_counter()
+    all_calls = np.arange(len(train_counts))
+    x_pair, y_pair, pair_calls = build_pair_training(
+        emb_train, y_train, train_counts, all_calls, aux_train, channel_scale, embed_split, args.pair_samples, args.seed)
+    print(f"같은 화자 판별기 학습 쌍: {len(y_pair):,} (같은 화자 {y_pair.mean():.3f}), 특징 {x_pair.shape[1]}개 "
+          f"({elapsed(start)}), {memory_status()}")
+    params = {
+        "objective": "binary", "learning_rate": 0.1, "num_leaves": 63, "min_data_in_leaf": 50,
+        "max_bin": 255, "seed": args.seed, "deterministic": True, "force_row_wise": True, "verbose": -1,
+    }
+    dataset = lgb.Dataset(x_pair, label=y_pair, params={"max_bin": 255, "verbose": -1}, free_raw_data=False).construct()
+
+    def fit(rows: np.ndarray, rounds: int, stop_seed: int | None) -> BoosterClassifier:
+        """rows로 학습한다. stop_seed가 있으면 그 통화 10%를 떼어 조기 종료 판단에 쓴다."""
+        if stop_seed is None:
+            return BoosterClassifier(lgb.train(params, dataset.subset(np.sort(rows)), num_boost_round=rounds))
+        calls = np.unique(pair_calls[rows])
+        held = np.random.default_rng(stop_seed).choice(calls, size=max(1, len(calls) // 10), replace=False)
+        is_stop = np.isin(pair_calls[rows], held)
+        booster = lgb.train(params, dataset.subset(np.sort(rows[~is_stop])), num_boost_round=rounds,
+                            valid_sets=[dataset.subset(np.sort(rows[is_stop]))],
+                            callbacks=[lgb.early_stopping(20, verbose=False)])
+        return BoosterClassifier(lgb.Booster(model_str=booster.model_to_string(num_iteration=booster.best_iteration)))
+
+    same_train: list[np.ndarray | None] = [None] * len(train_counts)
+    pair_oof = np.zeros(len(y_pair), dtype=np.float64)
+    best_rounds: list[int] = []
+    for fold, (fit_rows, held_rows) in enumerate(folds, 1):
+        held_calls = np.unique(groups[held_rows])
+        in_fit = ~np.isin(pair_calls, held_calls)
+        model = fit(np.flatnonzero(in_fit), args.pair_max_iter, args.seed + fold)
+        best_rounds.append(model.n_iter_)
+        pair_oof[~in_fit] = positive_probability(model, x_pair[~in_fit])
+        for call, matrix in same_speaker_matrices(model, emb_train, train_counts, held_calls, aux_train,
+                                                  channel_scale, embed_split).items():
+            same_train[call] = matrix
+        held_accuracy = accuracy_score(y_pair[~in_fit], pair_oof[~in_fit] >= 0.5)
+        print(f"[판별기 fold {fold}/{len(folds)}] 반복 {model.n_iter_}, held-out 쌍 Accuracy {held_accuracy:.4f} "
+              f"({elapsed(start)}), {memory_status()}")
+    # 판별기가 코사인보다 나은지 바로 보이도록 같은 쌍에서 AUC를 비교한다.
+    short = x_pair[:, PAIR_COLUMNS.index("min_log_duration")] < np.log1p(1.0)
+    for name, rows in (("전체", np.ones(len(y_pair), dtype=bool)), ("짧은 쪽 1초 미만", short)):
+        if rows.sum() == 0 or len(np.unique(y_pair[rows])) < 2:
+            continue
+        cosine_auc = roc_auc_score(y_pair[rows], x_pair[rows, PAIR_COLUMNS.index("cos_first")])
+        print(f"같은 화자 판별 out-of-fold ({name}, 쌍 {rows.sum():,}): 판별기 AUC "
+              f"{roc_auc_score(y_pair[rows], pair_oof[rows]):.4f} / ECAPA 코사인 AUC {cosine_auc:.4f} / "
+              f"판별기 Accuracy {accuracy_score(y_pair[rows], pair_oof[rows] >= 0.5):.4f}")
+    final_rounds = max(1, int(round(float(np.mean(best_rounds)))))
+    pair_model = fit(np.arange(len(y_pair)), final_rounds, None)
+    del dataset, x_pair
+    found = same_speaker_matrices(pair_model, emb_val, val_counts, np.arange(len(val_counts)), aux_val,
+                                  channel_scale, embed_split)
+    same_val = [found[call] for call in range(len(val_counts))]
+    print(f"같은 화자 판별기 소요: {elapsed(start)} (fold 반복 {best_rounds} → 전체 {final_rounds}), {memory_status()}")
+    return pair_model, same_train, same_val
 
 
 def fold_cache_path(stage1_cache: Path, index: int) -> Path:

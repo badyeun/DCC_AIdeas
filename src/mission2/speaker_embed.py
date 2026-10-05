@@ -270,7 +270,7 @@ def top_mean(similarity: np.ndarray, mask: np.ndarray, fallback: np.ndarray) -> 
 
 def stage2_features(
     embeddings: np.ndarray, probabilities: np.ndarray, aux: np.ndarray | None = None,
-    channel_scale: dict[str, np.ndarray] | None = None, version: int = 1,
+    channel_scale: dict[str, np.ndarray] | None = None, version: int = 1, same: np.ndarray | None = None,
 ) -> np.ndarray:
     """같은 통화의 다른 발화가 받은 확률을 목소리 유사도로 가중해 모은다.
 
@@ -279,7 +279,13 @@ def stage2_features(
     - neighbor_vote: 나와 가장 닮은 발화 몇 개의 평균 확률
     - (v2) anchor_*: 확률이 0.8 이상/0.2 이하인 확실한 발화 중 가장 닮은 몇 개와의 유사도
     - (v2) channel_*: 목소리 대신 회선 소리(MFCC 평균)로 잰 같은 비교
+    - (v3) pair_*: 코사인 대신 학습한 같은 화자 판별기의 확률 same으로 잰 비교
     """
+    if version >= 3:
+        if same is None:
+            raise ValueError("2단계 v3에는 같은 화자 확률 행렬이 필요합니다.")
+        v2 = stage2_features(embeddings, probabilities, aux, channel_scale, 2)
+        return np.hstack((v2, pair_stage2_features(same, probabilities)))
     base = stage2_base(embeddings, probabilities)
     if version == 1:
         return base
@@ -413,20 +419,243 @@ class BoosterClassifier:
 
 
 def stage2_width(version: int) -> int:
-    return len(STAGE2_COLUMNS) + (len(STAGE2_EXTRA_COLUMNS) if version >= 2 else 0)
+    return (len(STAGE2_COLUMNS) + (len(STAGE2_EXTRA_COLUMNS) if version >= 2 else 0)
+            + (len(PAIR_STAGE2_COLUMNS) if version >= 3 else 0))
 
 
 def build_stage2(
     embeddings: np.ndarray, probabilities: np.ndarray, counts: np.ndarray,
     aux: np.ndarray | None = None, channel_scale: dict[str, np.ndarray] | None = None, version: int = 1,
+    same: list[np.ndarray] | None = None,
 ) -> np.ndarray:
     output = np.empty((len(embeddings), stage2_width(version)), dtype=np.float32)
-    for start, end in iter_calls(counts):
+    for index, (start, end) in enumerate(iter_calls(counts)):
         if end > start:
             output[start:end] = stage2_features(
                 embeddings[start:end], probabilities[start:end],
                 None if aux is None else aux[start:end], channel_scale, version,
+                None if same is None else same[index],
             )
+    return output
+
+
+# ---------------------------------------------------------------------------
+# 2단계 v3: 통화 안 "같은 화자 판별기" (EXP-007)
+#
+# 2단계 v1/v2는 VoxCeleb으로 학습된 코사인 유사도를 그대로 "같은 화자 정도"로 썼다.
+# 그런데 남은 오류는 0.5~2초 발화에 몰려 있고, 이 길이에서 코사인은 크게 흔들린다.
+# 그래서 Train 통화 안의 발화 쌍으로 "두 발화가 같은 화자인가"를 직접 학습한다.
+# 입력은 두 모델의 코사인, 통화 평균을 뺀 코사인, 통화 안에서의 상대 순위, 두 발화의
+# 길이, 회선 소리 차이다. 판별기가 길이에 따라 코사인을 얼마나 믿을지 스스로 배운다.
+#
+# 쌍 특징은 모두 (i, j)와 (j, i)에서 같은 값이 되게 만들어(최소·최대·절댓값·평균),
+# 판별기 출력도 대칭이다. 발화 순서는 어디에도 들어가지 않는다.
+# ---------------------------------------------------------------------------
+
+PAIR_COLUMNS = (
+    "cos_first", "cos_first_centered", "cos_first_relative",
+    "cos_second", "cos_second_centered", "cos_second_relative",
+    "rank_mean", "rank_max", "min_log_duration", "max_log_duration", "log_count",
+    "channel_cos", "channel_distance",
+) + tuple(f"channel_gap_{index}" for index in range(len(CHANNEL_COLUMNS)))
+PAIR_STAGE2_COLUMNS = (
+    "pair_vote", "pair_vote_confident", "pair_field_sum", "pair_to_caller", "pair_to_operator",
+    "pair_difference", "pair_anchor_caller", "pair_anchor_operator", "pair_anchor_difference",
+    "pair_neighbor_vote", "pair_same_mean",
+)
+
+
+def _cosine_parts(unit: np.ndarray, others: np.ndarray, count: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """코사인, 통화 평균을 뺀 코사인, 두 발화의 평균 유사도를 뺀 상대 코사인."""
+    similarity = unit @ unit.T
+    centered_unit = normalize(unit - unit.mean(axis=0, keepdims=True)).astype(np.float64)
+    centered = centered_unit @ centered_unit.T
+    mean = (similarity * others).sum(axis=1) / max(count - 1, 1)
+    relative = similarity - (mean[:, None] + mean[None, :]) / 2.0
+    return similarity, centered, relative
+
+
+def pair_feature_cube(
+    embeddings: np.ndarray, aux: np.ndarray | None, channel_scale: dict[str, np.ndarray] | None,
+    split: int | None,
+) -> np.ndarray:
+    """통화 하나의 모든 발화 쌍 특징 (n, n, len(PAIR_COLUMNS)). 대각선은 쓰지 않는다.
+
+    split은 이어 붙인 임베딩에서 첫 번째 지문(ECAPA)의 차원 수다. None이면 지문이
+    하나뿐이라 두 번째 지문 열은 0으로 둔다.
+    """
+    embeddings = np.asarray(embeddings, dtype=np.float32)
+    count = len(embeddings)
+    cube = np.zeros((count, count, len(PAIR_COLUMNS)), dtype=np.float32)
+    others = ~np.eye(count, dtype=bool)
+    first = embeddings if split is None else embeddings[:, :split]
+    unit_first = normalize(first).astype(np.float64)
+    for offset, unit in ((0, unit_first), (3, None if split is None else normalize(embeddings[:, split:]).astype(np.float64))):
+        if unit is None:
+            continue
+        similarity, centered, relative = _cosine_parts(unit, others, count)
+        cube[:, :, offset] = similarity
+        cube[:, :, offset + 1] = centered
+        cube[:, :, offset + 2] = relative
+    # 통화 안 순위: i가 보기에 j보다 더 닮은 다른 발화가 몇 개인가. 값 비교만 하므로
+    # 동점도 차례 없이 같은 순위가 되어 발화 순서와 무관하다.
+    unit_all = normalize(embeddings).astype(np.float64)
+    similarity = np.where(others, unit_all @ unit_all.T, -np.inf)
+    rank = (similarity[:, None, :] > similarity[:, :, None]).sum(axis=2).astype(np.float64)
+    rank /= max(count - 2, 1)
+    cube[:, :, 6] = (rank + rank.T) / 2.0
+    cube[:, :, 7] = np.maximum(rank, rank.T)
+    cube[:, :, 10] = np.log(count)
+    if aux is not None:
+        duration = aux[:, -1].astype(np.float64)
+        cube[:, :, 8] = np.minimum(duration[:, None], duration[None, :])
+        cube[:, :, 9] = np.maximum(duration[:, None], duration[None, :])
+        if channel_scale is not None:
+            channel = (aux[:, :-1] - channel_scale["mean"]) / channel_scale["std"]
+            # 통화 평균을 빼 두 화자가 함께 겪는 회선 상태를 지운다(2단계 v2와 같은 처리).
+            channel = (channel - channel.mean(axis=0, keepdims=True)).astype(np.float64)
+            unit_channel = normalize(channel).astype(np.float64)
+            cube[:, :, 11] = unit_channel @ unit_channel.T
+            gap = np.abs(channel[:, None, :] - channel[None, :, :])
+            cube[:, :, 12] = np.sqrt((gap ** 2).sum(axis=2))
+            cube[:, :, 13:] = gap
+    return cube
+
+
+def sample_pair_rows(count: int, limit: int, rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]:
+    """학습용으로 통화 하나에서 쌍 (i < j)을 최대 limit개 고른다."""
+    left, right = np.triu_indices(count, 1)
+    if len(left) > limit:
+        chosen = np.sort(rng.choice(len(left), size=limit, replace=False))
+        left, right = left[chosen], right[chosen]
+    return left, right
+
+
+def build_pair_training(
+    embeddings: np.ndarray, labels: np.ndarray, counts: np.ndarray, calls: np.ndarray,
+    aux: np.ndarray | None, channel_scale: dict[str, np.ndarray] | None, split: int | None,
+    limit: int, seed: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """판별기 학습 데이터. 정답은 두 발화의 speaker가 같은지다(speaker는 정답으로만 쓴다).
+
+    돌려주는 세 번째 값은 쌍이 속한 통화 번호다. 조기 종료용 분할을 통화 단위로 하기 위해 쓴다.
+    """
+    starts = np.concatenate(([0], np.cumsum(counts)[:-1]))
+    rng = np.random.default_rng(seed)
+    feature_blocks: list[np.ndarray] = []
+    label_blocks: list[np.ndarray] = []
+    call_blocks: list[np.ndarray] = []
+    for call in calls:
+        start, size = int(starts[call]), int(counts[call])
+        if size < 2:
+            continue
+        rows = slice(start, start + size)
+        left, right = sample_pair_rows(size, limit, rng)
+        cube = pair_feature_cube(embeddings[rows], None if aux is None else aux[rows], channel_scale, split)
+        feature_blocks.append(cube[left, right])
+        label_blocks.append((labels[rows][left] == labels[rows][right]).astype(np.int64))
+        call_blocks.append(np.full(len(left), call, dtype=np.int64))
+    return np.vstack(feature_blocks), np.concatenate(label_blocks), np.concatenate(call_blocks)
+
+
+def same_speaker_matrix(
+    model, embeddings: np.ndarray, aux: np.ndarray | None, channel_scale: dict[str, np.ndarray] | None,
+    split: int | None,
+) -> np.ndarray:
+    """통화 하나의 '같은 화자일 확률' 행렬. 위 삼각만 예측해 대칭으로 채운다."""
+    count = len(embeddings)
+    same = np.eye(count, dtype=np.float32)
+    if count < 2:
+        return same
+    left, right = np.triu_indices(count, 1)
+    cube = pair_feature_cube(embeddings, aux, channel_scale, split)
+    values = positive_probability(model, cube[left, right]).astype(np.float32)
+    same[left, right] = values
+    same[right, left] = values
+    return same
+
+
+def same_speaker_matrices(
+    model, embeddings: np.ndarray, counts: np.ndarray, calls: np.ndarray,
+    aux: np.ndarray | None, channel_scale: dict[str, np.ndarray] | None, split: int | None,
+    chunk_pairs: int = 1_000_000,
+) -> dict[int, np.ndarray]:
+    """여러 통화의 행렬을 만든다. 예측은 쌍을 모아 한꺼번에 해 LightGBM 호출 횟수를 줄인다."""
+    starts = np.concatenate(([0], np.cumsum(counts)[:-1]))
+    output: dict[int, np.ndarray] = {}
+    pending: list[tuple[int, np.ndarray, np.ndarray, np.ndarray]] = []
+    pending_pairs = 0
+
+    def flush() -> None:
+        nonlocal pending, pending_pairs
+        if not pending:
+            return
+        values = positive_probability(model, np.vstack([features for _, _, _, features in pending])).astype(np.float32)
+        position = 0
+        for call, left, right, _ in pending:
+            same = np.eye(int(counts[call]), dtype=np.float32)
+            part = values[position:position + len(left)]
+            same[left, right] = part
+            same[right, left] = part
+            output[call] = same
+            position += len(left)
+        pending, pending_pairs = [], 0
+
+    for call in calls:
+        start, size = int(starts[call]), int(counts[call])
+        if size < 2:
+            output[int(call)] = np.eye(size, dtype=np.float32)
+            continue
+        rows = slice(start, start + size)
+        left, right = np.triu_indices(size, 1)
+        cube = pair_feature_cube(embeddings[rows], None if aux is None else aux[rows], channel_scale, split)
+        pending.append((int(call), left, right, cube[left, right]))
+        pending_pairs += len(left)
+        if pending_pairs >= chunk_pairs:
+            flush()
+    flush()
+    return output
+
+
+def pair_stage2_features(same: np.ndarray, probabilities: np.ndarray) -> np.ndarray:
+    """판별기의 같은 화자 확률 S로 다른 발화의 1단계 확률 p를 모은다.
+
+    - pair_vote: 같은 화자면 상대의 판정을, 다른 화자면 그 반대를 따른 평균.
+      S·p + (1-S)·(1-p)의 평균이다.
+    - pair_vote_confident: 위 값을 S와 p가 확실할수록 크게 가중한 평균.
+    - pair_field_sum: Σ(2S-1)(2p-1). 평균이 아닌 합이라 근거의 양(통화 길이)도 담는다.
+    - pair_to_*, pair_anchor_*, pair_neighbor_vote: v1/v2의 같은 이름 특징을 코사인 대신 S로 잰 값.
+    """
+    probabilities = np.asarray(probabilities, dtype=np.float64)
+    count = len(probabilities)
+    output = np.full((count, len(PAIR_STAGE2_COLUMNS)), 0.5, dtype=np.float32)
+    if count < 2:
+        output[:, 2] = 0.0
+        output[:, 9] = probabilities
+        return output
+    same = np.asarray(same, dtype=np.float64)
+    others = ~np.eye(count, dtype=bool)
+    agree = same * probabilities[None, :] + (1.0 - same) * (1.0 - probabilities[None, :])
+    output[:, 0] = (agree * others).sum(axis=1) / (count - 1)
+    weight = np.abs(2.0 * same - 1.0) * np.abs(2.0 * probabilities[None, :] - 1.0) * others
+    total = weight.sum(axis=1)
+    output[:, 1] = np.where(total > 1e-8, (agree * weight).sum(axis=1) / np.maximum(total, 1e-8), 0.5)
+    output[:, 2] = ((2.0 * same - 1.0) * (2.0 * probabilities[None, :] - 1.0) * others).sum(axis=1)
+    to_caller, to_operator = weighted_to_sides(same, probabilities, others)
+    output[:, 3] = to_caller
+    output[:, 4] = to_operator
+    output[:, 5] = to_caller - to_operator
+    neutral = (same * others).sum(axis=1) / (count - 1)
+    output[:, 6] = top_mean(same, others & (probabilities >= ANCHOR)[None, :], neutral)
+    output[:, 7] = top_mean(same, others & (probabilities <= 1.0 - ANCHOR)[None, :], neutral)
+    output[:, 8] = output[:, 6] - output[:, 7]
+    # 가장 같은 화자 같은 k개(k번째 값 이상 전부, 동점을 차례로 가르지 않는다)의 평균 확률.
+    k = min(NEIGHBORS, count - 1)
+    for row in range(count):
+        values = same[row, others[row]]
+        threshold = np.partition(values, count - 1 - k)[count - 1 - k]
+        output[row, 9] = probabilities[others[row]][values >= threshold].mean()
+    output[:, 10] = neutral
     return output
 
 
@@ -447,7 +676,12 @@ def predict_call(checkpoint: dict, embeddings: np.ndarray, mfcc: np.ndarray | No
         version = int(checkpoint.get("stage2_version", 1))
         models = checkpoint.get("stage2_models") or [checkpoint["stage2"]]
         aux = stage2_aux(mfcc) if version >= 2 else None
+        same = None
+        if version >= 3:
+            # 같은 화자 확률은 1단계 확률과 무관하므로 회차마다 다시 계산하지 않는다.
+            same = same_speaker_matrix(checkpoint["pair_model"], embeddings, aux,
+                                       checkpoint.get("channel_scale"), checkpoint.get("embed_split"))
         for model in models:
-            stage2 = stage2_features(embeddings, probabilities, aux, checkpoint.get("channel_scale"), version)
+            stage2 = stage2_features(embeddings, probabilities, aux, checkpoint.get("channel_scale"), version, same)
             probabilities = positive_probability(model, stage2)
     return (probabilities >= 0.5).astype(np.int64)

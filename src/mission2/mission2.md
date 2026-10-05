@@ -120,8 +120,18 @@ python src/mission2/train_speaker_embed.py \
 - `--stage2_version 2`(기본): 2단계 입력에 발화 길이, 확실한 발화(확률 0.8 이상/0.2 이하)
   중 가장 닮은 몇 개와의 유사도, 회선 소리(MFCC 평균 25열, 통화 평균을 뺀 값)로 잰
   비교를 더합니다. `--rounds N`(기본 2)은 2단계를 N회차 반복하고, `--stage2 auto`는
-  Validation이 가장 높은 회차까지만 저장합니다. EXP-003/004와 같은 설정은
-  `--stage2_version 1 --rounds 1`입니다.
+  **Train 통화 단위 out-of-fold 정확도**가 가장 높은 회차까지만 저장합니다(EXP-006까지는
+  Validation으로 골랐습니다). EXP-003/004와 같은 설정은 `--stage2_version 1 --rounds 1`입니다.
+- `--stage2_version 3` (EXP-007): v2 입력에 **같은 화자 판별기**로 잰 비교 11개를 더합니다.
+  판별기는 Train 통화 안의 발화 쌍으로 "두 발화가 같은 화자인가"를 학습한 LightGBM입니다
+  (입력: 지문별 코사인·통화 평균을 뺀 코사인·상대 코사인, 통화 안 순위, 두 발화 길이,
+  회선 소리 차이 27열 등 38개, 모두 쌍의 앞뒤를 바꿔도 같은 값). VoxCeleb 코사인을 그대로
+  믿던 v1/v2와 달리, 짧은 발화에서 코사인을 얼마나 믿을지를 이 데이터로 배웁니다.
+  Train 통화의 판별 확률은 그 통화를 보지 않은 fold 판별기로 만듭니다. `--pair_samples`
+  (기본 120)는 통화당 학습 쌍 수, `--pair_max_iter`(기본 500)는 반복 상한입니다.
+  추론은 통화마다 모든 쌍(n(n-1)/2)을 판별합니다. MFCC 캐시가 필요합니다.
+- 실행 로그에 `Train out-of-fold Accuracy (1단계)`, `(2단계 N회차)`가 찍힙니다. 개선 판단은
+  Validation과 이 값이 같은 방향으로 오르는지로 합니다.
 - `--second_encoder wavlm`: Microsoft WavLM-Base-Plus 화자 검증 모델(`microsoft/wavlm-base-plus-sv`)로
   두 번째 목소리 지문(512차원)을 뽑고, PCA로 `--second_dims`(기본 128)차원까지 줄여 ECAPA와
   이어 붙입니다. 두 지문을 각각 길이 1로 맞춰 붙이므로 코사인 유사도는 두 모델 유사도의
