@@ -28,15 +28,15 @@ from common import (
     get_utterances, slice_utterance,
 )
 from speaker_embed import (
-    BANK_COLUMNS, ECAPA_SOURCE, EMBED_DIM, MAX_SAMPLES, MIN_SAMPLES, STAGE2_COLUMNS, STAGE2_EXTRA_COLUMNS,
-    BoosterClassifier, bank_features,
-    build_stage1, build_stage2, bundle_encoder, embed_segments, fit_bank, fit_channel_scale, load_encoder,
-    positive_probability, stage2_aux,
+    BANK_COLUMNS, ECAPA_SOURCE, MAX_SAMPLES, MIN_SAMPLES, STAGE2_COLUMNS, STAGE2_EXTRA_COLUMNS, WAVLM_SOURCE,
+    BoosterClassifier, EcapaEncoder, WavLMEncoder, bank_features, build_stage1, build_stage2, combine_embeddings,
+    fit_bank, fit_channel_scale, fit_projection, positive_probability, project, stage2_aux,
 )
 from train_mfcc_rf import build_features, collect_pairs, iter_prefetched, load_shards, shard_path
 
 
 ENCODER_DIRNAME = "ecapa_voxceleb"
+SECOND_ENCODER_DIRNAME = "wavlm_base_plus_sv"
 TARGET_NAMES = ["119대원(0)", "신고자(1)"]
 
 
@@ -69,6 +69,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rounds", type=int, default=2, help="2단계 반복 회차 수 (EXP-003/004는 1)")
     parser.add_argument("--stage1_cache", type=Path, default=None,
                         help="1단계 모델과 확률을 저장/재사용할 파일. 설정이 같으면 1단계 학습(약 40분)을 건너뛴다.")
+    parser.add_argument("--second_encoder", choices=("none", "wavlm"), default="none",
+                        help="두 번째 목소리 지문. wavlm이면 WavLM 화자 모델 임베딩을 ECAPA와 함께 쓴다(EXP-006).")
+    parser.add_argument("--second_cache_dir", type=Path, default=None, help="두 번째 지문 shard 저장 폴더")
+    parser.add_argument("--second_encoder_dir", type=Path, default=Path("pretrained/wavlm_base_plus_sv"),
+                        help="WavLM 파일을 받아 둘 폴더")
+    parser.add_argument("--second_dims", type=int, default=128, help="두 번째 지문을 PCA로 줄일 차원")
+    parser.add_argument("--extract_only", action="store_true",
+                        help="임베딩 캐시만 만들고 끝낸다. 추출은 GPU, 학습은 CPU 런타임에서 따로 돌릴 때 쓴다.")
+    parser.add_argument("--feature_fraction", type=float, default=1.0,
+                        help="1단계 나무마다 쓰는 특징 비율. 1보다 작으면 학습이 빨라진다.")
+    parser.add_argument("--bagging_fraction", type=float, default=1.0,
+                        help="1단계 나무마다 쓰는 행 비율. 1보다 작으면 학습이 빨라진다.")
     parser.add_argument("--seed", type=int, default=42)
     return parser.parse_args()
 
@@ -84,7 +96,7 @@ def build_embeddings(
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """발화 임베딩을 통화 순서대로 뽑는다. 행과 통화 경계는 MFCC 캐시와 같은 규칙으로 쌓는다."""
     signature = {
-        "encoder": ECAPA_SOURCE, "timestamp_unit": timestamp_unit, "pairs": len(pairs),
+        "encoder": encoder.source, "timestamp_unit": timestamp_unit, "pairs": len(pairs),
         "min_samples": MIN_SAMPLES, "max_samples": MAX_SAMPLES,
     }
     blocks, label_blocks, count_blocks, done, skipped, _ = load_shards(cache_dir, split, signature)
@@ -99,7 +111,7 @@ def build_embeddings(
         nonlocal pending_vectors, pending_labels, pending_counts, pending_calls, pending_skipped
         if pending_calls == 0:
             return
-        x = np.vstack(pending_vectors).astype(np.float16) if pending_vectors else np.zeros((0, EMBED_DIM), dtype=np.float16)
+        x = np.vstack(pending_vectors).astype(np.float16) if pending_vectors else np.zeros((0, encoder.dim), dtype=np.float16)
         y = np.asarray(pending_labels, dtype=np.int64)
         counts = np.asarray(pending_counts, dtype=np.int64)
         temporary = cache_dir / f".{split}_partial.npz"
@@ -137,7 +149,7 @@ def build_embeddings(
             pending_skipped += 1
             print(f"[warn] {audio_path.name}: {error}")
         if segments:
-            pending_vectors.append(embed_segments(encoder, segments, batch_size))
+            pending_vectors.append(encoder.embed(segments, batch_size))
             pending_labels.extend(labels)
         pending_counts.append(len(segments))
         pending_calls += 1
@@ -229,11 +241,37 @@ def main() -> None:
         check_mfcc_cache(args.mfcc_cache_dir, "val", args.n_mfcc, args.timestamp_unit, len(val_pairs))
 
     start = time.perf_counter()
-    encoder = load_encoder(args.encoder_dir, device)
-    common_args = (args.embed_cache_dir, args.shard_calls, args.prefetch, args.prefetch_depth, args.batch_size)
-    emb_train, y_train, train_counts = build_embeddings(train_pairs, encoder, args.timestamp_unit, "Train 임베딩", "embed_train", *common_args)
-    emb_val, y_val, val_counts = build_embeddings(val_pairs, encoder, args.timestamp_unit, "Validation 임베딩", "embed_val", *common_args)
+    encoder = EcapaEncoder(args.encoder_dir, device)
+    loader = (args.shard_calls, args.prefetch, args.prefetch_depth, args.batch_size)
+    emb_train, y_train, train_counts = build_embeddings(
+        train_pairs, encoder, args.timestamp_unit, "Train 임베딩", "embed_train", args.embed_cache_dir, *loader)
+    emb_val, y_val, val_counts = build_embeddings(
+        val_pairs, encoder, args.timestamp_unit, "Validation 임베딩", "embed_val", args.embed_cache_dir, *loader)
+    del encoder
+    projection = None
+    if args.second_encoder == "wavlm":
+        second = WavLMEncoder(args.second_encoder_dir, device)
+        second_dir = args.second_cache_dir or args.embed_cache_dir
+        prefix = second.cache_prefix
+        second_train, second_y, second_counts = build_embeddings(
+            train_pairs, second, args.timestamp_unit, "Train WavLM", f"{prefix}_train", second_dir, *loader)
+        second_val, second_val_y, second_val_counts = build_embeddings(
+            val_pairs, second, args.timestamp_unit, "Validation WavLM", f"{prefix}_val", second_dir, *loader)
+        del second
+        # 두 지문의 행이 같은 발화를 가리켜야 이어 붙일 수 있다.
+        for name, (a, b) in {"Train 정답": (second_y, y_train), "Train 통화 경계": (second_counts, train_counts),
+                             "Validation 정답": (second_val_y, y_val), "Validation 통화 경계": (second_val_counts, val_counts)}.items():
+            if not np.array_equal(a, b):
+                raise ValueError(f"ECAPA와 WavLM 캐시의 {name}이 다릅니다.")
+        projection = fit_projection(second_train, args.second_dims, args.seed)
+        emb_train = combine_embeddings(emb_train, project(second_train, projection))
+        emb_val = combine_embeddings(emb_val, project(second_val, projection))
+        del second_train, second_val
+        print(f"두 번째 지문: WavLM 512 → PCA {args.second_dims}, ECAPA와 이어 붙여 {emb_train.shape[1]}차원")
     print(f"임베딩 단계 소요: {elapsed(start)}")
+    if args.extract_only:
+        print("--extract_only: 임베딩 캐시만 만들고 끝냅니다.")
+        return
 
     mfcc_train = mfcc_val = None
     if args.mfcc_cache_dir is not None:
@@ -254,6 +292,8 @@ def main() -> None:
         "max_iter": args.max_iter, "learning_rate": args.learning_rate, "bank_clusters": args.bank_clusters,
         "folds": args.folds, "seed": args.seed, "use_mfcc": args.mfcc_cache_dir is not None,
         "train_rows": len(y_train), "val_rows": len(y_val), "learner": "lightgbm",
+        "second_encoder": args.second_encoder, "second_dims": args.second_dims if projection is not None else 0,
+        "feature_fraction": args.feature_fraction, "bagging_fraction": args.bagging_fraction,
     }
     cached = None
     if args.stage1_cache is not None and args.stage1_cache.is_file():
@@ -354,7 +394,9 @@ def main() -> None:
     )
     print(f"Validation 예측 저장: {predictions_path}")
     # 추론이 인터넷 없이 돌도록 ECAPA 파일을 체크포인트 옆에 함께 둔다.
-    bundle_encoder(args.encoder_dir, args.ckpt_path.parent / ENCODER_DIRNAME)
+    EcapaEncoder.bundle_from(args.encoder_dir, args.ckpt_path.parent / ENCODER_DIRNAME)
+    if projection is not None:
+        EcapaEncoder.bundle_from(args.second_encoder_dir, args.ckpt_path.parent / SECOND_ENCODER_DIRNAME)
     joblib.dump({
         "model_type": "mission2_speaker_embedding",
         "stage1": stage1,
@@ -369,6 +411,10 @@ def main() -> None:
         "timestamp_unit": args.timestamp_unit,
         "encoder_dir": ENCODER_DIRNAME,
         "encoder_source": ECAPA_SOURCE,
+        "second_encoder": args.second_encoder if projection is not None else None,
+        "second_encoder_dir": SECOND_ENCODER_DIRNAME if projection is not None else None,
+        "second_encoder_source": WAVLM_SOURCE if projection is not None else None,
+        "projection": projection,
         "batch_size": args.batch_size,
         "fallback_speaker": int(np.bincount(y_train, minlength=2).argmax()),
         "seed": args.seed,
@@ -423,6 +469,10 @@ def stage1_params(args) -> dict:
         "objective": "binary", "learning_rate": args.learning_rate, "num_leaves": 63,
         "min_data_in_leaf": 20, "lambda_l2": 0.0, "max_bin": 255, "seed": args.seed,
         "deterministic": True, "force_row_wise": True, "verbose": -1,
+        # 나무마다 특징·행 일부만 보면 반복당 시간이 줄어든다(EXP-006부터 1단계 3.5시간 단축용).
+        "feature_fraction": args.feature_fraction, "feature_fraction_seed": args.seed,
+        "bagging_fraction": args.bagging_fraction, "bagging_freq": 1 if args.bagging_fraction < 1.0 else 0,
+        "bagging_seed": args.seed,
     }
 
 

@@ -489,6 +489,7 @@ LightGBM은 float32를 그대로 받아 Train 전체를 **한 번만 구간화**
 | ~~0-2~~ | ~~EXP-004 목소리 사전~~ → 완료. 0.9014 (+0.05%p, 효과 미미) | | |
 | ~~0-3~~ | ~~EXP-005 반복 1000 + 2단계 v2~~ → 완료. **0.9067** (LightGBM으로 교체 후) | | |
 | 0-4 | 같은 1단계 캐시로 `--stage2_version 1 --rounds 1` | 2단계 v2 효과만 분리 (PPT용) | 수 분 |
+| 0-6 | **EXP-006** 두 번째 지문 WavLM-Base-Plus-SV (`--second_encoder wavlm`) + 1단계 특징·행 샘플링 | 짧은 발화 보완 | GPU 추출(`--extract_only`) + CPU 학습 |
 | 0-5 | EXP-005 체크포인트로 `inference.py` Validation 재현 확인 | 제출 전 필수 | GPU 약 1시간 |
 | 1 | `--call_context full --no_cluster` | 상대값 특징 추가 효과 확인 | 학습만, 약 1시간 |
 | 2 | 군집 묶기 원인 분석: 틀린 통화의 군집 결과 확인, Δ·Δ² 평균 제외, 안전장치 강화 | 원인 확인 전까지 끔 | 재학습 없이 체크포인트 + Validation 캐시로 분석 |

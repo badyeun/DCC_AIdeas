@@ -54,7 +54,7 @@ class SpeakerEmbeddingPredictor:
     def __init__(self, checkpoint: dict, ckpt_dir: Path) -> None:
         import torch
 
-        from speaker_embed import load_encoder
+        from speaker_embed import EcapaEncoder, WavLMEncoder
 
         self.checkpoint = checkpoint
         self.n_mfcc = int(checkpoint.get("n_mfcc", 20))
@@ -62,8 +62,12 @@ class SpeakerEmbeddingPredictor:
         self.batch_size = int(checkpoint.get("batch_size", 32))
         device = "cuda" if torch.cuda.is_available() else "cpu"
         # 학습 때 체크포인트 옆에 복사해 둔 인코더를 쓰므로 인터넷이 필요 없다.
-        self.encoder = load_encoder(ckpt_dir / str(checkpoint["encoder_dir"]), device)
-        print(f"화자 임베딩, 장치: {device}, MFCC: {self.use_mfcc}, 2단계: {bool(checkpoint.get('use_stage2'))}")
+        self.encoder = EcapaEncoder(ckpt_dir / str(checkpoint["encoder_dir"]), device)
+        self.second = None
+        if checkpoint.get("second_encoder") == "wavlm":
+            self.second = WavLMEncoder(ckpt_dir / str(checkpoint["second_encoder_dir"]), device)
+        print(f"화자 임베딩, 장치: {device}, 두 번째 지문: {checkpoint.get('second_encoder')}, "
+              f"MFCC: {self.use_mfcc}, 2단계: {bool(checkpoint.get('use_stage2'))}")
 
     def prepare(self, segment: np.ndarray) -> tuple[np.ndarray, np.ndarray | None]:
         from speaker_embed import fit_length
@@ -72,11 +76,14 @@ class SpeakerEmbeddingPredictor:
         return segment, waveform_to_feature(segment, self.n_mfcc) if self.use_mfcc else None
 
     def decide(self, prepared: list[tuple[np.ndarray, np.ndarray | None]]) -> np.ndarray:
-        from speaker_embed import embed_segments, predict_call as predict_embedding_call
+        from speaker_embed import combine_embeddings, predict_call as predict_embedding_call, project
 
-        embeddings = embed_segments(self.encoder, [segment for segment, _ in prepared], self.batch_size)
+        segments = [segment for segment, _ in prepared]
         # 학습은 float16으로 캐시한 임베딩을 썼다. 같은 값으로 맞춰야 Validation 점수가 재현된다.
-        embeddings = embeddings.astype(np.float16).astype(np.float32)
+        embeddings = self.encoder.embed(segments, self.batch_size).astype(np.float16).astype(np.float32)
+        if self.second is not None:
+            second = self.second.embed(segments, self.batch_size).astype(np.float16).astype(np.float32)
+            embeddings = combine_embeddings(embeddings, project(second, self.checkpoint["projection"]))
         mfcc = np.vstack([feature for _, feature in prepared]) if self.use_mfcc else None
         return predict_embedding_call(self.checkpoint, embeddings, mfcc)
 

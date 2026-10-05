@@ -101,13 +101,108 @@ def embed_segments(encoder, segments: list[np.ndarray], batch_size: int = 32) ->
     return output
 
 
+class EcapaEncoder:
+    """SpeechBrain ECAPA-TDNN (VoxCeleb). EXP-003부터 쓰는 첫 번째 목소리 지문."""
+
+    source = ECAPA_SOURCE
+    dim = EMBED_DIM
+    cache_prefix = "embed"
+
+    def __init__(self, savedir: Path, device: str) -> None:
+        self.savedir = Path(savedir)
+        self.model = load_encoder(self.savedir, device)
+
+    def embed(self, segments: list[np.ndarray], batch_size: int) -> np.ndarray:
+        return embed_segments(self.model, segments, batch_size)
+
+    @staticmethod
+    def bundle_from(savedir: Path, target: Path) -> None:
+        """받아 둔 인코더 파일을 체크포인트 옆으로 복사한다. 모델을 메모리에 올릴 필요가 없다."""
+        bundle_encoder(Path(savedir), target)
+
+
+WAVLM_SOURCE = "microsoft/wavlm-base-plus-sv"
+WAVLM_DIM = 512
+
+
+class WavLMEncoder:
+    """Microsoft WavLM-Base-Plus 화자 검증 모델(x-vector). EXP-006에서 더한 두 번째 지문.
+
+    ECAPA와 학습 방식이 달라(자기지도 사전학습 9.4만 시간 + VoxCeleb 화자 검증),
+    짧은 발화에서 두 모델이 서로 다른 곳에서 틀릴 것을 기대한다.
+    """
+
+    source = WAVLM_SOURCE
+    dim = WAVLM_DIM
+    cache_prefix = "wavlm"
+
+    def __init__(self, savedir: Path, device: str) -> None:
+        from transformers import AutoFeatureExtractor, WavLMForXVector
+
+        self.savedir = Path(savedir)
+        local = (self.savedir / "config.json").is_file()
+        source = str(self.savedir) if local else WAVLM_SOURCE
+        self.extractor = AutoFeatureExtractor.from_pretrained(source)
+        self.model = WavLMForXVector.from_pretrained(source).to(device).eval()
+        self.device = device
+        if not local:
+            # 다음 실행과 추론이 인터넷 없이 돌도록 받은 파일을 savedir에 저장한다.
+            self.savedir.mkdir(parents=True, exist_ok=True)
+            self.extractor.save_pretrained(self.savedir)
+            self.model.save_pretrained(self.savedir)
+
+    def embed(self, segments: list[np.ndarray], batch_size: int) -> np.ndarray:
+        """발화를 하나씩 넣는다. 묶어서 넣지 않는다.
+
+        WavLM-Base는 맨 앞 합성곱 층이 GroupNorm이라 padding으로 채운 0까지 정규화에
+        섞인다. 2초 발화를 같은 길이만큼 0으로 채워 함께 넣으면 혼자 넣었을 때와
+        코사인 유사도가 0.93까지 떨어졌다(5%만 채워도 0.987). 통화 안의 발화 길이는
+        제각각이라 묶으면 짧은 발화가 가장 크게 망가지므로, 하나씩 넣어 padding을 없앤다.
+        """
+        import torch
+
+        output = np.zeros((len(segments), WAVLM_DIM), dtype=np.float32)
+        for index, segment in enumerate(segments):
+            inputs = self.extractor(fit_length(segment), sampling_rate=SAMPLE_RATE, return_tensors="pt")
+            with torch.no_grad():
+                vectors = self.model(input_values=inputs["input_values"].to(self.device)).embeddings
+            output[index] = vectors[0].float().cpu().numpy()
+        return output
+
+
 def normalize(vectors: np.ndarray) -> np.ndarray:
     norm = np.linalg.norm(vectors, axis=-1, keepdims=True)
     return (vectors / np.maximum(norm, 1e-8)).astype(np.float32)
 
 
-def stage1_width(use_mfcc: bool, mfcc_width: int = 261) -> int:
-    return EMBED_DIM * 2 + 2 + (mfcc_width * 2 if use_mfcc else 0)
+def fit_projection(raw: np.ndarray, dims: int, seed: int, sample: int = 200_000) -> dict[str, np.ndarray]:
+    """두 번째 지문(512차원)을 PCA로 줄인다. 1단계 행렬과 메모리를 감당할 수 있는 크기로."""
+    from sklearn.decomposition import PCA
+
+    rng = np.random.default_rng(seed)
+    rows = rng.choice(len(raw), size=min(sample, len(raw)), replace=False)
+    pca = PCA(n_components=dims, random_state=seed).fit(normalize(raw[np.sort(rows)]))
+    return {"mean": pca.mean_.astype(np.float32), "components": pca.components_.astype(np.float32)}
+
+
+def project(raw: np.ndarray, projection: dict[str, np.ndarray], chunk: int = 100_000) -> np.ndarray:
+    output = np.empty((len(raw), len(projection["components"])), dtype=np.float32)
+    for begin in range(0, len(raw), chunk):
+        block = normalize(raw[begin:begin + chunk]) - projection["mean"]
+        output[begin:begin + chunk] = block @ projection["components"].T
+    return output
+
+
+def combine_embeddings(primary: np.ndarray, secondary: np.ndarray | None) -> np.ndarray:
+    """두 지문을 각각 길이 1로 맞춰 이어 붙인다. 이어 붙인 벡터의 코사인 유사도는 두
+    모델 유사도의 평균이 되므로, 뒤의 1·2단계 코드는 바꾸지 않고 두 모델을 함께 쓴다."""
+    if secondary is None:
+        return primary
+    return (np.hstack((normalize(primary), normalize(secondary))) / np.sqrt(2.0)).astype(np.float32)
+
+
+def stage1_width(use_mfcc: bool, mfcc_width: int = 261, embed_dim: int = EMBED_DIM) -> int:
+    return embed_dim * 2 + 2 + (mfcc_width * 2 if use_mfcc else 0)
 
 
 def stage1_features(embeddings: np.ndarray, mfcc: np.ndarray | None = None) -> np.ndarray:
@@ -295,7 +390,7 @@ def build_stage1(
     embeddings: np.ndarray, counts: np.ndarray, mfcc: np.ndarray | None, extra_columns: int = 0,
 ) -> np.ndarray:
     """1단계 행렬. extra_columns만큼 빈 열을 미리 두어, 뒤에 열을 붙일 때 전체를 복사하지 않는다."""
-    width = stage1_width(mfcc is not None, 0 if mfcc is None else mfcc.shape[1])
+    width = stage1_width(mfcc is not None, 0 if mfcc is None else mfcc.shape[1], embeddings.shape[1])
     output = np.zeros((len(embeddings), width + extra_columns), dtype=np.float32)
     for start, end in iter_calls(counts):
         if end > start:

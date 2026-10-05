@@ -122,6 +122,17 @@ python src/mission2/train_speaker_embed.py \
   비교를 더합니다. `--rounds N`(기본 2)은 2단계를 N회차 반복하고, `--stage2 auto`는
   Validation이 가장 높은 회차까지만 저장합니다. EXP-003/004와 같은 설정은
   `--stage2_version 1 --rounds 1`입니다.
+- `--second_encoder wavlm`: Microsoft WavLM-Base-Plus 화자 검증 모델(`microsoft/wavlm-base-plus-sv`)로
+  두 번째 목소리 지문(512차원)을 뽑고, PCA로 `--second_dims`(기본 128)차원까지 줄여 ECAPA와
+  이어 붙입니다. 두 지문을 각각 길이 1로 맞춰 붙이므로 코사인 유사도는 두 모델 유사도의
+  평균이 되고, 1·2단계와 목소리 사전은 코드 변경 없이 두 모델을 함께 씁니다.
+  WavLM-Base는 앞단이 GroupNorm이라 padding이 결과를 바꾸므로 발화를 하나씩 넣습니다.
+  캐시는 `--second_cache_dir`에 `wavlm_*` 이름으로 저장하고, 파일은 체크포인트 옆
+  `wavlm_base_plus_sv/`에 복사합니다.
+- `--extract_only`: 임베딩 캐시만 만들고 끝냅니다. 추출은 GPU 런타임, 학습은 CPU 런타임에서
+  나눠 돌릴 때 씁니다.
+- `--feature_fraction`, `--bagging_fraction`: 1단계 나무마다 쓰는 특징·행 비율. 1보다 작으면
+  반복당 시간이 줄어듭니다.
 - `--stage1_cache 파일`: 1단계 모델과 확률을 저장해 두고, 1단계 설정이 같으면 다음
   실행에서 1단계 학습(약 40분)을 건너뜁니다. 2단계만 바꾸는 실험이 수 분으로 줄어듭니다.
 - 학습이 끝나면 체크포인트 옆에 `*_val_predictions.npz`(정답, 통화 경계, 1·2단계 확률,
