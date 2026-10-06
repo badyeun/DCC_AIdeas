@@ -475,18 +475,32 @@ def _cosine_parts(unit: np.ndarray, others: np.ndarray, count: int) -> tuple[np.
     return similarity, centered, relative
 
 
+def pair_setup(split: int | None, projection: dict[str, np.ndarray] | None = None) -> dict:
+    """쌍 특징 설정. split은 이어 붙인 임베딩에서 첫 번째 지문(ECAPA)의 차원 수다(None이면
+    지문이 하나). projection이 있으면 첫 번째 지문을 PCA로 줄인 뒤 차원별 비교를 더한다(EXP-008)."""
+    return {"split": split, "projection": projection}
+
+
+def pair_width(setup: dict) -> int:
+    projection = setup.get("projection")
+    return len(PAIR_COLUMNS) + (2 * len(projection["components"]) if projection is not None else 0)
+
+
 def pair_feature_cube(
     embeddings: np.ndarray, aux: np.ndarray | None, channel_scale: dict[str, np.ndarray] | None,
-    split: int | None,
+    setup: dict,
 ) -> np.ndarray:
-    """통화 하나의 모든 발화 쌍 특징 (n, n, len(PAIR_COLUMNS)). 대각선은 쓰지 않는다.
+    """통화 하나의 모든 발화 쌍 특징 (n, n, pair_width(setup)). 대각선은 쓰지 않는다.
 
-    split은 이어 붙인 임베딩에서 첫 번째 지문(ECAPA)의 차원 수다. None이면 지문이
-    하나뿐이라 두 번째 지문 열은 0으로 둔다.
+    앞의 len(PAIR_COLUMNS)열은 EXP-007과 같다. projection이 있으면 그 뒤에 PCA로 줄인
+    ECAPA 지문(통화 평균을 뺀 값)의 차원별 곱과 차이의 절댓값을 붙인다. 코사인은 모든
+    차원을 똑같이 더한 요약이라, 이 데이터에서 화자를 가르는 차원이 따로 있으면 놓친다.
     """
+    split = setup.get("split")
+    projection = setup.get("projection")
     embeddings = np.asarray(embeddings, dtype=np.float32)
     count = len(embeddings)
-    cube = np.zeros((count, count, len(PAIR_COLUMNS)), dtype=np.float32)
+    cube = np.zeros((count, count, pair_width(setup)), dtype=np.float32)
     others = ~np.eye(count, dtype=bool)
     first = embeddings if split is None else embeddings[:, :split]
     unit_first = normalize(first).astype(np.float64)
@@ -518,7 +532,13 @@ def pair_feature_cube(
             cube[:, :, 11] = unit_channel @ unit_channel.T
             gap = np.abs(channel[:, None, :] - channel[None, :, :])
             cube[:, :, 12] = np.sqrt((gap ** 2).sum(axis=2))
-            cube[:, :, 13:] = gap
+            cube[:, :, 13:len(PAIR_COLUMNS)] = gap
+    if projection is not None:
+        reduced = project(first, projection).astype(np.float64)
+        reduced -= reduced.mean(axis=0, keepdims=True)
+        dims = reduced.shape[1]
+        cube[:, :, len(PAIR_COLUMNS):len(PAIR_COLUMNS) + dims] = reduced[:, None, :] * reduced[None, :, :]
+        cube[:, :, len(PAIR_COLUMNS) + dims:] = np.abs(reduced[:, None, :] - reduced[None, :, :])
     return cube
 
 
@@ -533,7 +553,7 @@ def sample_pair_rows(count: int, limit: int, rng: np.random.Generator) -> tuple[
 
 def build_pair_training(
     embeddings: np.ndarray, labels: np.ndarray, counts: np.ndarray, calls: np.ndarray,
-    aux: np.ndarray | None, channel_scale: dict[str, np.ndarray] | None, split: int | None,
+    aux: np.ndarray | None, channel_scale: dict[str, np.ndarray] | None, setup: dict,
     limit: int, seed: int,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """판별기 학습 데이터. 정답은 두 발화의 speaker가 같은지다(speaker는 정답으로만 쓴다).
@@ -551,7 +571,7 @@ def build_pair_training(
             continue
         rows = slice(start, start + size)
         left, right = sample_pair_rows(size, limit, rng)
-        cube = pair_feature_cube(embeddings[rows], None if aux is None else aux[rows], channel_scale, split)
+        cube = pair_feature_cube(embeddings[rows], None if aux is None else aux[rows], channel_scale, setup)
         feature_blocks.append(cube[left, right])
         label_blocks.append((labels[rows][left] == labels[rows][right]).astype(np.int64))
         call_blocks.append(np.full(len(left), call, dtype=np.int64))
@@ -560,7 +580,7 @@ def build_pair_training(
 
 def same_speaker_matrix(
     model, embeddings: np.ndarray, aux: np.ndarray | None, channel_scale: dict[str, np.ndarray] | None,
-    split: int | None,
+    setup: dict,
 ) -> np.ndarray:
     """통화 하나의 '같은 화자일 확률' 행렬. 위 삼각만 예측해 대칭으로 채운다."""
     count = len(embeddings)
@@ -568,7 +588,7 @@ def same_speaker_matrix(
     if count < 2:
         return same
     left, right = np.triu_indices(count, 1)
-    cube = pair_feature_cube(embeddings, aux, channel_scale, split)
+    cube = pair_feature_cube(embeddings, aux, channel_scale, setup)
     values = positive_probability(model, cube[left, right]).astype(np.float32)
     same[left, right] = values
     same[right, left] = values
@@ -577,7 +597,7 @@ def same_speaker_matrix(
 
 def same_speaker_matrices(
     model, embeddings: np.ndarray, counts: np.ndarray, calls: np.ndarray,
-    aux: np.ndarray | None, channel_scale: dict[str, np.ndarray] | None, split: int | None,
+    aux: np.ndarray | None, channel_scale: dict[str, np.ndarray] | None, setup: dict,
     chunk_pairs: int = 1_000_000,
 ) -> dict[int, np.ndarray]:
     """여러 통화의 행렬을 만든다. 예측은 쌍을 모아 한꺼번에 해 LightGBM 호출 횟수를 줄인다."""
@@ -608,7 +628,7 @@ def same_speaker_matrices(
             continue
         rows = slice(start, start + size)
         left, right = np.triu_indices(size, 1)
-        cube = pair_feature_cube(embeddings[rows], None if aux is None else aux[rows], channel_scale, split)
+        cube = pair_feature_cube(embeddings[rows], None if aux is None else aux[rows], channel_scale, setup)
         pending.append((int(call), left, right, cube[left, right]))
         pending_pairs += len(left)
         if pending_pairs >= chunk_pairs:
@@ -680,7 +700,8 @@ def predict_call(checkpoint: dict, embeddings: np.ndarray, mfcc: np.ndarray | No
         if version >= 3:
             # 같은 화자 확률은 1단계 확률과 무관하므로 회차마다 다시 계산하지 않는다.
             same = same_speaker_matrix(checkpoint["pair_model"], embeddings, aux,
-                                       checkpoint.get("channel_scale"), checkpoint.get("embed_split"))
+                                       checkpoint.get("channel_scale"),
+                                       pair_setup(checkpoint.get("embed_split"), checkpoint.get("pair_projection")))
         for model in models:
             stage2 = stage2_features(embeddings, probabilities, aux, checkpoint.get("channel_scale"), version, same)
             probabilities = positive_probability(model, stage2)

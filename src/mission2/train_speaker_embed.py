@@ -31,7 +31,7 @@ from speaker_embed import (
     BANK_COLUMNS, ECAPA_SOURCE, EMBED_DIM, MAX_SAMPLES, MIN_SAMPLES, PAIR_COLUMNS, PAIR_STAGE2_COLUMNS, STAGE2_COLUMNS,
     STAGE2_EXTRA_COLUMNS, WAVLM_SOURCE, BoosterClassifier, EcapaEncoder, WavLMEncoder, bank_features,
     build_pair_training, build_stage1, build_stage2, combine_embeddings, fit_bank, fit_channel_scale, fit_projection,
-    positive_probability, project, same_speaker_matrices, stage2_aux,
+    pair_setup, positive_probability, project, same_speaker_matrices, stage2_aux,
 )
 from train_mfcc_rf import build_features, collect_pairs, iter_prefetched, load_shards, shard_path
 
@@ -71,6 +71,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--pair_samples", type=int, default=120,
                         help="2단계 v3 판별기 학습에 통화마다 쓰는 발화 쌍 수 상한")
     parser.add_argument("--pair_max_iter", type=int, default=500, help="2단계 v3 판별기 부스팅 반복 수 상한")
+    parser.add_argument("--pair_embed_dims", type=int, default=0,
+                        help="판별기에 ECAPA 지문을 PCA로 줄여 차원별 곱·차이로 넣을 차원 수. 0이면 넣지 않는다(EXP-007).")
+    parser.add_argument("--pair_leaves", type=int, default=63, help="판별기 나무의 잎 수")
+    parser.add_argument("--pair_fraction", type=float, default=1.0,
+                        help="판별기 나무마다 쓰는 특징·행 비율. 1보다 작으면 반복당 시간이 줄어든다.")
     parser.add_argument("--rounds", type=int, default=2, help="2단계 반복 회차 수 (EXP-003/004는 1)")
     parser.add_argument("--stage1_cache", type=Path, default=None,
                         help="1단계 모델과 확률을 저장/재사용할 파일. 설정이 같으면 1단계 학습(약 40분)을 건너뛴다.")
@@ -357,13 +362,17 @@ def main() -> None:
     stage1_oof_accuracy = float(accuracy_score(y_train, out_of_fold >= 0.5))
     print(f"Train out-of-fold Accuracy (1단계): {stage1_oof_accuracy:.4f}")
     embed_split = EMBED_DIM if projection is not None else None
-    pair_model = same_train = same_val = None
+    pair_model = same_train = same_val = pair_projection = None
     if args.stage2_version >= 3:
         if aux_train is None:
             raise ValueError("2단계 v3는 발화 길이와 회선 특징이 필요합니다. --mfcc_cache_dir를 주세요.")
+        if args.pair_embed_dims > 0:
+            # PCA는 정답을 쓰지 않으므로 Train 전체로 맞춰도 fold 누수가 없다.
+            first = emb_train if embed_split is None else emb_train[:, :embed_split]
+            pair_projection = fit_projection(first, args.pair_embed_dims, args.seed)
         pair_model, same_train, same_val = train_pair_model(
             args, emb_train, y_train, train_counts, aux_train, emb_val, val_counts, aux_val,
-            channel_scale, embed_split, folds, groups)
+            channel_scale, pair_setup(embed_split, pair_projection), folds, groups)
 
     # 2단계를 여러 회차 반복한다. 회차마다 바로 앞 회차의 확률로 통화 내 비교를 다시 한다.
     # Train 입력 확률은 매번 통화 단위 fold의 out-of-fold 값이라 과신하지 않는다.
@@ -442,6 +451,7 @@ def main() -> None:
         "projection": projection,
         "pair_model": pair_model,
         "embed_split": embed_split,
+        "pair_projection": pair_projection,
         "batch_size": args.batch_size,
         "fallback_speaker": int(np.bincount(y_train, minlength=2).argmax()),
         "seed": args.seed,
@@ -460,7 +470,7 @@ STAGE1_SIGNATURE_DEFAULTS = {"second_encoder": "none", "second_dims": 0, "featur
 
 
 def train_pair_model(args, emb_train, y_train, train_counts, aux_train, emb_val, val_counts, aux_val,
-                     channel_scale, embed_split, folds, groups):
+                     channel_scale, setup, folds, groups):
     """2단계 v3의 같은 화자 판별기를 학습하고, Train/Validation의 같은 화자 확률 행렬을 만든다.
 
     Train 통화의 행렬은 그 통화를 보지 않은 fold 판별기로 만든다(1단계 out-of-fold와 같은
@@ -472,12 +482,15 @@ def train_pair_model(args, emb_train, y_train, train_counts, aux_train, emb_val,
     start = time.perf_counter()
     all_calls = np.arange(len(train_counts))
     x_pair, y_pair, pair_calls = build_pair_training(
-        emb_train, y_train, train_counts, all_calls, aux_train, channel_scale, embed_split, args.pair_samples, args.seed)
+        emb_train, y_train, train_counts, all_calls, aux_train, channel_scale, setup, args.pair_samples, args.seed)
     print(f"같은 화자 판별기 학습 쌍: {len(y_pair):,} (같은 화자 {y_pair.mean():.3f}), 특징 {x_pair.shape[1]}개 "
           f"({elapsed(start)}), {memory_status()}")
     params = {
-        "objective": "binary", "learning_rate": 0.1, "num_leaves": 63, "min_data_in_leaf": 50,
+        "objective": "binary", "learning_rate": 0.1, "num_leaves": args.pair_leaves, "min_data_in_leaf": 50,
         "max_bin": 255, "seed": args.seed, "deterministic": True, "force_row_wise": True, "verbose": -1,
+        "feature_fraction": args.pair_fraction, "feature_fraction_seed": args.seed,
+        "bagging_fraction": args.pair_fraction, "bagging_freq": 1 if args.pair_fraction < 1.0 else 0,
+        "bagging_seed": args.seed,
     }
     dataset = lgb.Dataset(x_pair, label=y_pair, params={"max_bin": 255, "verbose": -1}, free_raw_data=False).construct()
 
@@ -503,7 +516,7 @@ def train_pair_model(args, emb_train, y_train, train_counts, aux_train, emb_val,
         best_rounds.append(model.n_iter_)
         pair_oof[~in_fit] = positive_probability(model, x_pair[~in_fit])
         for call, matrix in same_speaker_matrices(model, emb_train, train_counts, held_calls, aux_train,
-                                                  channel_scale, embed_split).items():
+                                                  channel_scale, setup).items():
             same_train[call] = matrix
         held_accuracy = accuracy_score(y_pair[~in_fit], pair_oof[~in_fit] >= 0.5)
         print(f"[판별기 fold {fold}/{len(folds)}] 반복 {model.n_iter_}, held-out 쌍 Accuracy {held_accuracy:.4f} "
@@ -521,7 +534,7 @@ def train_pair_model(args, emb_train, y_train, train_counts, aux_train, emb_val,
     pair_model = fit(np.arange(len(y_pair)), final_rounds, None)
     del dataset, x_pair
     found = same_speaker_matrices(pair_model, emb_val, val_counts, np.arange(len(val_counts)), aux_val,
-                                  channel_scale, embed_split)
+                                  channel_scale, setup)
     same_val = [found[call] for call in range(len(val_counts))]
     print(f"같은 화자 판별기 소요: {elapsed(start)} (fold 반복 {best_rounds} → 전체 {final_rounds}), {memory_status()}")
     return pair_model, same_train, same_val

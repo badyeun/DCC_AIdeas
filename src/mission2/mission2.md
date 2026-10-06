@@ -130,6 +130,11 @@ python src/mission2/train_speaker_embed.py \
   Train 통화의 판별 확률은 그 통화를 보지 않은 fold 판별기로 만듭니다. `--pair_samples`
   (기본 120)는 통화당 학습 쌍 수, `--pair_max_iter`(기본 500)는 반복 상한입니다.
   추론은 통화마다 모든 쌍(n(n-1)/2)을 판별합니다. MFCC 캐시가 필요합니다.
+- `--pair_embed_dims N` (EXP-008): 판별기 입력에 ECAPA 지문을 PCA N차원으로 줄여(통화 평균을 뺀 값)
+  두 발화의 차원별 곱과 차이의 절댓값 2N열을 더합니다. 코사인은 모든 차원을 똑같이 더한 요약이라
+  이 데이터에서 화자를 가르는 차원을 놓칠 수 있기 때문입니다. PCA는 체크포인트에 저장됩니다.
+  `--pair_leaves`(기본 63)는 판별기 나무 잎 수, `--pair_fraction`(기본 1.0)은 나무마다 쓰는
+  특징·행 비율입니다.
 - 실행 로그에 `Train out-of-fold Accuracy (1단계)`, `(2단계 N회차)`가 찍힙니다. 개선 판단은
   Validation과 이 값이 같은 방향으로 오르는지로 합니다.
 - `--second_encoder wavlm`: Microsoft WavLM-Base-Plus 화자 검증 모델(`microsoft/wavlm-base-plus-sv`)로
