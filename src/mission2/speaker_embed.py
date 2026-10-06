@@ -283,9 +283,12 @@ def stage2_features(
     """
     if version >= 3:
         if same is None:
-            raise ValueError("2단계 v3에는 같은 화자 확률 행렬이 필요합니다.")
+            raise ValueError("2단계 v3 이상에는 같은 화자 확률 행렬이 필요합니다.")
         v2 = stage2_features(embeddings, probabilities, aux, channel_scale, 2)
-        return np.hstack((v2, pair_stage2_features(same, probabilities)))
+        parts = [v2, pair_stage2_features(same, probabilities)]
+        if version >= 4:
+            parts.append(joint_call_features(same, probabilities))
+        return np.hstack(parts)
     base = stage2_base(embeddings, probabilities)
     if version == 1:
         return base
@@ -383,6 +386,32 @@ def bank_features(embeddings: np.ndarray, bank: dict[str, np.ndarray], chunk: in
     return output
 
 
+def pack_folder(folder: Path) -> dict[str, bytes]:
+    """인코더 폴더의 파일을 바이트로 읽는다. 체크포인트 한 파일에 넣어 폴더 없이 추론하게 한다."""
+    return {path.name: path.resolve().read_bytes() for path in sorted(Path(folder).iterdir())
+            if path.is_file() or path.is_symlink()}
+
+
+def unpack_folder(files: dict[str, bytes], target: Path) -> Path:
+    target = Path(target)
+    target.mkdir(parents=True, exist_ok=True)
+    for name, data in files.items():
+        (target / name).write_bytes(data)
+    return target
+
+
+def pack_checkpoint(source: Path, target: Path) -> None:
+    """예전 체크포인트(인코더가 옆 폴더에 있는 형식)를 인코더까지 담은 한 파일로 다시 저장한다."""
+    import joblib
+
+    source, target = Path(source), Path(target)
+    checkpoint = joblib.load(source)
+    checkpoint["encoder_files"] = pack_folder(source.parent / str(checkpoint["encoder_dir"]))
+    if checkpoint.get("second_encoder"):
+        checkpoint["second_encoder_files"] = pack_folder(source.parent / str(checkpoint["second_encoder_dir"]))
+    joblib.dump(checkpoint, target)
+
+
 def iter_calls(counts: np.ndarray):
     """통화 경계로 행 구간을 돌려준다."""
     start = 0
@@ -420,7 +449,8 @@ class BoosterClassifier:
 
 def stage2_width(version: int) -> int:
     return (len(STAGE2_COLUMNS) + (len(STAGE2_EXTRA_COLUMNS) if version >= 2 else 0)
-            + (len(PAIR_STAGE2_COLUMNS) if version >= 3 else 0))
+            + (len(PAIR_STAGE2_COLUMNS) if version >= 3 else 0)
+            + (len(JOINT_COLUMNS) if version >= 4 else 0))
 
 
 def build_stage2(
@@ -634,6 +664,56 @@ def same_speaker_matrices(
         if pending_pairs >= chunk_pairs:
             flush()
     flush()
+    return output
+
+
+# 2단계 v4 (EXP-009): 통화 하나를 통째로 보고 정하는 특징.
+# v3의 pair_* 특징은 발화마다 "다른 발화들이 1단계에서 받은 확률"을 한 번 모을 뿐이라, 다른
+# 발화의 확률이 틀려 있으면 그 오류를 그대로 받는다. 여기서는 통화 안 모든 발화의 판정을
+# 같은 화자 확률 S로 서로 맞춰 가며 동시에 정한다. 군집처럼 통화를 딱 자르지 않고(EXP-002
+# 실패), 결과를 2단계 분류기의 입력 특징으로만 준다.
+JOINT_COLUMNS = ("field_weak", "field_strong", "spectral_score", "spectral_gap", "spectral_agreement")
+FIELD_STRENGTHS = (1.0, 3.0)
+FIELD_STEPS = 20
+
+
+def joint_call_features(same: np.ndarray, probabilities: np.ndarray) -> np.ndarray:
+    """통화 단위 동시 판정 특징.
+
+    - field_*: 평균장(mean-field) 갱신. 내 확률 q_i를 "1단계 판정(사전) + 나와 같은 화자일
+      발화들은 같은 쪽, 다른 화자일 발화들은 반대쪽"이 되게 모든 발화를 한꺼번에 반복
+      갱신한다. 이웃 영향의 세기를 약/강 두 가지로 낸다. 모든 발화를 동시에 갱신하므로
+      발화 순서와 무관하다.
+    - spectral_score: 결합 행렬 (2S-1)의 가장 큰 고유벡터. 화자가 둘이면 이 벡터의 부호가
+      두 화자를 가른다. 고유벡터의 부호는 임의이므로 1단계 판정과 같은 방향으로 맞춘다.
+    - spectral_gap: 첫째·둘째 고유값 차이의 비율. 통화가 두 덩어리로 또렷이 갈리는 정도.
+    - spectral_agreement: 고유벡터와 1단계 판정의 일치 정도(통화 단위).
+    """
+    probabilities = np.clip(np.asarray(probabilities, dtype=np.float64), 1e-4, 1 - 1e-4)
+    count = len(probabilities)
+    output = np.zeros((count, len(JOINT_COLUMNS)), dtype=np.float32)
+    if count < 2:
+        output[:, 0] = probabilities
+        output[:, 1] = probabilities
+        return output
+    coupling = 2.0 * np.asarray(same, dtype=np.float64) - 1.0
+    np.fill_diagonal(coupling, 0.0)
+    prior = np.log(probabilities / (1.0 - probabilities))
+    for column, strength in enumerate(FIELD_STRENGTHS):
+        belief = probabilities.copy()
+        for _ in range(FIELD_STEPS):
+            field = coupling @ (2.0 * belief - 1.0) / (count - 1)
+            # 절반만 움직여(감쇠) 두 화자가 번갈아 뒤집히는 진동을 막는다.
+            belief = 0.5 * belief + 0.5 / (1.0 + np.exp(-(prior + strength * field)))
+        output[:, column] = belief
+    values, vectors = np.linalg.eigh(coupling)
+    leading = vectors[:, -1]
+    direction = 2.0 * probabilities - 1.0
+    if float(leading @ direction) < 0:
+        leading = -leading
+    output[:, 2] = leading * np.sqrt(count)
+    output[:, 3] = (values[-1] - values[-2]) / (abs(values[-1]) + abs(values[-2]) + 1e-8)
+    output[:, 4] = abs(float(leading @ direction)) / (np.linalg.norm(direction) + 1e-8)
     return output
 
 

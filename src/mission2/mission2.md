@@ -135,6 +135,15 @@ python src/mission2/train_speaker_embed.py \
   이 데이터에서 화자를 가르는 차원을 놓칠 수 있기 때문입니다. PCA는 체크포인트에 저장됩니다.
   `--pair_leaves`(기본 63)는 판별기 나무 잎 수, `--pair_fraction`(기본 1.0)은 나무마다 쓰는
   특징·행 비율입니다.
+- `--stage2_version 4` (EXP-009): v3 입력에 통화 단위 동시 판정 특징 5개를 더합니다. 평균장 갱신
+  (1단계 판정을 사전으로, 같은 화자 확률로 통화 안 모든 발화를 동시에 맞춰 가며 20번 갱신, 약/강
+  두 세기)과 결합 행렬 (2S-1)의 첫 고유벡터(두 화자 분할), 그 또렷함과 1단계와의 일치도입니다.
+  통화를 딱 자르지 않고 2단계 분류기의 입력으로만 씁니다. 모두 행렬 연산이라 순서와 무관합니다.
+- `--pair_cache 파일`: 같은 화자 판별기와 Train/Validation 확률 행렬을 저장해 두고, 판별기 설정이
+  같으면 다음 실행에서 판별기 학습(약 40분)을 건너뜁니다.
+- 체크포인트에 인코더 파일(`encoder_files`, WavLM이면 `second_encoder_files`)을 바이트로 함께 넣습니다.
+  `--ckpt_path` 파일 하나만 있으면 추론이 됩니다(옆 폴더 불필요). 예전 체크포인트는
+  `from speaker_embed import pack_checkpoint; pack_checkpoint(원본, 새 파일)`로 한 파일로 만들 수 있습니다.
 - 실행 로그에 `Train out-of-fold Accuracy (1단계)`, `(2단계 N회차)`가 찍힙니다. 개선 판단은
   Validation과 이 값이 같은 방향으로 오르는지로 합니다.
 - `--second_encoder wavlm`: Microsoft WavLM-Base-Plus 화자 검증 모델(`microsoft/wavlm-base-plus-sv`)로

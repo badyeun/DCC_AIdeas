@@ -61,13 +61,24 @@ class SpeakerEmbeddingPredictor:
         self.use_mfcc = bool(checkpoint.get("use_mfcc", False))
         self.batch_size = int(checkpoint.get("batch_size", 32))
         device = "cuda" if torch.cuda.is_available() else "cpu"
-        # 학습 때 체크포인트 옆에 복사해 둔 인코더를 쓰므로 인터넷이 필요 없다.
-        self.encoder = EcapaEncoder(ckpt_dir / str(checkpoint["encoder_dir"]), device)
+        # 인코더 파일이 체크포인트 안에 들어 있으면 임시 폴더에 풀어 쓴다(체크포인트 한 파일로 추론).
+        # 예전 체크포인트는 학습 때 체크포인트 옆에 복사해 둔 폴더를 쓴다. 둘 다 인터넷이 필요 없다.
+        self.encoder = EcapaEncoder(self.encoder_folder("encoder_files", "encoder_dir", ckpt_dir), device)
         self.second = None
         if checkpoint.get("second_encoder") == "wavlm":
-            self.second = WavLMEncoder(ckpt_dir / str(checkpoint["second_encoder_dir"]), device)
+            self.second = WavLMEncoder(self.encoder_folder("second_encoder_files", "second_encoder_dir", ckpt_dir), device)
         print(f"화자 임베딩, 장치: {device}, 두 번째 지문: {checkpoint.get('second_encoder')}, "
               f"MFCC: {self.use_mfcc}, 2단계: {bool(checkpoint.get('use_stage2'))}")
+
+    def encoder_folder(self, files_key: str, dir_key: str, ckpt_dir: Path) -> Path:
+        import tempfile
+
+        from speaker_embed import unpack_folder
+
+        files = self.checkpoint.get(files_key)
+        if files:
+            return unpack_folder(files, Path(tempfile.mkdtemp(prefix="mission2_")) / str(self.checkpoint[dir_key]))
+        return ckpt_dir / str(self.checkpoint[dir_key])
 
     def prepare(self, segment: np.ndarray) -> tuple[np.ndarray, np.ndarray | None]:
         from speaker_embed import fit_length

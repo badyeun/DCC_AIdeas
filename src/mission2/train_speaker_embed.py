@@ -31,7 +31,7 @@ from speaker_embed import (
     BANK_COLUMNS, ECAPA_SOURCE, EMBED_DIM, MAX_SAMPLES, MIN_SAMPLES, PAIR_COLUMNS, PAIR_STAGE2_COLUMNS, STAGE2_COLUMNS,
     STAGE2_EXTRA_COLUMNS, WAVLM_SOURCE, BoosterClassifier, EcapaEncoder, WavLMEncoder, bank_features,
     build_pair_training, build_stage1, build_stage2, combine_embeddings, fit_bank, fit_channel_scale, fit_projection,
-    pair_setup, positive_probability, project, same_speaker_matrices, stage2_aux,
+    JOINT_COLUMNS, pack_folder, pair_setup, positive_probability, project, same_speaker_matrices, stage2_aux,
 )
 from train_mfcc_rf import build_features, collect_pairs, iter_prefetched, load_shards, shard_path
 
@@ -65,9 +65,11 @@ def parse_args() -> argparse.Namespace:
                         help="Train 대원/신고자 목소리 사전의 군집 수. 0이면 사용하지 않는다(EXP-003).")
     parser.add_argument("--stage2", choices=("auto", "on", "off"), default="auto",
                         help="2단계 사용 여부. auto는 Validation 정확도가 가장 높은 회차까지 저장한다.")
-    parser.add_argument("--stage2_version", type=int, choices=(1, 2, 3), default=2,
+    parser.add_argument("--stage2_version", type=int, choices=(1, 2, 3, 4), default=2,
                         help="1: EXP-003/004 입력 6개. 2: 발화 길이·확실한 발화와의 비교·회선 비교 추가. "
-                             "3: 같은 화자 판별기로 잰 비교 추가(EXP-007)")
+                             "3: 같은 화자 판별기로 잰 비교 추가(EXP-007). 4: 통화 단위 동시 판정 특징 추가(EXP-009)")
+    parser.add_argument("--pair_cache", type=Path, default=None,
+                        help="같은 화자 판별기와 확률 행렬을 저장/재사용할 파일. 설정이 같으면 판별기 학습(약 40분)을 건너뛴다.")
     parser.add_argument("--pair_samples", type=int, default=120,
                         help="2단계 v3 판별기 학습에 통화마다 쓰는 발화 쌍 수 상한")
     parser.add_argument("--pair_max_iter", type=int, default=500, help="2단계 v3 판별기 부스팅 반복 수 상한")
@@ -366,19 +368,44 @@ def main() -> None:
     if args.stage2_version >= 3:
         if aux_train is None:
             raise ValueError("2단계 v3는 발화 길이와 회선 특징이 필요합니다. --mfcc_cache_dir를 주세요.")
-        if args.pair_embed_dims > 0:
-            # PCA는 정답을 쓰지 않으므로 Train 전체로 맞춰도 fold 누수가 없다.
-            first = emb_train if embed_split is None else emb_train[:, :embed_split]
-            pair_projection = fit_projection(first, args.pair_embed_dims, args.seed)
-        pair_model, same_train, same_val = train_pair_model(
-            args, emb_train, y_train, train_counts, aux_train, emb_val, val_counts, aux_val,
-            channel_scale, pair_setup(embed_split, pair_projection), folds, groups)
+        pair_signature = {
+            "pair_samples": args.pair_samples, "pair_max_iter": args.pair_max_iter,
+            "pair_embed_dims": args.pair_embed_dims, "pair_leaves": args.pair_leaves,
+            "pair_fraction": args.pair_fraction, "seed": args.seed, "folds": args.folds,
+            "train_rows": len(y_train), "val_rows": len(y_val), "embed_width": int(emb_train.shape[1]),
+            "second_encoder": args.second_encoder, "second_dims": args.second_dims if projection is not None else 0,
+        }
+        saved_pairs = None
+        if args.pair_cache is not None and args.pair_cache.is_file():
+            saved_pairs = joblib.load(args.pair_cache)
+            if saved_pairs.get("signature") != pair_signature:
+                print(f"판별기 캐시 설정이 달라 다시 학습합니다: {saved_pairs.get('signature')}")
+                saved_pairs = None
+        if saved_pairs is not None:
+            # 2단계만 바꾸는 실험은 판별기(약 40분)를 다시 학습하지 않는다.
+            pair_model, pair_projection = saved_pairs["pair_model"], saved_pairs["pair_projection"]
+            same_train, same_val = saved_pairs["same_train"], saved_pairs["same_val"]
+            print(f"판별기 캐시 사용: {args.pair_cache}")
+        else:
+            if args.pair_embed_dims > 0:
+                # PCA는 정답을 쓰지 않으므로 Train 전체로 맞춰도 fold 누수가 없다.
+                first = emb_train if embed_split is None else emb_train[:, :embed_split]
+                pair_projection = fit_projection(first, args.pair_embed_dims, args.seed)
+            pair_model, same_train, same_val = train_pair_model(
+                args, emb_train, y_train, train_counts, aux_train, emb_val, val_counts, aux_val,
+                channel_scale, pair_setup(embed_split, pair_projection), folds, groups)
+            if args.pair_cache is not None:
+                args.pair_cache.parent.mkdir(parents=True, exist_ok=True)
+                joblib.dump({"signature": pair_signature, "pair_model": pair_model, "pair_projection": pair_projection,
+                             "same_train": same_train, "same_val": same_val}, args.pair_cache)
+                print(f"판별기 캐시 저장: {args.pair_cache}")
 
     # 2단계를 여러 회차 반복한다. 회차마다 바로 앞 회차의 확률로 통화 내 비교를 다시 한다.
     # Train 입력 확률은 매번 통화 단위 fold의 out-of-fold 값이라 과신하지 않는다.
     start = time.perf_counter()
     columns = (STAGE2_COLUMNS + (STAGE2_EXTRA_COLUMNS if args.stage2_version >= 2 else ())
-               + (PAIR_STAGE2_COLUMNS if args.stage2_version >= 3 else ()))
+               + (PAIR_STAGE2_COLUMNS if args.stage2_version >= 3 else ())
+               + (JOINT_COLUMNS if args.stage2_version >= 4 else ()))
     print(f"2단계 v{args.stage2_version} 입력: {', '.join(columns)}")
     train_probability, val_probability = out_of_fold, val_stage1
     stage2_models: list[HistGradientBoostingClassifier] = []
@@ -444,6 +471,10 @@ def main() -> None:
         "n_mfcc": args.n_mfcc,
         "timestamp_unit": args.timestamp_unit,
         "encoder_dir": ENCODER_DIRNAME,
+        # 인코더 파일도 체크포인트 안에 넣어, --ckpt_path 파일 하나만 있으면 추론이 되게 한다.
+        "encoder_files": pack_folder(args.ckpt_path.parent / ENCODER_DIRNAME),
+        "second_encoder_files": (pack_folder(args.ckpt_path.parent / SECOND_ENCODER_DIRNAME)
+                                 if projection is not None else None),
         "encoder_source": ECAPA_SOURCE,
         "second_encoder": args.second_encoder if projection is not None else None,
         "second_encoder_dir": SECOND_ENCODER_DIRNAME if projection is not None else None,
