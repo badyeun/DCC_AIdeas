@@ -475,6 +475,45 @@ LightGBM은 float32를 그대로 받아 Train 전체를 **한 번만 구간화**
   됩니다. 1단계를 바꾸는 실험은 학습률을 올리거나 열 샘플링을 써서 시간을 줄여야
   여러 번 돌릴 수 있습니다.
 
+## EXP-006 — WavLM 두 번째 지문 + 특징·행 샘플링 (Validation Accuracy 0.9055, 개선 없음)
+
+| 항목 | 결과 |
+| --- | --- |
+| 실행 환경 | Google Colab CPU, 표준 RAM 12.7GB (ECAPA·WavLM·MFCC 캐시 재사용) |
+| 설정 | EXP-005 + `--second_encoder wavlm --second_dims 128 --feature_fraction 0.5 --bagging_fraction 0.7 --rounds 2` |
+| 임베딩 | WavLM 512 → PCA 128, ECAPA와 이어 붙여 320차원. 1단계 특징 1169차원 |
+| 메모리 | 1단계 행렬 완성 후 7.2GB, 학습 중 7.3~7.6GB (여유 4.7GB 이상) |
+| 목소리 사전 | 8분 15초 / LightGBM 구간화 6분 0초 |
+| fold 반복 / held-out | 669 / 0.8977, 678 / 0.8980, 669 / 0.8981, 797 / 0.8974 |
+| 1단계 학습 | 3시간 32분 19초 (전체 모델 703회). 샘플링으로 기대한 시간 단축은 거의 없었다(차원이 늘어 상쇄) |
+| 1단계 (발화별) | Accuracy **0.8973** (EXP-005 0.8969, +0.04%p) / Train OOF 0.8978 |
+| 2단계 1회차 | Accuracy 0.9052 / Train OOF 0.9072 |
+| 2단계 2회차 | Accuracy **0.9055** / Train OOF 0.9077 ← `auto`(OOF 기준)가 선택 |
+| 전체 소요 | 3시간 58분 28초 |
+| 체크포인트 | `/content/drive/MyDrive/saved_models/mission2/exp006/mission2_speaker.ckpt` |
+| 1단계 캐시 | `/content/drive/MyDrive/saved_models/mission2/stage1_wavlm.joblib` |
+
+| Class (2단계 2회차) | Precision | Recall | F1-score | Support |
+| --- | ---: | ---: | ---: | ---: |
+| 119대원(0) | 0.9342 | 0.8644 | 0.8980 | 53,845 |
+| 신고자(1) | 0.8825 | 0.9436 | 0.9120 | 58,102 |
+
+| 비교 | 1단계 | 2단계 최종 | 대원 recall |
+| --- | ---: | ---: | ---: |
+| EXP-005 | 0.8969 | 0.9067 | 0.8645 |
+| EXP-006 | 0.8973 | 0.9055 | 0.8644 |
+| 차이 | +0.04%p | **−0.12%p** | −0.01%p |
+
+### 해석
+
+- WavLM 지문은 1단계를 거의 바꾸지 못했다(fold held-out도 EXP-005 0.8972~0.8990과 같은 범위).
+  ECAPA와 WavLM이 짧은 발화에서 같은 곳에서 틀리는 것으로 보인다.
+- 2단계는 오히려 0.12%p 낮다. 이어 붙인 임베딩의 코사인은 두 모델 코사인의 평균이라,
+  WavLM 코사인이 ECAPA보다 덜 변별적이면 2단계 비교가 흐려진다(추정, 확인 안 함).
+- 결론: 단순히 지문을 더 붙이는 방향은 효과가 없다. 병목은 지문 자체보다 "짧은 발화끼리의
+  비교를 어떻게 믿을지"로 본다 → EXP-007(같은 화자 판별기)로 간다.
+- 이 실행부터 Train out-of-fold 정확도를 찍는다. EXP-005는 이 값이 없어 EXP-007 (a)에서 잰다.
+
 ## 다음 실험 계획
 
 현재 기준선은 **EXP-005 (Validation Accuracy 0.9067, LightGBM 1단계 + 2단계 v2)** 입니다.
