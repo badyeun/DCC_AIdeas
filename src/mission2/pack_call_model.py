@@ -23,6 +23,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--models", type=Path, nargs="+", required=True)
     parser.add_argument("--base_ckpt", type=Path, required=True)
     parser.add_argument("--blend", type=float, default=0.0)
+    parser.add_argument("--second_encoder_dir", type=Path, default=None,
+                        help="WavLM 파일 폴더. WavLM을 입력에 쓴 트랜스포머가 있으면 필요하다.")
     parser.add_argument("--out", type=Path, required=True)
     return parser.parse_args()
 
@@ -42,6 +44,7 @@ def main() -> None:
             raise ValueError(f"통화 트랜스포머가 아닙니다: {path}")
         entries.append({
             "config": saved["config"], "scale": saved["scale"], "use_stage1": bool(saved["use_stage1"]),
+            "use_second": bool(saved.get("use_second", False)),
             "state_dict": {key: value.cpu().numpy() for key, value in saved["state_dict"].items()},
             "source": path.name, "holdout_accuracy": saved.get("holdout_accuracy"),
             "validation_accuracy": saved.get("validation_accuracy"),
@@ -65,6 +68,11 @@ def main() -> None:
         "fallback_speaker": int(base.get("fallback_speaker", 1)),
         "batch_size": int(base.get("batch_size", 32)),
     }
+    if any(entry["use_second"] for entry in entries):
+        if args.second_encoder_dir is None:
+            raise ValueError("WavLM을 입력에 쓴 트랜스포머가 있습니다. --second_encoder_dir로 WavLM 파일 폴더를 주세요.")
+        checkpoint["second_encoder_files"] = pack_folder(args.second_encoder_dir)
+        checkpoint["second_encoder_dir"] = "wavlm_base_plus_sv"
     args.out.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(checkpoint, args.out)
     size = args.out.stat().st_size / 2 ** 20

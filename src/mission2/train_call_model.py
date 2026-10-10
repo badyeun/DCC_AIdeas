@@ -25,6 +25,8 @@ import numpy as np
 
 from call_model import ECAPA_DIM, MFCC_DIM, build_model, call_inputs, input_width, predict_calls
 
+SECOND_DIM = 512  # WavLM-Base-Plus-SV x-vector
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Mission 2 통화 단위 트랜스포머")
@@ -33,6 +35,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--work_dir", type=Path, required=True, help="디스크 배열을 둘 폴더")
     parser.add_argument("--out", type=Path, required=True, help="모델 저장 경로 (.pt)")
     parser.add_argument("--stage1_cache", type=Path, default=None, help="1단계 캐시 joblib. 주면 1단계 확률을 입력에 쌓는다.")
+    parser.add_argument("--second_cache_dir", type=Path, default=None,
+                        help="WavLM 임베딩 캐시(wavlm_train_*, wavlm_val_*). 주면 두 번째 목소리 지문을 입력에 더한다.")
     parser.add_argument("--base_val_predictions", type=Path, default=None,
                         help="기존 파이프라인 *_val_predictions.npz. 주면 0.5:0.5로 섞은 정확도도 낸다.")
     parser.add_argument("--d_model", type=int, default=128)
@@ -120,7 +124,13 @@ def load_split(args, split: str) -> dict:
     if not np.array_equal(labels, mfcc_labels) or not np.array_equal(counts, mfcc_counts):
         raise ValueError(f"[{split}] ECAPA와 MFCC 캐시의 발화 정렬이 다릅니다.")
     offsets = np.concatenate([[0], np.cumsum(counts)])
-    return {"ecapa": ecapa, "mfcc": mfcc, "labels": labels, "counts": counts, "offsets": offsets}
+    second = None
+    if args.second_cache_dir is not None:
+        second, second_labels, second_counts = read_cache(
+            args.second_cache_dir, f"wavlm_{split}", SECOND_DIM, args.work_dir / f"{split}_wavlm.npy")
+        if not np.array_equal(labels, second_labels) or not np.array_equal(counts, second_counts):
+            raise ValueError(f"[{split}] ECAPA와 WavLM 캐시의 발화 정렬이 다릅니다.")
+    return {"ecapa": ecapa, "mfcc": mfcc, "second": second, "labels": labels, "counts": counts, "offsets": offsets}
 
 
 def mfcc_scale(data: dict, calls: np.ndarray) -> dict[str, np.ndarray]:
@@ -147,11 +157,13 @@ def make_call(data: dict, call: int, scale: dict, stage1: np.ndarray | None, kee
     rows = call_rows(data, call)
     ecapa = np.asarray(data["ecapa"][rows], dtype=np.float32)
     mfcc = np.asarray(data["mfcc"][rows], dtype=np.float32)
+    second = None if data.get("second") is None else np.asarray(data["second"][rows], dtype=np.float32)
     probability = None if stage1 is None else stage1[rows]
     if keep is not None:
         ecapa, mfcc = ecapa[keep], mfcc[keep]
+        second = None if second is None else second[keep]
         probability = None if probability is None else probability[keep]
-    return call_inputs(ecapa, mfcc, scale, probability)
+    return call_inputs(ecapa, mfcc, scale, probability, second)
 
 
 def evaluate(model, data: dict, calls: np.ndarray, scale: dict, stage1, device: str) -> tuple[float, np.ndarray]:
@@ -198,7 +210,8 @@ def main() -> None:
     fit = fit[train["counts"][fit] > 0]
     scale = mfcc_scale(train, fit)
     config = {
-        "in_dim": input_width(stage1_train is not None), "d_model": args.d_model, "layers": args.layers,
+        "in_dim": input_width(stage1_train is not None, SECOND_DIM if train["second"] is not None else 0),
+        "d_model": args.d_model, "layers": args.layers,
         "heads": args.heads, "ff": args.ff, "dropout": args.dropout,
     }
     if args.pair_weight > 0:
@@ -268,7 +281,7 @@ def main() -> None:
             best_accuracy, best_epoch = held_accuracy, epoch
             best_state = {key: value.detach().cpu().clone() for key, value in model.state_dict().items()}
             torch.save({"model_type": "mission2_call_transformer", "config": config, "state_dict": best_state,
-                        "scale": scale, "use_stage1": stage1_train is not None, "best_epoch": epoch,
+                        "scale": scale, "use_stage1": stage1_train is not None, "use_second": train["second"] is not None, "best_epoch": epoch,
                         "holdout_accuracy": None}, args.out.with_suffix(".best.pt"))
             print(f"[epoch {epoch:2d}] loss {running / len(fit):.4f}, holdout 없음 (Train 전체 학습) ({elapsed(start)})")
             continue
@@ -281,7 +294,7 @@ def main() -> None:
             # 학습이 중간에 끊겨도 그때까지 가장 좋았던 모델이 남도록 매번 저장한다.
             args.out.parent.mkdir(parents=True, exist_ok=True)
             torch.save({"model_type": "mission2_call_transformer", "config": config, "state_dict": best_state,
-                        "scale": scale, "use_stage1": stage1_train is not None, "best_epoch": epoch,
+                        "scale": scale, "use_stage1": stage1_train is not None, "use_second": train["second"] is not None, "best_epoch": epoch,
                         "holdout_accuracy": held_accuracy}, args.out.with_suffix(".best.pt"))
         else:
             waited += 1
@@ -317,7 +330,7 @@ def main() -> None:
     args.out.parent.mkdir(parents=True, exist_ok=True)
     torch.save({
         "model_type": "mission2_call_transformer", "config": config, "state_dict": best_state,
-        "scale": scale, "use_stage1": stage1_train is not None, "best_epoch": best_epoch,
+        "scale": scale, "use_stage1": stage1_train is not None, "use_second": train["second"] is not None, "best_epoch": best_epoch,
         "holdout_accuracy": best_accuracy, "validation_accuracy": val_accuracy, "blend_accuracy": blend_accuracy,
         "args": {key: str(value) for key, value in vars(args).items()},
     }, args.out)

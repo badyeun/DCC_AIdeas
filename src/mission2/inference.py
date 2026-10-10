@@ -110,7 +110,7 @@ class CallTransformerPredictor(SpeakerEmbeddingPredictor):
         import torch
 
         from call_model import load_transformers
-        from speaker_embed import EcapaEncoder
+        from speaker_embed import EcapaEncoder, WavLMEncoder
 
         self.checkpoint = checkpoint
         self.n_mfcc = int(checkpoint.get("n_mfcc", 20))
@@ -119,6 +119,10 @@ class CallTransformerPredictor(SpeakerEmbeddingPredictor):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.encoder = EcapaEncoder(self.encoder_folder("encoder_files", "encoder_dir", ckpt_dir), self.device)
         self.second = None
+        # WavLM을 입력에 쓴 트랜스포머가 있을 때만 WavLM을 불러온다 (발화를 하나씩 넣어 느리다).
+        self.wavlm = None
+        if any(entry.get("use_second") for entry in checkpoint["transformers"]):
+            self.wavlm = WavLMEncoder(self.encoder_folder("second_encoder_files", "second_encoder_dir", ckpt_dir), self.device)
         self.transformers = load_transformers(checkpoint["transformers"], self.device)
         self.base = checkpoint.get("base")
         self.blend = float(checkpoint.get("blend", 0.0))
@@ -137,7 +141,8 @@ class CallTransformerPredictor(SpeakerEmbeddingPredictor):
         if self.base is not None:
             # 기존 파이프라인은 float32 MFCC 캐시로 학습했으므로 반올림하지 않은 값을 넘긴다.
             base_probability, stage1 = predict_call_probability(self.base, embeddings, mfcc)
-        probability = transformer_probability(self.transformers, embeddings, mfcc, stage1, self.device)
+        second = self.wavlm.embed(segments, self.batch_size) if self.wavlm is not None else None
+        probability = transformer_probability(self.transformers, embeddings, mfcc, stage1, self.device, second)
         if base_probability is not None and self.blend > 0:
             probability = self.blend * base_probability + (1.0 - self.blend) * probability
         return (probability >= 0.5).astype(np.int64)

@@ -30,20 +30,26 @@ def normalize_rows(vectors: np.ndarray) -> np.ndarray:
 
 def call_inputs(
     ecapa: np.ndarray, mfcc: np.ndarray, scale: dict[str, np.ndarray],
-    stage1: np.ndarray | None = None,
+    stage1: np.ndarray | None = None, second: np.ndarray | None = None,
 ) -> np.ndarray:
-    """통화 하나의 발화 입력 행렬. 통화 평균은 순서와 무관한 값이다."""
+    """통화 하나의 발화 입력 행렬. 통화 평균은 순서와 무관한 값이다.
+
+    second: (선택) WavLM 화자 임베딩 512. 길이 1로 맞춘 값과 통화 평균을 뺀 값을 더한다.
+    """
     unit = normalize_rows(np.asarray(ecapa, dtype=np.float32))
     standard = (np.asarray(mfcc, dtype=np.float32) - scale["mean"]) / scale["std"]
     parts = [unit, unit - unit.mean(axis=0, keepdims=True), standard, standard - standard.mean(axis=0, keepdims=True)]
+    if second is not None:
+        unit2 = normalize_rows(np.asarray(second, dtype=np.float32))
+        parts += [unit2, unit2 - unit2.mean(axis=0, keepdims=True)]
     if stage1 is not None:
         clipped = np.clip(np.asarray(stage1, dtype=np.float64), 1e-4, 1 - 1e-4)
         parts.append(np.log(clipped / (1 - clipped)).astype(np.float32)[:, None])
     return np.hstack(parts).astype(np.float32)
 
 
-def input_width(use_stage1: bool) -> int:
-    return ECAPA_DIM * 2 + MFCC_DIM * 2 + (1 if use_stage1 else 0)
+def input_width(use_stage1: bool, second_dim: int = 0) -> int:
+    return ECAPA_DIM * 2 + MFCC_DIM * 2 + second_dim * 2 + (1 if use_stage1 else 0)
 
 
 def build_model(config: dict):
@@ -92,18 +98,21 @@ def load_transformers(entries: list[dict], device: str = "cpu") -> list[tuple[ob
 
 def transformer_probability(
     loaded: list[tuple[object, dict]], ecapa: np.ndarray, mfcc: np.ndarray,
-    stage1: np.ndarray | None = None, device: str = "cpu",
+    stage1: np.ndarray | None = None, device: str = "cpu", second: np.ndarray | None = None,
 ) -> np.ndarray:
     """통화 하나에 대해 트랜스포머 여러 개(시드 앙상블)의 확률 평균.
 
-    학습 캐시는 ECAPA·MFCC를 float16으로 저장해 썼다. 같은 값으로 맞춰야 Validation 점수가
+    학습 캐시는 ECAPA·MFCC·WavLM을 float16으로 저장해 썼다. 같은 값으로 맞춰야 Validation 점수가
     재현되므로 여기서도 float16으로 반올림한다.
     """
     ecapa = np.asarray(ecapa, dtype=np.float16).astype(np.float32)
     mfcc = np.asarray(mfcc, dtype=np.float16).astype(np.float32)
+    if second is not None:
+        second = np.asarray(second, dtype=np.float16).astype(np.float32)
     outputs = []
     for model, entry in loaded:
-        inputs = call_inputs(ecapa, mfcc, entry["scale"], stage1 if entry.get("use_stage1") else None)
+        inputs = call_inputs(ecapa, mfcc, entry["scale"], stage1 if entry.get("use_stage1") else None,
+                             second if entry.get("use_second") else None)
         outputs.append(predict_calls(model, [inputs], device, batch_calls=1)[0])
     return np.mean(outputs, axis=0)
 
