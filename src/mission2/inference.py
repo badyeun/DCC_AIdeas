@@ -26,24 +26,93 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+class RandomForestPredictor:
+    """EXP-001/002 MFCC + RandomForest 체크포인트."""
+
+    def __init__(self, checkpoint: dict) -> None:
+        self.classifier = checkpoint["classifier"]
+        self.n_mfcc = int(checkpoint.get("n_mfcc", 20))
+        # 통화 맥락 설정이 없는 예전 체크포인트는 발화 하나만 보던 동작을 그대로 따른다.
+        self.call_context = str(checkpoint.get("call_context", "none"))
+        self.cluster = bool(checkpoint.get("cluster", False))
+        self.min_utterances = int(checkpoint.get("cluster_min_utterances", 6))
+        self.margin = float(checkpoint.get("cluster_margin", 0.10))
+        self.seed = int(checkpoint.get("seed", 42))
+        print(f"MFCC-RandomForest, 통화 맥락: {self.call_context}, 군집 묶기: {self.cluster}")
+
+    def prepare(self, segment: np.ndarray) -> np.ndarray:
+        return waveform_to_feature(segment, self.n_mfcc)
+
+    def decide(self, prepared: list[np.ndarray]) -> np.ndarray:
+        return predict_call(self.classifier, np.vstack(prepared), self.call_context, self.cluster,
+                            self.min_utterances, self.margin, self.seed)
+
+
+class SpeakerEmbeddingPredictor:
+    """화자 임베딩 + 통화 내 비교 체크포인트 (train_speaker_embed.py)."""
+
+    def __init__(self, checkpoint: dict, ckpt_dir: Path) -> None:
+        import torch
+
+        from speaker_embed import EcapaEncoder, WavLMEncoder
+
+        self.checkpoint = checkpoint
+        self.n_mfcc = int(checkpoint.get("n_mfcc", 20))
+        self.use_mfcc = bool(checkpoint.get("use_mfcc", False))
+        self.batch_size = int(checkpoint.get("batch_size", 32))
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        # 인코더 파일이 체크포인트 안에 들어 있으면 임시 폴더에 풀어 쓴다(체크포인트 한 파일로 추론).
+        # 예전 체크포인트는 학습 때 체크포인트 옆에 복사해 둔 폴더를 쓴다. 둘 다 인터넷이 필요 없다.
+        self.encoder = EcapaEncoder(self.encoder_folder("encoder_files", "encoder_dir", ckpt_dir), device)
+        self.second = None
+        if checkpoint.get("second_encoder") == "wavlm":
+            self.second = WavLMEncoder(self.encoder_folder("second_encoder_files", "second_encoder_dir", ckpt_dir), device)
+        print(f"화자 임베딩, 장치: {device}, 두 번째 지문: {checkpoint.get('second_encoder')}, "
+              f"MFCC: {self.use_mfcc}, 2단계: {bool(checkpoint.get('use_stage2'))}")
+
+    def encoder_folder(self, files_key: str, dir_key: str, ckpt_dir: Path) -> Path:
+        import tempfile
+
+        from speaker_embed import unpack_folder
+
+        files = self.checkpoint.get(files_key)
+        if files:
+            return unpack_folder(files, Path(tempfile.mkdtemp(prefix="mission2_")) / str(self.checkpoint[dir_key]))
+        return ckpt_dir / str(self.checkpoint[dir_key])
+
+    def prepare(self, segment: np.ndarray) -> tuple[np.ndarray, np.ndarray | None]:
+        from speaker_embed import fit_length
+
+        fit_length(segment)  # 쓸 수 없는 조각은 여기서 걸러 fallback으로 보낸다.
+        return segment, waveform_to_feature(segment, self.n_mfcc) if self.use_mfcc else None
+
+    def decide(self, prepared: list[tuple[np.ndarray, np.ndarray | None]]) -> np.ndarray:
+        from speaker_embed import combine_embeddings, predict_call as predict_embedding_call, project
+
+        segments = [segment for segment, _ in prepared]
+        # 학습은 float16으로 캐시한 임베딩을 썼다. 같은 값으로 맞춰야 Validation 점수가 재현된다.
+        embeddings = self.encoder.embed(segments, self.batch_size).astype(np.float16).astype(np.float32)
+        if self.second is not None:
+            second = self.second.embed(segments, self.batch_size).astype(np.float16).astype(np.float32)
+            embeddings = combine_embeddings(embeddings, project(second, self.checkpoint["projection"]))
+        mfcc = np.vstack([feature for _, feature in prepared]) if self.use_mfcc else None
+        return predict_embedding_call(self.checkpoint, embeddings, mfcc)
+
+
 def main() -> None:
     args = parse_args()
     if not args.audio_dir.is_dir() or not args.label_dir.is_dir() or not args.ckpt_path.is_file():
         raise FileNotFoundError("audio_dir, label_dir, ckpt_path를 확인하세요.")
     checkpoint = joblib.load(args.ckpt_path)
-    if not isinstance(checkpoint, dict) or checkpoint.get("model_type") != "mission2_mfcc_random_forest":
-        raise ValueError("Mission 2 MFCC-RandomForest 체크포인트가 아닙니다.")
-    classifier = checkpoint["classifier"]
-    n_mfcc = int(checkpoint.get("n_mfcc", 20))
+    model_type = checkpoint.get("model_type") if isinstance(checkpoint, dict) else None
+    if model_type == "mission2_mfcc_random_forest":
+        predictor = RandomForestPredictor(checkpoint)
+    elif model_type == "mission2_speaker_embedding":
+        predictor = SpeakerEmbeddingPredictor(checkpoint, args.ckpt_path.parent)
+    else:
+        raise ValueError("Mission 2 체크포인트가 아닙니다.")
     configured_unit = str(checkpoint.get("timestamp_unit", "auto"))
     fallback = int(checkpoint.get("fallback_speaker", 0))
-    # 통화 맥락 설정이 없는 예전 체크포인트는 발화 하나만 보던 동작을 그대로 따른다.
-    call_context = str(checkpoint.get("call_context", "none"))
-    cluster = bool(checkpoint.get("cluster", False))
-    min_utterances = int(checkpoint.get("cluster_min_utterances", 6))
-    margin = float(checkpoint.get("cluster_margin", 0.10))
-    seed = int(checkpoint.get("seed", 42))
-    print(f"통화 맥락: {call_context}, 군집 묶기: {cluster}")
     index = build_annotation_index(args.label_dir)
     rows: list[tuple[str, object, object, int]] = []
     failures = 0
@@ -62,21 +131,20 @@ def main() -> None:
             print(f"[warn] {audio_path.name}: {error}", file=sys.stderr)
             continue
         # 같은 통화의 발화를 한 번에 모아 서로 비교한다. 발화 순서는 쓰지 않는다.
-        entries: list[tuple[object, object, np.ndarray | None]] = []
+        entries: list[tuple[object, object, object]] = []
         for utterance in utterances:
             start, end = utterance.get("startAt"), utterance.get("endAt")
             try:
-                feature = waveform_to_feature(slice_utterance(waveform, utterance, unit), n_mfcc)
+                prepared = predictor.prepare(slice_utterance(waveform, utterance, unit))
             except (ValueError, IndexError) as error:
                 failures += 1
-                feature = None
+                prepared = None
                 print(f"[warn] {audio_path.name} {start}~{end}: {error} -> {fallback}", file=sys.stderr)
-            entries.append((start, end, feature))
+            entries.append((start, end, prepared))
         speakers = [fallback] * len(entries)
         usable = [position for position, entry in enumerate(entries) if entry[2] is not None]
         if usable:
-            base = np.vstack([entries[position][2] for position in usable])
-            decided = predict_call(classifier, base, call_context, cluster, min_utterances, margin, seed)
+            decided = predictor.decide([entries[position][2] for position in usable])
             for order, position in enumerate(usable):
                 speakers[position] = int(decided[order])
         for (start, end, _), speaker in zip(entries, speakers):

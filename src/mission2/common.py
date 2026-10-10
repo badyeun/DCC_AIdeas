@@ -171,6 +171,58 @@ def waveform_to_feature(waveform: np.ndarray, n_mfcc: int = 20) -> np.ndarray:
     )).astype(np.float32)
 
 
+PROFILE_BANDS = 40
+PROFILE_SCALARS = (
+    "energy_p5", "energy_p50", "energy_p95", "energy_range", "quiet_fraction", "zero_crossing",
+    "peak_db", "clip_fraction", "dc_offset", "noise_flatness", "speech_to_noise", "speech_high_ratio",
+)
+PROFILE_DIM = PROFILE_BANDS * 3 + len(PROFILE_SCALARS)
+_PROFILE_MEL: np.ndarray | None = None
+
+
+def channel_profile(waveform: np.ndarray) -> np.ndarray:
+    """발화 하나의 녹음 환경(채널·배경 소음) 프로파일 (EXP-010).
+
+    문제 p8 힌트대로 대원/신고자를 가르는 단서는 녹음 채널과 배경 소음이다. 그런데 화자
+    임베딩은 채널 차이를 지우도록 학습되었고, MFCC 통계는 말소리와 쉬는 구간을 섞어
+    평균한다. 그래서 프레임을 에너지로 나눠, 가장 조용한 20%의 평균 스펙트럼(배경 소음)과
+    가장 큰 30%의 평균 스펙트럼(말소리)을 따로 잰다. 프레임은 에너지 값으로만 고르므로
+    발화 안의 시간 순서와도 무관하다.
+
+    반환: 소음 log-mel 40 + 말소리 log-mel 40 + 전체 log-mel 표준편차 40 + 지표 12.
+    """
+    global _PROFILE_MEL
+    if _PROFILE_MEL is None:
+        # 원본은 8kHz라 4kHz 위에는 정보가 없다.
+        _PROFILE_MEL = librosa.filters.mel(sr=SAMPLE_RATE, n_fft=512, n_mels=PROFILE_BANDS, fmax=4000).astype(np.float64)
+    signal = np.asarray(waveform, dtype=np.float64)
+    if signal.size < 512:
+        signal = np.pad(signal, (0, 512 - signal.size))
+    frames = librosa.util.frame(signal, frame_length=512, hop_length=160).T
+    power = np.abs(np.fft.rfft(frames * np.hanning(512), axis=1)) ** 2
+    band = 10.0 * np.log10(power @ _PROFILE_MEL.T + 1e-10)
+    energy = 10.0 * np.log10(power.sum(axis=1) + 1e-10)
+    ordered = np.sort(energy)
+    count = len(energy)
+    quiet = energy <= ordered[max(1, int(round(0.2 * count))) - 1]
+    loud = energy >= ordered[count - max(1, int(round(0.3 * count)))]
+    noise = band[quiet].mean(axis=0)
+    speech = band[loud].mean(axis=0)
+    p5, p50, p95 = np.percentile(energy, (5, 50, 95))
+    quiet_power = power[quiet][:, :129] + 1e-10  # 0~4kHz 구간
+    flatness = float(np.mean(np.exp(np.log(quiet_power).mean(axis=1)) / quiet_power.mean(axis=1)))
+    loud_power = power[loud]
+    high = float(loud_power[:, 96:129].sum() / (loud_power[:, :129].sum() + 1e-10))  # 3~4kHz 비율
+    peak = float(np.abs(signal).max())
+    scalars = np.array([
+        p5, p50, p95, p95 - p5, float(np.mean(energy < p95 - 30.0)),
+        float(np.mean(np.abs(np.diff(np.sign(signal))) > 0)),
+        20.0 * np.log10(peak + 1e-10), float(np.mean(np.abs(signal) >= 0.999)),
+        abs(float(signal.mean())), flatness, float(speech.mean() - noise.mean()), high,
+    ])
+    return np.concatenate((noise, speech, band.std(axis=0), scalars)).astype(np.float32)
+
+
 # 발화 특징의 앞 65개 열은 MFCC(20)·Δ(20)·Δ²(20)·spectral(5)의 프레임 평균이다.
 # 통화 안에서 화자를 갈라내는 데 가장 직접적인 단서라 상대 비교의 기준으로 쓴다.
 MEAN_BLOCK = 65
@@ -293,7 +345,9 @@ def predict_call(
 ) -> np.ndarray:
     """통화 하나의 발화 전체를 한 번에 판정한다."""
     context = add_call_context(base_features, call_context)
-    if not cluster:
-        return classifier.predict(context).astype(np.int64)
     probabilities = speaker_probability(classifier, context)
+    if not cluster:
+        # 학습의 Validation 점수와 같은 규칙(확률 0.5 이상이면 신고자)으로 판정한다.
+        # classifier.predict는 0.5 동점을 대원(0)으로 보내 점수가 어긋난다.
+        return (probabilities >= 0.5).astype(np.int64)
     return cluster_speakers(base_features, probabilities, min_utterances, margin, seed)
