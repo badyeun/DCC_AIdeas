@@ -1,0 +1,377 @@
+﻿===== base / raw / seed 42  ?쒖옉 01:00:02 =====
+
+### 01:00:07 klue/roberta-base / raw / seed 42
+모델 klue/roberta-base | 전처리 raw | 학습 23,360 / 자체검증 5,840
+  epoch 1  0.1%  loss 0.8672  ETA 10.4분
+  epoch 1 13.8%  loss 0.7313  ETA  4.3분
+  epoch 1 27.5%  loss 0.6243  ETA  4.4분
+  epoch 1 41.2%  loss 0.5766  ETA  3.4분
+  epoch 1 54.9%  loss 0.5483  ETA  2.6분
+  epoch 1 68.6%  loss 0.5297  ETA  1.8분
+  epoch 1 82.3%  loss 0.5171  ETA  1.0분
+  epoch 1 96.0%  loss 0.5064  ETA  0.2분
+  epoch 1: loss 0.5043 | Macro F1 0.62112 | 최소1개 강제 0.61988 | 빈 예측 211 | 5.5분
+  epoch 2  0.1%  loss 0.3412  ETA  4.7분
+  epoch 2 13.8%  loss 0.4293  ETA  4.4분
+  epoch 2 27.5%  loss 0.4211  ETA  3.7분
+  epoch 2 41.2%  loss 0.4202  ETA  3.0분
+  epoch 2 54.9%  loss 0.4175  ETA  2.3분
+  epoch 2 68.6%  loss 0.4145  ETA  1.6분
+  epoch 2 82.3%  loss 0.4143  ETA  0.9분
+  epoch 2 96.0%  loss 0.4126  ETA  0.2분
+  epoch 2: loss 0.4125 | Macro F1 0.62966 | 최소1개 강제 0.62744 | 빈 예측 96 | 5.2분
+  epoch 3  0.1%  loss 0.3744  ETA  5.0분
+  epoch 3 13.8%  loss 0.3828  ETA  4.4분
+  epoch 3 27.5%  loss 0.3795  ETA  3.7분
+  epoch 3 41.2%  loss 0.3770  ETA  3.0분
+  epoch 3 54.9%  loss 0.3736  ETA  2.3분
+  epoch 3 68.6%  loss 0.3746  ETA  1.6분
+  epoch 3 82.3%  loss 0.3722  ETA  0.9분
+  epoch 3 96.0%  loss 0.3731  ETA  0.2분
+  epoch 3: loss 0.3728 | Macro F1 0.63828 | 최소1개 강제 0.63752 | 빈 예측 65 | 5.1분
+  최고 epoch 3: 0.63752 (최소1개 강제 기준)
+===== base / raw / seed 42  醫낅즺 01:17:06  exit=0 =====
+
+===== base / synonym+filler / seed 42  ?쒖옉 01:17:06 =====
+
+### 01:17:12 klue/roberta-base / synonym+filler / seed 42
+모델 klue/roberta-base | 전처리 synonym+filler | 학습 23,360 / 자체검증 5,840
+  epoch 1  0.1%  loss 0.8229  ETA 11.0분
+  epoch 1 13.8%  loss 0.7275  ETA  3.7분
+  epoch 1 27.5%  loss 0.6235  ETA  3.0분
+  epoch 1 41.2%  loss 0.5755  ETA  2.4분
+  epoch 1 54.9%  loss 0.5493  ETA  1.9분
+  epoch 1 68.6%  loss 0.5326  ETA  1.3분
+  epoch 1 82.3%  loss 0.5176  ETA  0.7분
+  epoch 1 96.0%  loss 0.5078  ETA  0.2분
+  epoch 1: loss 0.5052 | Macro F1 0.63595 | 최소1개 강제 0.63546 | 빈 예측 104 | 4.1분
+  epoch 2  0.1%  loss 0.2660  ETA  4.0분
+  epoch 2 13.8%  loss 0.4144  ETA  3.6분
+  epoch 2 27.5%  loss 0.4114  ETA  3.0분
+  epoch 2 41.2%  loss 0.4107  ETA  2.4분
+  epoch 2 54.9%  loss 0.4110  ETA  1.9분
+  epoch 2 68.6%  loss 0.4145  ETA  1.3분
+  epoch 2 82.3%  loss 0.4157  ETA  0.7분
+  epoch 2 96.0%  loss 0.4155  ETA  0.2분
+  epoch 2: loss 0.4149 | Macro F1 0.64063 | 최소1개 강제 0.63875 | 빈 예측 146 | 4.1분
+  epoch 3  0.1%  loss 0.4044  ETA  3.3분
+  epoch 3 13.8%  loss 0.3683  ETA  3.5분
+  epoch 3 27.5%  loss 0.3732  ETA  2.9분
+  epoch 3 41.2%  loss 0.3749  ETA  2.4분
+  epoch 3 54.9%  loss 0.3765  ETA  1.8분
+  epoch 3 68.6%  loss 0.3771  ETA  1.3분
+  epoch 3 82.3%  loss 0.3767  ETA  0.7분
+  epoch 3 96.0%  loss 0.3766  ETA  0.2분
+  epoch 3: loss 0.3766 | Macro F1 0.64063 | 최소1개 강제 0.63909 | 빈 예측 79 | 4.1분
+  최고 epoch 3: 0.63909 (최소1개 강제 기준)
+===== base / synonym+filler / seed 42  醫낅즺 01:33:55  exit=0 =====
+
+===== base / raw / seed 1  ?쒖옉 01:33:55 =====
+
+### 01:34:02 klue/roberta-base / raw / seed 1
+모델 klue/roberta-base | 전처리 raw | 학습 23,360 / 자체검증 5,840
+  epoch 1  0.1%  loss 0.8745  ETA 11.6분
+  epoch 1 13.8%  loss 0.7410  ETA  4.0분
+  epoch 1 27.5%  loss 0.6390  ETA  3.3분
+  epoch 1 41.2%  loss 0.5830  ETA  2.7분
+  epoch 1 54.9%  loss 0.5523  ETA  2.1분
+  epoch 1 68.6%  loss 0.5328  ETA  1.4분
+  epoch 1 82.3%  loss 0.5175  ETA  0.8분
+  epoch 1 96.0%  loss 0.5083  ETA  0.2분
+  epoch 1: loss 0.5058 | Macro F1 0.62607 | 최소1개 강제 0.62588 | 빈 예측 126 | 4.6분
+  epoch 2  0.1%  loss 0.3444  ETA  4.0분
+  epoch 2 13.8%  loss 0.4207  ETA  3.9분
+  epoch 2 27.5%  loss 0.4180  ETA  3.3분
+  epoch 2 41.2%  loss 0.4173  ETA  2.7분
+  epoch 2 54.9%  loss 0.4168  ETA  2.1분
+  epoch 2 68.6%  loss 0.4158  ETA  1.4분
+  epoch 2 82.3%  loss 0.4138  ETA  0.8분
+  epoch 2 96.0%  loss 0.4142  ETA  0.2분
+  epoch 2: loss 0.4135 | Macro F1 0.63639 | 최소1개 강제 0.63620 | 빈 예측 123 | 4.5분
+  epoch 3  0.1%  loss 0.4052  ETA  3.2분
+  epoch 3 13.8%  loss 0.3797  ETA  3.9분
+  epoch 3 27.5%  loss 0.3799  ETA  3.3분
+  epoch 3 41.2%  loss 0.3743  ETA  2.7분
+  epoch 3 54.9%  loss 0.3760  ETA  2.1분
+  epoch 3 68.6%  loss 0.3773  ETA  1.4분
+  epoch 3 82.3%  loss 0.3761  ETA  0.8분
+  epoch 3 96.0%  loss 0.3753  ETA  0.2분
+  epoch 3: loss 0.3754 | Macro F1 0.63537 | 최소1개 강제 0.63500 | 빈 예측 71 | 4.5분
+  최고 epoch 2: 0.63639 (그대로 0.63639 / 강제 0.63620 중 높은 쪽)
+===== base / raw / seed 1  醫낅즺 01:48:51  exit=0 =====
+
+===== base / synonym+filler / seed 1  ?쒖옉 01:48:51 =====
+
+### 01:48:55 klue/roberta-base / synonym+filler / seed 1
+모델 klue/roberta-base | 전처리 synonym+filler | 학습 23,360 / 자체검증 5,840
+  epoch 1  0.1%  loss 0.8256  ETA  8.5분
+  epoch 1 13.8%  loss 0.7403  ETA  3.5분
+  epoch 1 27.5%  loss 0.6307  ETA  3.0분
+  epoch 1 41.2%  loss 0.5827  ETA  2.4분
+  epoch 1 54.9%  loss 0.5529  ETA  1.9분
+  epoch 1 68.6%  loss 0.5339  ETA  1.3분
+  epoch 1 82.3%  loss 0.5211  ETA  0.7분
+  epoch 1 96.0%  loss 0.5097  ETA  0.2분
+  epoch 1: loss 0.5069 | Macro F1 0.63871 | 최소1개 강제 0.63820 | 빈 예측 158 | 4.1분
+  epoch 2  0.1%  loss 0.3207  ETA  3.8분
+  epoch 2 13.8%  loss 0.4182  ETA  3.6분
+  epoch 2 27.5%  loss 0.4187  ETA  3.0분
+  epoch 2 41.2%  loss 0.4206  ETA  2.4분
+  epoch 2 54.9%  loss 0.4186  ETA  1.9분
+  epoch 2 68.6%  loss 0.4167  ETA  1.3분
+  epoch 2 82.3%  loss 0.4158  ETA  0.7분
+  epoch 2 96.0%  loss 0.4153  ETA  0.2분
+  epoch 2: loss 0.4164 | Macro F1 0.64267 | 최소1개 강제 0.64147 | 빈 예측 108 | 4.1분
+  epoch 3  0.1%  loss 0.3483  ETA  4.9분
+  epoch 3 13.8%  loss 0.3815  ETA  3.5분
+  epoch 3 27.5%  loss 0.3807  ETA  2.9분
+  epoch 3 41.2%  loss 0.3805  ETA  2.4분
+  epoch 3 54.9%  loss 0.3827  ETA  1.8분
+  epoch 3 68.6%  loss 0.3813  ETA  1.3분
+  epoch 3 82.3%  loss 0.3796  ETA  0.7분
+  epoch 3 96.0%  loss 0.3783  ETA  0.2분
+  epoch 3: loss 0.3779 | Macro F1 0.64581 | 최소1개 강제 0.64470 | 빈 예측 79 | 4.1분
+  최고 epoch 3: 0.64581 (그대로 0.64581 / 강제 0.64470 중 높은 쪽)
+===== base / synonym+filler / seed 1  醫낅즺 02:02:24  exit=0 =====
+
+===== large / raw / seed 42  ?쒖옉 02:02:24 =====
+
+### 02:02:28 klue/roberta-large / raw / seed 42
+모델 klue/roberta-large | 전처리 raw | 학습 23,360 / 자체검증 5,840
+  epoch 1  0.0%  loss 0.8615  ETA 85.2분
+  epoch 1  3.4%  loss 0.7760  ETA 15.8분
+  epoch 1  6.9%  loss 0.7534  ETA 15.3분
+  epoch 1 10.3%  loss 0.7430  ETA 14.9분
+  epoch 1 13.7%  loss 0.7380  ETA 14.2분
+  epoch 1 17.1%  loss 0.7187  ETA 13.6분
+  epoch 1 20.6%  loss 0.6847  ETA 13.0분
+  epoch 1 24.0%  loss 0.6575  ETA 12.4분
+  epoch 1 27.4%  loss 0.6350  ETA 11.9분
+  epoch 1 30.8%  loss 0.6169  ETA 11.3분
+  epoch 1 34.3%  loss 0.6016  ETA 10.8분
+  epoch 1 37.7%  loss 0.5881  ETA 10.2분
+  epoch 1 41.1%  loss 0.5773  ETA  9.6분
+  epoch 1 44.5%  loss 0.5689  ETA  9.1분
+  epoch 1 48.0%  loss 0.5607  ETA  8.5분
+  epoch 1 51.4%  loss 0.5516  ETA  7.9분
+  epoch 1 54.8%  loss 0.5447  ETA  7.4분
+  epoch 1 58.2%  loss 0.5387  ETA  6.8분
+  epoch 1 61.7%  loss 0.5339  ETA  6.3분
+  epoch 1 65.1%  loss 0.5288  ETA  5.7분
+  epoch 1 68.5%  loss 0.5237  ETA  5.2분
+  epoch 1 71.9%  loss 0.5198  ETA  4.6분
+  epoch 1 75.4%  loss 0.5158  ETA  4.0분
+  epoch 1 78.8%  loss 0.5130  ETA  3.5분
+  epoch 1 82.2%  loss 0.5093  ETA  2.9분
+  epoch 1 85.6%  loss 0.5063  ETA  2.3분
+  epoch 1 89.1%  loss 0.5029  ETA  1.8분
+  epoch 1 92.5%  loss 0.5002  ETA  1.2분
+  epoch 1 95.9%  loss 0.4982  ETA  0.7분
+  epoch 1 99.3%  loss 0.4954  ETA  0.1분
+  epoch 1: loss 0.4948 | Macro F1 0.63102 | 최소1개 강제 0.62882 | 빈 예측 147 | 16.3분
+  epoch 2  0.0%  loss 0.7500  ETA 19.9분
+  epoch 2  3.4%  loss 0.4019  ETA 15.8분
+  epoch 2  6.9%  loss 0.3974  ETA 15.1분
+  epoch 2 10.3%  loss 0.3931  ETA 14.5분
+  epoch 2 13.7%  loss 0.3925  ETA 14.0분
+  epoch 2 17.1%  loss 0.3977  ETA 13.5분
+  epoch 2 20.6%  loss 0.3965  ETA 12.9분
+  epoch 2 24.0%  loss 0.3984  ETA 12.4분
+  epoch 2 27.4%  loss 0.4028  ETA 11.8분
+  epoch 2 30.8%  loss 0.4042  ETA 11.3분
+  epoch 2 34.3%  loss 0.4039  ETA 10.7분
+  epoch 2 37.7%  loss 0.4037  ETA 10.1분
+  epoch 2 41.1%  loss 0.4035  ETA  9.6분
+  epoch 2 44.5%  loss 0.4030  ETA  9.0분
+  epoch 2 48.0%  loss 0.4016  ETA  8.5분
+  epoch 2 51.4%  loss 0.4016  ETA  7.9분
+  epoch 2 54.8%  loss 0.4015  ETA  7.4분
+  epoch 2 58.2%  loss 0.4022  ETA  6.8분
+  epoch 2 61.7%  loss 0.4020  ETA  6.3분
+  epoch 2 65.1%  loss 0.4018  ETA  5.7분
+  epoch 2 68.5%  loss 0.4009  ETA  5.1분
+  epoch 2 71.9%  loss 0.4009  ETA  4.6분
+  epoch 2 75.4%  loss 0.3996  ETA  4.0분
+  epoch 2 78.8%  loss 0.4006  ETA  3.5분
+  epoch 2 82.2%  loss 0.4003  ETA  2.9분
+  epoch 2 85.6%  loss 0.4010  ETA  2.3분
+  epoch 2 89.1%  loss 0.4009  ETA  1.8분
+  epoch 2 92.5%  loss 0.4005  ETA  1.2분
+  epoch 2 95.9%  loss 0.4009  ETA  0.7분
+  epoch 2 99.3%  loss 0.4004  ETA  0.1분
+  epoch 2: loss 0.4004 | Macro F1 0.63571 | 최소1개 강제 0.63446 | 빈 예측 104 | 16.3분
+  epoch 3  0.0%  loss 0.3239  ETA 13.8분
+  epoch 3  3.4%  loss 0.3667  ETA 15.9분
+  epoch 3  6.9%  loss 0.3603  ETA 15.5분
+  epoch 3 10.3%  loss 0.3617  ETA 14.8분
+  epoch 3 13.7%  loss 0.3627  ETA 14.1분
+  epoch 3 17.1%  loss 0.3604  ETA 13.7분
+  epoch 3 20.6%  loss 0.3582  ETA 13.1분
+  epoch 3 24.0%  loss 0.3588  ETA 12.5분
+  epoch 3 27.4%  loss 0.3580  ETA 11.9분
+  epoch 3 30.8%  loss 0.3607  ETA 11.3분
+  epoch 3 34.3%  loss 0.3615  ETA 10.7분
+  epoch 3 37.7%  loss 0.3628  ETA 10.2분
+  epoch 3 41.1%  loss 0.3639  ETA  9.6분
+  epoch 3 44.5%  loss 0.3614  ETA  9.0분
+  epoch 3 48.0%  loss 0.3622  ETA  8.5분
+  epoch 3 51.4%  loss 0.3606  ETA  7.9분
+  epoch 3 54.8%  loss 0.3603  ETA  7.4분
+  epoch 3 58.2%  loss 0.3603  ETA  6.8분
+  epoch 3 61.7%  loss 0.3599  ETA  6.2분
+  epoch 3 65.1%  loss 0.3594  ETA  5.7분
+  epoch 3 68.5%  loss 0.3588  ETA  5.1분
+  epoch 3 71.9%  loss 0.3585  ETA  4.6분
+  epoch 3 75.4%  loss 0.3586  ETA  4.0분
+  epoch 3 78.8%  loss 0.3599  ETA  3.5분
+  epoch 3 82.2%  loss 0.3592  ETA  2.9분
+  epoch 3 85.6%  loss 0.3592  ETA  2.3분
+  epoch 3 89.1%  loss 0.3589  ETA  1.8분
+  epoch 3 92.5%  loss 0.3578  ETA  1.2분
+  epoch 3 95.9%  loss 0.3574  ETA  0.7분
+  epoch 3 99.3%  loss 0.3577  ETA  0.1분
+  epoch 3: loss 0.3578 | Macro F1 0.63821 | 최소1개 강제 0.63667 | 빈 예측 85 | 16.3분
+  최고 epoch 3: 0.63821 (그대로 0.63821 / 강제 0.63667 중 높은 쪽)
+===== large / raw / seed 42  醫낅즺 02:54:41  exit=0 =====
+
+===== large / synonym+filler / seed 42  ?쒖옉 02:54:41 =====
+
+### 02:54:46 klue/roberta-large / synonym+filler / seed 42
+모델 klue/roberta-large | 전처리 synonym+filler | 학습 23,360 / 자체검증 5,840
+  epoch 1  0.0%  loss 0.8217  ETA 90.4분
+  epoch 1  3.4%  loss 0.7808  ETA 14.6분
+  epoch 1  6.9%  loss 0.7586  ETA 14.1분
+  epoch 1 10.3%  loss 0.7535  ETA 13.5분
+  epoch 1 13.7%  loss 0.7428  ETA 12.9분
+  epoch 1 17.1%  loss 0.7069  ETA 12.4분
+  epoch 1 20.6%  loss 0.6721  ETA 11.9분
+  epoch 1 24.0%  loss 0.6467  ETA 11.3분
+  epoch 1 27.4%  loss 0.6227  ETA 10.8분
+  epoch 1 30.8%  loss 0.6051  ETA 10.3분
+  epoch 1 34.3%  loss 0.5925  ETA  9.8분
+  epoch 1 37.7%  loss 0.5824  ETA  9.3분
+  epoch 1 41.1%  loss 0.5737  ETA  8.8분
+  epoch 1 44.5%  loss 0.5645  ETA  8.3분
+  epoch 1 48.0%  loss 0.5569  ETA  7.7분
+  epoch 1 51.4%  loss 0.5506  ETA  7.2분
+  epoch 1 54.8%  loss 0.5430  ETA  6.7분
+  epoch 1 58.2%  loss 0.5370  ETA  6.2분
+  epoch 1 61.7%  loss 0.5324  ETA  5.7분
+  epoch 1 65.1%  loss 0.5270  ETA  5.2분
+  epoch 1 68.5%  loss 0.5223  ETA  4.7분
+  epoch 1 71.9%  loss 0.5191  ETA  4.2분
+  epoch 1 75.4%  loss 0.5145  ETA  3.7분
+  epoch 1 78.8%  loss 0.5115  ETA  3.2분
+  epoch 1 82.2%  loss 0.5078  ETA  2.6분
+  epoch 1 85.6%  loss 0.5041  ETA  2.1분
+  epoch 1 89.1%  loss 0.5010  ETA  1.6분
+  epoch 1 92.5%  loss 0.4989  ETA  1.1분
+  epoch 1 95.9%  loss 0.4964  ETA  0.6분
+  epoch 1 99.3%  loss 0.4942  ETA  0.1분
+  epoch 1: loss 0.4938 | Macro F1 0.64259 | 최소1개 강제 0.64038 | 빈 예측 138 | 14.8분
+  epoch 2  0.0%  loss 0.4136  ETA 13.8분
+  epoch 2  3.4%  loss 0.4055  ETA 14.4분
+  epoch 2  6.9%  loss 0.4012  ETA 13.9분
+  epoch 2 10.3%  loss 0.4011  ETA 13.3분
+  epoch 2 13.7%  loss 0.4011  ETA 12.7분
+  epoch 2 17.1%  loss 0.4009  ETA 12.3분
+  epoch 2 20.6%  loss 0.4050  ETA 11.7분
+  epoch 2 24.0%  loss 0.4080  ETA 11.2분
+  epoch 2 27.4%  loss 0.4074  ETA 10.7분
+  epoch 2 30.8%  loss 0.4064  ETA 10.2분
+  epoch 2 34.3%  loss 0.4064  ETA  9.7분
+  epoch 2 37.7%  loss 0.4058  ETA  9.2분
+  epoch 2 41.1%  loss 0.4054  ETA  8.7분
+  epoch 2 44.5%  loss 0.4043  ETA  8.2분
+  epoch 2 48.0%  loss 0.4049  ETA  7.7분
+  epoch 2 51.4%  loss 0.4042  ETA  7.2분
+  epoch 2 54.8%  loss 0.4049  ETA  6.7분
+  epoch 2 58.2%  loss 0.4042  ETA  6.2분
+  epoch 2 61.7%  loss 0.4056  ETA  5.7분
+  epoch 2 65.1%  loss 0.4061  ETA  5.2분
+  epoch 2 68.5%  loss 0.4064  ETA  4.7분
+  epoch 2 71.9%  loss 0.4065  ETA  4.2분
+  epoch 2 75.4%  loss 0.4063  ETA  3.6분
+  epoch 2 78.8%  loss 0.4065  ETA  3.1분
+  epoch 2 82.2%  loss 0.4054  ETA  2.6분
+  epoch 2 85.6%  loss 0.4053  ETA  2.1분
+  epoch 2 89.1%  loss 0.4053  ETA  1.6분
+  epoch 2 92.5%  loss 0.4048  ETA  1.1분
+  epoch 2 95.9%  loss 0.4039  ETA  0.6분
+  epoch 2 99.3%  loss 0.4029  ETA  0.1분
+  epoch 2: loss 0.4029 | Macro F1 0.64171 | 최소1개 강제 0.63965 | 빈 예측 131 | 14.8분
+  epoch 3  0.0%  loss 0.6141  ETA 10.4분
+  epoch 3  3.4%  loss 0.3674  ETA 14.1분
+  epoch 3  6.9%  loss 0.3541  ETA 13.6분
+  epoch 3 10.3%  loss 0.3611  ETA 13.1분
+  epoch 3 13.7%  loss 0.3587  ETA 12.6분
+  epoch 3 17.1%  loss 0.3608  ETA 12.1분
+  epoch 3 20.6%  loss 0.3610  ETA 11.6분
+  epoch 3 24.0%  loss 0.3626  ETA 11.1분
+  epoch 3 27.4%  loss 0.3653  ETA 10.7분
+  epoch 3 30.8%  loss 0.3663  ETA 10.2분
+  epoch 3 34.3%  loss 0.3664  ETA  9.7분
+  epoch 3 37.7%  loss 0.3658  ETA  9.2분
+  epoch 3 41.1%  loss 0.3663  ETA  8.7분
+  epoch 3 44.5%  loss 0.3672  ETA  8.2분
+  epoch 3 48.0%  loss 0.3657  ETA  7.7분
+  epoch 3 51.4%  loss 0.3658  ETA  7.2분
+  epoch 3 54.8%  loss 0.3645  ETA  6.7분
+  epoch 3 58.2%  loss 0.3655  ETA  6.2분
+  epoch 3 61.7%  loss 0.3637  ETA  5.7분
+  epoch 3 65.1%  loss 0.3636  ETA  5.2분
+  epoch 3 68.5%  loss 0.3633  ETA  4.7분
+  epoch 3 71.9%  loss 0.3636  ETA  4.2분
+  epoch 3 75.4%  loss 0.3628  ETA  3.6분
+  epoch 3 78.8%  loss 0.3619  ETA  3.1분
+  epoch 3 82.2%  loss 0.3620  ETA  2.6분
+  epoch 3 85.6%  loss 0.3617  ETA  2.1분
+  epoch 3 89.1%  loss 0.3612  ETA  1.6분
+  epoch 3 92.5%  loss 0.3608  ETA  1.1분
+  epoch 3 95.9%  loss 0.3607  ETA  0.6분
+  epoch 3 99.3%  loss 0.3595  ETA  0.1분
+  epoch 3: loss 0.3594 | Macro F1 0.64661 | 최소1개 강제 0.64594 | 빈 예측 96 | 14.8분
+  최고 epoch 3: 0.64661 (그대로 0.64661 / 강제 0.64594 중 높은 쪽)
+===== large / synonym+filler / seed 42  醫낅즺 03:42:00  exit=0 =====
+
+===== base / synonym+filler / seed 7  ?쒖옉 03:42:00 =====
+
+### 03:42:05 klue/roberta-base / synonym+filler / seed 7
+모델 klue/roberta-base | 전처리 synonym+filler | 학습 23,360 / 자체검증 5,840
+  epoch 1  0.1%  loss 0.8670  ETA 10.9분
+  epoch 1 13.8%  loss 0.7270  ETA  3.6분
+  epoch 1 27.5%  loss 0.6248  ETA  3.0분
+  epoch 1 41.2%  loss 0.5768  ETA  2.4분
+  epoch 1 54.9%  loss 0.5480  ETA  1.9분
+  epoch 1 68.6%  loss 0.5291  ETA  1.3분
+  epoch 1 82.3%  loss 0.5150  ETA  0.7분
+  epoch 1 96.0%  loss 0.5060  ETA  0.2분
+  epoch 1: loss 0.5038 | Macro F1 0.63231 | 최소1개 강제 0.63076 | 빈 예측 152 | 4.1분
+  epoch 2  0.1%  loss 0.3933  ETA  3.3분
+  epoch 2 13.8%  loss 0.4181  ETA  3.5분
+  epoch 2 27.5%  loss 0.4172  ETA  2.9분
+  epoch 2 41.2%  loss 0.4178  ETA  2.4분
+  epoch 2 54.9%  loss 0.4180  ETA  1.9분
+  epoch 2 68.6%  loss 0.4158  ETA  1.3분
+  epoch 2 82.3%  loss 0.4147  ETA  0.7분
+  epoch 2 96.0%  loss 0.4146  ETA  0.2분
+  epoch 2: loss 0.4148 | Macro F1 0.64312 | 최소1개 강제 0.64203 | 빈 예측 79 | 4.1분
+  epoch 3  0.1%  loss 0.2997  ETA  2.7분
+  epoch 3 13.8%  loss 0.3780  ETA  3.5분
+  epoch 3 27.5%  loss 0.3759  ETA  3.0분
+  epoch 3 41.2%  loss 0.3743  ETA  2.4분
+  epoch 3 54.9%  loss 0.3749  ETA  1.9분
+  epoch 3 68.6%  loss 0.3743  ETA  1.3분
+  epoch 3 82.3%  loss 0.3756  ETA  0.7분
+  epoch 3 96.0%  loss 0.3747  ETA  0.2분
+  epoch 3: loss 0.3757 | Macro F1 0.64208 | 최소1개 강제 0.64165 | 빈 예측 70 | 4.1분
+  최고 epoch 2: 0.64312 (그대로 0.64312 / 강제 0.64203 중 높은 쪽)
+===== base / synonym+filler / seed 7  醫낅즺 03:55:33  exit=0 =====
+
+===== base / synonym+filler / seed 2026  ?쒖옉 03:55:33 =====
+
+### 03:55:37 klue/roberta-base / synonym+filler / seed 2026
+모델 klue/roberta-base | 전처리 synonym+filler | 학습 23,360 / 자체검증 5,840
+  epoch 1  0.1%  loss 0.8511  ETA 11.2분
+  epoch 1 13.8%  loss 0.7428  ETA  3.6분
+  epoch 1 27.5%  loss 0.6362  ETA  3.0분
