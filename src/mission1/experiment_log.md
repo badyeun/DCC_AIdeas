@@ -330,3 +330,100 @@ python src/mission1/train_mfcc_rf.py \
 2. WavLM이 EXP-002보다 낮거나 비슷하면, F0 RF를 최종 단일 모델로 유지한다. 대형 모델이라는 이유만으로 교체하지 않는다.
 3. WavLM과 F0 RF의 오류가 다르면 soft-voting을 평가한다. validation에서만 가중치(예: 0.0~1.0)를 정하고, 개선이 없으면 앙상블을 채택하지 않는다.
 4. Wav2Vec2는 WavLM 결과가 기준선에 못 미치거나, 두 모델의 앙상블 다양성을 확인할 필요가 있을 때 **후순위 ablation**으로 실행한다.
+
+## EXP-008 — WavLM Attention 3-seed ensemble
+
+| 항목 | 결과 |
+| --- | --- |
+| encoder | `microsoft/wavlm-base-plus`, frozen |
+| 입력 | 신고자(`speaker=1`) 구간, 16 kHz mono |
+| 통화 처리 | 최대 8초, 짧은 음성은 1 chunk / 긴 음성은 앞·중간·뒤 3 chunks |
+| chunk 특징 | WavLM masked mean pooling, 768차원 |
+| 통합 방식 | chunk attention pooling + MLP classifier |
+| ensemble | seed 42, 123, 2026의 확률 평균 |
+| Validation Accuracy | **0.977198** |
+| Validation Macro F1 | **0.977067** |
+| 오류 | **83 / 3,640** |
+
+- 3-chunk embedding cache는 학습 29,200개 및 Validation 3,640개에 대해 생성했다.
+- 각 cache의 filename, label, sample index, chunk 수를 검증했다.
+- 기존 mean pooling 방식보다 attention pooling 3-seed ensemble이 개선되어 이후 피처 결합의 기준선으로 사용한다.
+
+## EXP-009 — Attention + F0
+
+| 항목 | 결과 |
+| --- | --- |
+| 기본 표현 | EXP-008의 WavLM 3-chunk attention 표현 |
+| 추가 특징 | F0 기반 6차원 특징 |
+| 결합 | attention pooled embedding과 F0를 classifier 입력에서 결합 |
+| 내부 holdout Accuracy / Macro F1 | 0.977397 / 0.977293 |
+| 공식 Validation Accuracy / Macro F1 | 0.975824 / 0.975678 |
+| 공식 Validation 오류 | 88 |
+
+- F0 모델 단독은 EXP-008보다 낮았지만, 일부 다른 오답을 맞혀 앙상블 후보로 유지한다.
+- 학습용 F0 cache와 Validation F0 cache는 모두 6차원이며 filename·label·sample index 순서를 검증했다.
+
+## EXP-010 — WavLM frame statistics + F0
+
+### 특징 설계
+
+기존 768차원 embedding 평균만 사용하는 방식과 달리, 각 chunk의 WavLM 마지막 hidden state에서 frame-level 통계를 계산했다.
+
+```text
+mean: 768차원
+std : 768차원
+합계: 1,536차원
+```
+
+표준편차는 학습·추론에서 다음과 같이 동일하게 계산했다.
+
+```python
+torch.sqrt(frames.var(dim=0, correction=0) + 1e-5)
+```
+
+| 모델 | 공식 Validation Accuracy | Macro F1 | 오류 |
+| --- | ---: | ---: | ---: |
+| Stats Attention | 0.976099 | 0.975960 | 87 |
+| Stats + F0 Attention | 0.976374 | 0.976241 | 86 |
+| WavLM Attention 3-seed (EXP-008) | 0.977198 | 0.977067 | 83 |
+
+- Validation statistics cache는 19개 shard, 총 3,640개를 생성했다.
+- 원본 WavLM cache와 filename, label, chunk 수, sample index가 같은지 검증했다.
+- Stats 계열 단독 성능은 기준 attention보다 낮지만 오답 보완성이 있으므로 앙상블에 사용한다.
+
+### 오답 보완성
+
+EXP-008의 83개 오답과 비교한 결과다.
+
+| 보조 모델 | 기존 Attention 오답을 맞힌 수 | 기존 Attention 정답을 틀린 수 |
+| --- | ---: | ---: |
+| Stats Attention | 23 | 27 |
+| Stats + F0 | 15 | 18 |
+
+## EXP-011 — Attention+F0와 Stats+F0 ensemble
+
+내부 holdout에서 후보 조합을 비교한 뒤, 가장 좋은 `Attention+F0`와 `Stats+F0`의 50:50 확률 평균을 선택했다.
+
+```text
+final_probs = 0.5 * attention_f0_probs + 0.5 * stats_f0_probs
+```
+
+| 조합 | 공식 Validation Accuracy | Macro F1 | 오류 |
+| --- | ---: | ---: | ---: |
+| Attention 3-seed + Attention F0 | 0.978022 | 0.977891 | 80 |
+| **Attention F0 + Stats F0** | **0.978571** | **0.978446** | **78** |
+
+### 현재 최고 성능
+
+> **공식 Validation Accuracy: 97.8571% (3,562 / 3,640 정답, 오류 78개)**
+
+- 목표 98.00%까지 정답 6개가 더 필요하며, 오류는 72개 이하여야 한다.
+- 최종 최고 조합은 이전 최고 조합 대비 기존 오답 12개를 맞혔고, 기존 정답 10개를 새로 틀려 순 2개를 개선했다.
+
+### 다음 실험 원칙
+
+1. 현 `Attention F0 + Stats F0` 50:50을 고정 기준선으로 유지한다.
+2. 공식 Validation의 78개 오답을 confidence, 성별, 발화 길이, F0 분포별로 분석한다.
+3. ensemble weight와 M/F threshold는 공식 Validation이 아니라 내부 holdout 또는 OOF 예측으로만 탐색한다.
+4. Attention+F0와 Stats+F0의 multi-seed ensemble을 우선 평가한다.
+5. 최종 제출 전, 실제 WAV부터 CSV까지 실행하는 inference가 신고자 구간 추출, 3-chunk, F0, statistics, scaler, 50:50 ensemble을 동일하게 재현하는지 확인한다.
