@@ -46,7 +46,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch_calls", type=int, default=32)
     parser.add_argument("--max_call_len", type=int, default=96, help="학습 때 이보다 긴 통화는 발화를 무작위로 골라 쓴다")
     parser.add_argument("--drop_utterances", type=float, default=0.2, help="학습 때 통화마다 최대 이 비율의 발화를 무작위로 뺀다")
-    parser.add_argument("--holdout", type=float, default=0.1, help="모델 선택용으로 떼어 낼 Train 통화 비율")
+    parser.add_argument("--holdout", type=float, default=0.1,
+                        help="모델 선택용으로 떼어 낼 Train 통화 비율. 0이면 Train 전체로 --epochs만큼 학습하고 마지막 모델을 쓴다"
+                             " (epoch 수를 holdout 실험으로 정한 뒤 데이터를 다 쓰는 용도)")
     parser.add_argument("--patience", type=int, default=4)
     parser.add_argument("--device", default=None)
     parser.add_argument("--threads", type=int, default=0)
@@ -243,6 +245,16 @@ def main() -> None:
             optimizer.step()
             scheduler.step()
             running += loss.item() * len(batch_inputs)
+        if len(held) == 0:
+            # holdout이 없으면 고를 기준이 없으므로 매 epoch 마지막 상태를 최고로 둔다.
+            held_accuracy = float("nan")
+            best_accuracy, best_epoch = held_accuracy, epoch
+            best_state = {key: value.detach().cpu().clone() for key, value in model.state_dict().items()}
+            torch.save({"model_type": "mission2_call_transformer", "config": config, "state_dict": best_state,
+                        "scale": scale, "use_stage1": stage1_train is not None, "best_epoch": epoch,
+                        "holdout_accuracy": None}, args.out.with_suffix(".best.pt"))
+            print(f"[epoch {epoch:2d}] loss {running / len(fit):.4f}, holdout 없음 (Train 전체 학습) ({elapsed(start)})")
+            continue
         held_accuracy, _ = evaluate(model, train, held, scale, stage1_train, device)
         marker = ""
         if held_accuracy > best_accuracy:
@@ -265,7 +277,7 @@ def main() -> None:
     val_calls = np.arange(len(val["counts"]))
     val_accuracy, val_probability = evaluate(model, val, val_calls, scale, stage1_val, device)
     print(f"최고 epoch {best_epoch}: Train holdout Accuracy {best_accuracy:.4f}")
-    if stage1_train is not None:
+    if stage1_train is not None and len(held):
         held_rows = np.concatenate([np.arange(*call_rows(train, call).indices(len(train["labels"]))) for call in held])
         print(f"  같은 holdout의 1단계 LightGBM Accuracy: {((stage1_train[held_rows] >= 0.5) == train['labels'][held_rows]).mean():.4f}")
     print(f"Validation Accuracy (트랜스포머): {val_accuracy:.4f}")
