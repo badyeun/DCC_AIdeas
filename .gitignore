@@ -30,3 +30,23 @@ venv/
 
 # Reusable raw inference probabilities (regenerated when absent)
 /results/mission3/prediction_cache/
+
+# Local GPU experiments: parsed-transcript cache and per-run probability dumps
+/src/mission3/local/_cache/
+/results/mission3/local/*.npy
+/results/mission3/local/_invalid_different_splits/*.npy
+
+# Submission weights and downloaded archives.
+# The eleven submitted checkpoints are 4.6GB and the ver4 folds another 6.8GB,
+# well past what GitHub holds. They are shared over Drive instead, the same way
+# ver4's folds were. Everything needed to rebuild them is versioned: the
+# training code, the exact recipe per family, and the run logs.
+/results/mission3/local/submission_models/
+/results/mission3/local/submission_final/
+/results/mission3/local/domain_adapted/
+/results/mission3/local/domain_adapted_full/
+/_ver4_dl/
+
+# Console transcripts: PowerShell redirects write these as UTF-16 with
+# mangled Korean, and the UTF-8 training logs beside them say the same thing.
+/results/mission3/local/_*.log
