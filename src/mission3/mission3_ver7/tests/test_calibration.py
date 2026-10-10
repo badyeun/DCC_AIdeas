@@ -1,4 +1,4 @@
-import json
+﻿import json
 from unittest.mock import patch
 
 import numpy as np
@@ -46,8 +46,9 @@ def test_mixture_search_matches_independent_exhaustive_f1(blend_space):
                 p = (1 - beta) * (alpha * values[0][:, column] + (1 - alpha) * values[1][:, column]) + beta * values[2][:, column]
                 if blend_space == "logit":
                     p = 1 / (1 + np.exp(-p))
-                best = max(best, *(f1_score(truth[:, column], p >= threshold, zero_division=0)
-                                   for threshold in [0.0, *np.unique(p), np.nextafter(1.0, np.inf)]))
+                # Thresholds are fixed at 0.5, so only the blend is searched.
+                best = max(best, f1_score(truth[:, column], p >= 0.5, zero_division=0))
+        assert fitted["thresholds"] == [0.5] * 9
         assert f1_score(truth[:, column], predictions[:, column]) == pytest.approx(best)
 
 
@@ -56,12 +57,13 @@ def test_constants_and_saturated_probabilities_remain_valid(blend_space):
     truth = np.tile([0, 1, 0, 1, 0, 1, 0, 1, 0], (12, 1))
     probabilities = np.ones((12, 9), dtype=np.float32)
     fitted = _fit_mixture(truth, probabilities, probabilities, probabilities, blend_space=blend_space)
-    assert fitted["thresholds"][0] > 1
-    assert fitted["thresholds"][1] == 0
+    assert fitted["thresholds"] == [0.5] * 9
     result = apply_calibrator(probabilities, probabilities, probabilities, fitted)
     expected = np.full((12, 9), 1 - 1e-6 if blend_space == "logit" else 1)
     np.testing.assert_allclose(result, expected, rtol=0, atol=2e-16)
-    np.testing.assert_array_equal(result >= fitted["thresholds"], truth)
+    # Saturated probabilities all clear 0.5; a constant-negative label can no
+    # longer be silenced by giving it its own threshold above 1.
+    np.testing.assert_array_equal(result >= fitted["thresholds"], np.ones_like(truth))
     for alpha in (0, 0.25, 0.5, 0.75, 1):
         for beta in (0, 0.25, 0.5, 0.75, 1):
             saturated = apply_calibrator(probabilities, probabilities, probabilities,
@@ -182,34 +184,62 @@ def test_logit_zero_beta_needs_no_candidate_and_missing_space_keeps_legacy():
 
 
 def test_crossfit_can_select_logit_family_globally_with_transparent_scores():
-    rng = np.random.default_rng(45)
-    neural_logits, sparse_logits = [rng.normal(0, 3, (180, 9)) for _ in range(2)]
-    truth = ((neural_logits + sparse_logits) / 2 > .9).astype(np.int8)
-    base, sparse = [1 / (1 + np.exp(-x)) for x in (neural_logits, sparse_logits)]
-    candidate = np.full_like(base, .5)
+    # At equal blend weights the two spaces agree on a 0.5 decision, so the
+    # families only diverge when one component is saturated and the chosen
+    # weights are uneven. A saturated sparse model produces exactly that.
+    rng = np.random.default_rng(0)
+    signal = rng.normal(0, 1, (180, 9))
+    truth = (signal > .4).astype(np.int8)
+    base = 1 / (1 + np.exp(-(1.2 * signal + rng.normal(0, .8, (180, 9)))))
+    sparse = 1 / (1 + np.exp(-(4.0 * signal + rng.normal(0, 2.5, (180, 9)))))
+    candidate = 1 / (1 + np.exp(-(2.0 * signal + rng.normal(0, 1.2, (180, 9)))))
     fitted, report = calibrate_crossfit(truth, base, sparse, candidate, np.arange(len(truth)))
     assert report["candidate_logit_crossfit_macro_f1"] > report["candidate_raw_crossfit_macro_f1"]
-    assert report["candidate_crossfit_macro_f1"] == report["candidate_logit_crossfit_macro_f1"]
+    raw = report["candidate_raw_crossfit_macro_f1"]
+    logit = report["candidate_logit_crossfit_macro_f1"]
+    # Whichever family scores higher must be the one reported and applied; ties
+    # prefer raw. The scores themselves stay visible either way.
+    winner = "logit" if logit > raw else "raw"
+    assert report["candidate_crossfit_macro_f1"] == max(raw, logit)
+    assert report["candidate_blend_space"] == winner
     assert report["selected_crossfit_macro_f1"] > report["baseline_crossfit_macro_f1"]
     assert report["selected_name"] == "candidate_mixture"
-    assert report["candidate_blend_space"] == report["selected_blend_space"] == fitted["blend_space"] == "logit"
-    assert report["per_symptom_crossfit"]["selected"] == report["per_symptom_crossfit"]["candidate_logit"]
+    assert report["selected_blend_space"] == fitted["blend_space"] == winner
+    assert report["per_symptom_crossfit"]["selected"] == report["per_symptom_crossfit"][f"candidate_{winner}"]
+    assert fitted["thresholds"] == [0.5] * 9
 
 
-def test_overfit_candidate_falls_back_and_samefold_baseline_matches_legacy():
+def test_samefold_baseline_matches_legacy_exactly():
+    """The ver4 branch must stay bit-identical to the standalone ver4 routine.
+
+    Adoption/fallback behaviour is covered deterministically by the
+    ``_controlled_five_fold_gate`` tests below; this one pins the baseline path.
+    """
     rng = np.random.default_rng(18)
     truth = rng.integers(0, 2, size=(50, 9))
     base = 0.2 + 0.5 * rng.uniform(size=(50, 9)) + 0.1 * truth
     candidate = rng.uniform(size=(50, 9))
     groups = np.arange(50)
-    fitted, report = calibrate_crossfit(truth, base, base, candidate, groups)
+    _, report = calibrate_crossfit(truth, base, base, candidate, groups)
     old, old_report = crossfit_legacy(truth, base, base, groups, seed=44, n_splits=5)
-    assert report["candidate_crossfit_macro_f1"] < report["baseline_crossfit_macro_f1"]
     assert report["baseline_crossfit_macro_f1"] == old_report["calibration_crossfit_macro_f1"]
+    assert report["per_symptom_crossfit"]["baseline"] == old_report["per_symptom_crossfit"]
+    assert old["thresholds"] == [0.5] * 9
+
+
+def test_fallback_keeps_the_legacy_baseline_calibrator_unchanged():
+    """A candidate that cannot beat the gate leaves ver4's calibrator in place."""
+    rng = np.random.default_rng(7)
+    truth = rng.integers(0, 2, size=(60, 9))
+    base = 0.2 + 0.5 * rng.uniform(size=(60, 9)) + 0.3 * truth
+    candidate = np.full((60, 9), 0.5)  # No information: cannot improve any fold.
+    groups = np.arange(60)
+    fitted, report = calibrate_crossfit(truth, base, base, candidate, groups)
+    old, _ = crossfit_legacy(truth, base, base, groups, seed=44, n_splits=5)
     assert report["selected_name"] == "ver4_baseline"
     assert fitted["candidate_weights"] == [0.0] * 9
     assert fitted["neural_weights"] == old["neural_weights"]
-    assert fitted["thresholds"] == old["thresholds"]
+    assert fitted["thresholds"] == old["thresholds"] == [0.5] * 9
 
 
 def _controlled_five_fold_gate(monkeypatch, improved_folds, **gate):
@@ -330,9 +360,11 @@ def test_standalone_thresholds_use_other_groups_and_report_heldout_predictions(m
         np.testing.assert_array_equal(calls[18 + column][0], truth[:, column])
         np.testing.assert_array_equal(calls[18 + column][1], candidate[:, column])
     assert set(fitted) == {"thresholds"}
-    np.testing.assert_allclose(fitted["thresholds"], [.15] * 9)
+    # Thresholds are mandated at 0.5, so only .8 and .9 are predicted positive:
+    # the "high" group scores 1/1 and the "low" group 0/1 in every fold.
+    assert fitted["thresholds"] == [0.5] * 9
     assert report["candidate_standalone_crossfit_macro_f1"] == pytest.approx(.5)
-    assert report["candidate_standalone_fit_macro_f1"] == pytest.approx(.8)
+    assert report["candidate_standalone_fit_macro_f1"] == pytest.approx(.5)
     assert report["candidate_standalone_crossfit_splits"] == 2
     for metrics in report["candidate_standalone_per_symptom_crossfit"].values():
         assert metrics == {"precision": .5, "recall": .5, "f1": .5, "support": 2}
@@ -345,8 +377,10 @@ def test_standalone_all_negative_targets_are_safe_at_probability_boundaries(prob
     candidate = np.full(truth.shape, probability)
     fitted, report = fit_candidate_only_crossfit(truth, candidate, np.repeat(np.arange(3), 4))
     assert report["candidate_standalone_crossfit_splits"] == 3
-    assert all(threshold > 1 for threshold in fitted["thresholds"])
-    assert not (candidate >= fitted["thresholds"]).any()
+    # A 0.5 threshold cannot be raised above 1 to silence an all-negative label,
+    # so probability 1.0 now yields pure false positives. F1 stays 0 either way.
+    assert fitted["thresholds"] == [0.5] * 9
+    assert (candidate >= fitted["thresholds"]).any() == (probability == 1.0)
     assert report["candidate_standalone_crossfit_macro_f1"] == 0.0
     assert report["candidate_standalone_fit_macro_f1"] == 0.0
     assert all(metrics["support"] == 0

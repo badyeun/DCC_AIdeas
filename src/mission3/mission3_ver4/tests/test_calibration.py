@@ -5,33 +5,45 @@ import pytest
 from sklearn.metrics import f1_score
 
 from mission3_ver4.calibration import (
-    _best_threshold, _grouped_splits, apply_calibrator, calibrate_crossfit, fit_calibrator,
+    FIXED_THRESHOLD, _best_threshold, _grouped_splits, apply_calibrator, calibrate_crossfit,
+    fit_calibrator,
 )
 
 
-def test_exact_threshold_matches_exhaustive_including_ties():
+def test_threshold_is_always_the_mandated_half_and_score_matches_it():
+    """The rules forbid per-symptom thresholds; 0.5 decides every label."""
     rng = np.random.default_rng(18)
     for _ in range(40):
         truth = rng.integers(0, 2, size=35)
         probabilities = np.round(rng.uniform(size=35), 1)
         threshold, reported = _best_threshold(truth, probabilities)
-        candidates = [0.0, *np.unique(probabilities), np.nextafter(1.0, np.inf)]
-        expected = max(f1_score(truth, probabilities >= t, zero_division=0) for t in candidates)
+        assert threshold == FIXED_THRESHOLD == 0.5
+        expected = f1_score(truth, probabilities >= 0.5, zero_division=0)
         assert reported == pytest.approx(expected)
-        assert f1_score(truth, probabilities >= threshold, zero_division=0) == pytest.approx(expected)
+
+
+def test_fitted_calibrator_stores_one_shared_threshold():
+    rng = np.random.default_rng(3)
+    truth = rng.integers(0, 2, size=(120, 9), dtype=np.int8)
+    neural = rng.uniform(size=(120, 9))
+    sparse = rng.uniform(size=(120, 9))
+    calibrator = fit_calibrator(truth, neural, sparse)
+    assert calibrator["thresholds"] == [0.5] * 9
+    json.dumps(calibrator, allow_nan=False)
 
 
 def test_constant_labels_and_tied_probabilities():
     truth = np.tile([0, 1, 0, 1, 0, 1, 0, 1, 0], (8, 1))
     probabilities = np.ones_like(truth, dtype=float)
     calibrator = fit_calibrator(truth, probabilities, probabilities)
+    # Every probability is 1.0, so a 0.5 threshold must fire for every label --
+    # a constant-negative label can no longer be switched off by its threshold.
     predicted = apply_calibrator(probabilities, probabilities, calibrator) >= calibrator["thresholds"]
-    np.testing.assert_array_equal(predicted, truth)
-    assert calibrator["thresholds"][0] > 1
-    assert calibrator["thresholds"][1] == 0
+    np.testing.assert_array_equal(predicted, np.ones_like(truth))
+    assert calibrator["thresholds"] == [0.5] * 9
     json.dumps(calibrator, allow_nan=False)
     threshold, score = _best_threshold(np.array([1, 0, 1, 0]), np.full(4, 0.5))
-    assert threshold <= 0.5
+    assert threshold == 0.5
     assert score == pytest.approx(2 / 3)
 
 
@@ -56,12 +68,12 @@ def test_fit_can_choose_either_pure_model():
     assert fit_calibrator(truth, adversarial, good)["neural_weights"] == [0.0] * 9
 
 
-def test_adjacent_float_threshold_keeps_greater_equal_decision_correct():
-    lower = 0.5
-    upper = np.nextafter(lower, 1.0)
-    threshold, score = _best_threshold(np.array([0, 1]), np.array([lower, upper]))
+def test_greater_equal_decision_includes_a_probability_exactly_at_half():
+    lower = np.nextafter(0.5, 0.0)
+    threshold, score = _best_threshold(np.array([0, 1]), np.array([lower, 0.5]))
+    assert threshold == 0.5
+    # 0.5 itself is predicted positive (>=), the value just below it is not.
     assert score == 1.0
-    assert lower < threshold <= upper
 
 
 def test_crossfit_keeps_duplicate_groups_and_scores_every_row():

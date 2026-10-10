@@ -12,6 +12,9 @@ else:
 
 WEIGHT_GRID = (0.0, 0.25, 0.5, 0.75, 1.0)
 ALL_NEGATIVE_THRESHOLD = float(np.nextafter(1.0, np.inf))
+# The organisers require the same 0.5 decision threshold for every symptom.
+# Per-symptom thresholds are not permitted, so none are searched or stored.
+FIXED_THRESHOLD = 0.5
 
 
 def _probabilities(values, name):
@@ -37,29 +40,19 @@ def _inputs(y_true, neural_probs, sparse_probs):
 
 
 def _best_threshold(truth, probabilities):
-    """Exact F1 maximum for >= decisions; tied probabilities stay together."""
-    positives = int(truth.sum())
-    if positives == 0:
-        return ALL_NEGATIVE_THRESHOLD, 0.0
-    if positives == len(truth):
-        return 0.0, 1.0
-    order = np.argsort(-probabilities, kind="stable")
-    sorted_probs = probabilities[order]
-    # A threshold can include a complete tied block, never part of one.
-    boundaries = np.r_[np.flatnonzero(sorted_probs[:-1] != sorted_probs[1:]), len(truth) - 1]
-    true_positives = np.cumsum(truth[order])[boundaries]
-    scores = 2.0 * true_positives / (positives + boundaries + 1)
-    thresholds = np.zeros(len(boundaries), dtype=np.float64)
-    has_next = boundaries < len(truth) - 1
-    upper = sorted_probs[boundaries[has_next]]
-    lower = sorted_probs[boundaries[has_next] + 1]
-    midpoint = lower + (upper - lower) / 2
-    # Adjacent floating-point values may have no representable midpoint.
-    thresholds[has_next] = np.where(midpoint > lower, midpoint, upper)
-    best = np.flatnonzero(scores == scores.max())
-    # An explicit deterministic tie break preserves the exact maximum.
-    winner = min(best, key=lambda i: (abs(thresholds[i] - 0.5), -thresholds[i]))
-    return float(thresholds[winner]), float(scores[winner])
+    """Score a label at the mandated 0.5 threshold; never search for a better cut.
+
+    The returned threshold is always ``FIXED_THRESHOLD``. Only the score varies,
+    so callers still choose blend weights by comparing scores -- but they now
+    compare the F1 each blend actually achieves at 0.5.
+    """
+    truth = np.asarray(truth)
+    predicted = np.asarray(probabilities) >= FIXED_THRESHOLD
+    denominator = int(truth.sum()) + int(predicted.sum())
+    if denominator == 0:
+        return FIXED_THRESHOLD, 0.0
+    true_positives = int(np.count_nonzero(predicted & (truth == 1)))
+    return FIXED_THRESHOLD, 2.0 * true_positives / denominator
 
 
 def fit_calibrator(y_true, neural_probs, sparse_probs):
