@@ -66,10 +66,14 @@ def build_model(config: dict):
             # nested tensor 경로는 padding 위치에 따라 수치가 미세하게 달라질 수 있어 끈다.
             self.encoder = nn.TransformerEncoder(layer, int(config["layers"]), enable_nested_tensor=False)
             self.head = nn.Sequential(nn.LayerNorm(width), nn.Linear(width, 1))
+            # 같은 화자 보조 과제용 투영. 학습 때만 쓰고 추론 판정에는 쓰지 않는다.
+            pair_dim = int(config.get("pair_dim", 0))
+            self.pair = nn.Sequential(nn.LayerNorm(width), nn.Linear(width, pair_dim)) if pair_dim else None
 
-        def forward(self, inputs: "torch.Tensor", padding: "torch.Tensor") -> "torch.Tensor":
+        def forward(self, inputs: "torch.Tensor", padding: "torch.Tensor", return_hidden: bool = False):
             hidden = self.encoder(self.project(inputs), src_key_padding_mask=padding)
-            return self.head(hidden).squeeze(-1)
+            logits = self.head(hidden).squeeze(-1)
+            return (logits, hidden) if return_hidden else logits
 
     return CallTransformer()
 

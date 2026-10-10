@@ -50,6 +50,10 @@ def parse_args() -> argparse.Namespace:
                         help="모델 선택용으로 떼어 낼 Train 통화 비율. 0이면 Train 전체로 --epochs만큼 학습하고 마지막 모델을 쓴다"
                              " (epoch 수를 holdout 실험으로 정한 뒤 데이터를 다 쓰는 용도)")
     parser.add_argument("--patience", type=int, default=4)
+    parser.add_argument("--pair_weight", type=float, default=0.0,
+                        help="같은 화자 보조 과제 손실 가중치. 0이면 끈다(EXP-011 A0~A3, F0)")
+    parser.add_argument("--pair_dim", type=int, default=64, help="같은 화자 보조 과제의 투영 차원")
+    parser.add_argument("--pair_scale", type=float, default=10.0, help="코사인 유사도에 곱하는 배율(logit 크기)")
     parser.add_argument("--device", default=None)
     parser.add_argument("--threads", type=int, default=0)
     parser.add_argument("--seed", type=int, default=42)
@@ -197,6 +201,8 @@ def main() -> None:
         "in_dim": input_width(stage1_train is not None), "d_model": args.d_model, "layers": args.layers,
         "heads": args.heads, "ff": args.ff, "dropout": args.dropout,
     }
+    if args.pair_weight > 0:
+        config["pair_dim"] = args.pair_dim
     model = build_model(config).to(device)
     print(f"모델: {config}, 파라미터 {sum(p.numel() for p in model.parameters()):,}개, 장치 {device}")
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
@@ -236,9 +242,20 @@ def main() -> None:
                 y[row, :len(item)] = label
                 padding[row, :len(item)] = False
             x_t, y_t, pad_t = (torch.from_numpy(a).to(device) for a in (x, y, padding))
-            logits = model(x_t, pad_t)
+            logits, hidden = model(x_t, pad_t, return_hidden=True)
             valid = (~pad_t).float()
             loss = (loss_fn(logits, y_t) * valid).sum() / valid.sum()
+            if args.pair_weight > 0:
+                # 같은 화자 보조 과제: 통화 안 모든 발화 쌍에 대해 "같은 사람인가"를 맞힌다.
+                # 통화에는 화자가 둘뿐이므로, 은닉 표현이 통화 안에서 두 목소리를 가르도록 직접 학습시킨다.
+                # 쌍은 대칭이고 순서와 무관하다. 정답(speaker)은 학습에만 쓴다.
+                unit = torch.nn.functional.normalize(model.pair(hidden), dim=-1)
+                pair_logits = args.pair_scale * unit @ unit.transpose(1, 2)
+                same = (y_t[:, :, None] == y_t[:, None, :]).float()
+                pair_mask = valid[:, :, None] * valid[:, None, :]
+                pair_mask = pair_mask * (1 - torch.eye(longest, device=pair_mask.device))[None]
+                pair_loss = (loss_fn(pair_logits, same) * pair_mask).sum() / pair_mask.sum().clamp(min=1)
+                loss = loss + args.pair_weight * pair_loss
             optimizer.zero_grad()
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
