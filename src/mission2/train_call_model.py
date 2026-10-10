@@ -149,9 +149,14 @@ def make_call(data: dict, call: int, scale: dict, stage1: np.ndarray | None, kee
 
 
 def evaluate(model, data: dict, calls: np.ndarray, scale: dict, stage1, device: str) -> tuple[float, np.ndarray]:
-    """주어진 통화 전체를 판정해 정확도와 발화별 확률을 낸다 (확률은 calls 순서로 이어 붙임)."""
-    inputs = [make_call(data, call, scale, stage1) for call in calls]
-    probabilities = np.concatenate(predict_calls(model, inputs, device))
+    """주어진 통화 전체를 판정해 정확도와 발화별 확률을 낸다 (확률은 calls 순서로 이어 붙임).
+
+    입력을 한꺼번에 만들면 Validation만 약 400MB라, 통화 500개씩 나눠 만든다."""
+    pieces: list[np.ndarray] = []
+    for begin in range(0, len(calls), 500):
+        inputs = [make_call(data, call, scale, stage1) for call in calls[begin:begin + 500]]
+        pieces.extend(predict_calls(model, inputs, device))
+    probabilities = np.concatenate(pieces)
     labels = np.concatenate([data["labels"][call_rows(data, call)] for call in calls])
     return float(((probabilities >= 0.5) == labels).mean()), probabilities
 
@@ -244,6 +249,11 @@ def main() -> None:
             best_accuracy, best_epoch, waited = held_accuracy, epoch, 0
             best_state = {key: value.detach().cpu().clone() for key, value in model.state_dict().items()}
             marker = " ← 최고"
+            # 학습이 중간에 끊겨도 그때까지 가장 좋았던 모델이 남도록 매번 저장한다.
+            args.out.parent.mkdir(parents=True, exist_ok=True)
+            torch.save({"model_type": "mission2_call_transformer", "config": config, "state_dict": best_state,
+                        "scale": scale, "use_stage1": stage1_train is not None, "best_epoch": epoch,
+                        "holdout_accuracy": held_accuracy}, args.out.with_suffix(".best.pt"))
         else:
             waited += 1
         print(f"[epoch {epoch:2d}] loss {running / len(fit):.4f}, Train holdout Accuracy {held_accuracy:.4f}{marker} ({elapsed(start)})")

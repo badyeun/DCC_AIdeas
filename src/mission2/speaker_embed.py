@@ -767,10 +767,21 @@ def positive_probability(classifier, features: np.ndarray) -> np.ndarray:
 
 def predict_call(checkpoint: dict, embeddings: np.ndarray, mfcc: np.ndarray | None) -> np.ndarray:
     """통화 하나의 발화 전체를 한 번에 판정한다."""
+    return (predict_call_probability(checkpoint, embeddings, mfcc)[0] >= 0.5).astype(np.int64)
+
+
+def predict_call_probability(
+    checkpoint: dict, embeddings: np.ndarray, mfcc: np.ndarray | None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """통화 하나의 최종 신고자 확률과 1단계 확률을 함께 돌려준다.
+
+    통화 트랜스포머(call_model.py)와 섞거나, 1단계 확률을 트랜스포머 입력에 쌓을 때 쓴다.
+    """
     features = stage1_features(embeddings, mfcc)
     if checkpoint.get("bank") is not None:
         features = np.hstack((features, bank_features(embeddings, checkpoint["bank"])))
     probabilities = positive_probability(checkpoint["stage1"], features)
+    stage1 = probabilities
     if checkpoint.get("use_stage2"):
         # 예전 체크포인트는 2단계 모델 하나(v1)만 있다. v2는 여러 회차를 차례로 적용한다.
         version = int(checkpoint.get("stage2_version", 1))
@@ -785,4 +796,4 @@ def predict_call(checkpoint: dict, embeddings: np.ndarray, mfcc: np.ndarray | No
         for model in models:
             stage2 = stage2_features(embeddings, probabilities, aux, checkpoint.get("channel_scale"), version, same)
             probabilities = positive_probability(model, stage2)
-    return (probabilities >= 0.5).astype(np.int64)
+    return probabilities, stage1

@@ -74,6 +74,36 @@ def build_model(config: dict):
     return CallTransformer()
 
 
+def load_transformers(entries: list[dict], device: str = "cpu") -> list[tuple[object, dict]]:
+    """체크포인트에 넣어 둔 트랜스포머들(가중치는 numpy 배열)을 불러온다."""
+    import torch
+
+    loaded = []
+    for entry in entries:
+        model = build_model(entry["config"])
+        model.load_state_dict({key: torch.from_numpy(np.asarray(value)) for key, value in entry["state_dict"].items()})
+        loaded.append((model.to(device).eval(), entry))
+    return loaded
+
+
+def transformer_probability(
+    loaded: list[tuple[object, dict]], ecapa: np.ndarray, mfcc: np.ndarray,
+    stage1: np.ndarray | None = None, device: str = "cpu",
+) -> np.ndarray:
+    """통화 하나에 대해 트랜스포머 여러 개(시드 앙상블)의 확률 평균.
+
+    학습 캐시는 ECAPA·MFCC를 float16으로 저장해 썼다. 같은 값으로 맞춰야 Validation 점수가
+    재현되므로 여기서도 float16으로 반올림한다.
+    """
+    ecapa = np.asarray(ecapa, dtype=np.float16).astype(np.float32)
+    mfcc = np.asarray(mfcc, dtype=np.float16).astype(np.float32)
+    outputs = []
+    for model, entry in loaded:
+        inputs = call_inputs(ecapa, mfcc, entry["scale"], stage1 if entry.get("use_stage1") else None)
+        outputs.append(predict_calls(model, [inputs], device, batch_calls=1)[0])
+    return np.mean(outputs, axis=0)
+
+
 def predict_calls(model, calls: list[np.ndarray], device: str = "cpu", batch_calls: int = 32) -> list[np.ndarray]:
     """통화별 입력 행렬 목록 → 통화별 신고자(1) 확률 목록. 길이가 비슷한 통화끼리 묶는다."""
     import torch

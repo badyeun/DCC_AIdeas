@@ -99,6 +99,50 @@ class SpeakerEmbeddingPredictor:
         return predict_embedding_call(self.checkpoint, embeddings, mfcc)
 
 
+class CallTransformerPredictor(SpeakerEmbeddingPredictor):
+    """통화 단위 트랜스포머 체크포인트 (train_call_model.py + pack_call_model.py).
+
+    통화의 모든 발화를 한꺼번에 넣어 서로 비교한다. 위치 정보를 넣지 않으므로 발화 순서와
+    무관하다. 기존 파이프라인이 함께 들어 있으면 두 확률을 blend 비율로 섞는다.
+    """
+
+    def __init__(self, checkpoint: dict, ckpt_dir: Path) -> None:
+        import torch
+
+        from call_model import load_transformers
+        from speaker_embed import EcapaEncoder
+
+        self.checkpoint = checkpoint
+        self.n_mfcc = int(checkpoint.get("n_mfcc", 20))
+        self.use_mfcc = True  # 트랜스포머 입력에 MFCC가 들어간다.
+        self.batch_size = int(checkpoint.get("batch_size", 32))
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.encoder = EcapaEncoder(self.encoder_folder("encoder_files", "encoder_dir", ckpt_dir), self.device)
+        self.second = None
+        self.transformers = load_transformers(checkpoint["transformers"], self.device)
+        self.base = checkpoint.get("base")
+        self.blend = float(checkpoint.get("blend", 0.0))
+        print(f"통화 트랜스포머 {len(self.transformers)}개, 장치: {self.device}, "
+              f"기존 파이프라인 {'포함' if self.base is not None else '없음'}, blend {self.blend}")
+
+    def decide(self, prepared: list[tuple[np.ndarray, np.ndarray | None]]) -> np.ndarray:
+        from call_model import transformer_probability
+        from speaker_embed import predict_call_probability
+
+        segments = [segment for segment, _ in prepared]
+        # 학습 캐시와 같게 float16으로 반올림한 ECAPA 임베딩을 쓴다.
+        embeddings = self.encoder.embed(segments, self.batch_size).astype(np.float16).astype(np.float32)
+        mfcc = np.vstack([feature for _, feature in prepared])
+        base_probability = stage1 = None
+        if self.base is not None:
+            # 기존 파이프라인은 float32 MFCC 캐시로 학습했으므로 반올림하지 않은 값을 넘긴다.
+            base_probability, stage1 = predict_call_probability(self.base, embeddings, mfcc)
+        probability = transformer_probability(self.transformers, embeddings, mfcc, stage1, self.device)
+        if base_probability is not None and self.blend > 0:
+            probability = self.blend * base_probability + (1.0 - self.blend) * probability
+        return (probability >= 0.5).astype(np.int64)
+
+
 def main() -> None:
     args = parse_args()
     if not args.audio_dir.is_dir() or not args.label_dir.is_dir() or not args.ckpt_path.is_file():
@@ -109,6 +153,8 @@ def main() -> None:
         predictor = RandomForestPredictor(checkpoint)
     elif model_type == "mission2_speaker_embedding":
         predictor = SpeakerEmbeddingPredictor(checkpoint, args.ckpt_path.parent)
+    elif model_type == "mission2_call_transformer":
+        predictor = CallTransformerPredictor(checkpoint, args.ckpt_path.parent)
     else:
         raise ValueError("Mission 2 체크포인트가 아닙니다.")
     configured_unit = str(checkpoint.get("timestamp_unit", "auto"))
