@@ -742,6 +742,33 @@ self-attention으로 참고하며 **비교 방식 자체를 학습**하게 했�
   최종 제출을 8개 평균으로 바꿀지는 3개 평균의 실데이터 추론 검증 결과를 보고 정한다.
 - 결론: **같은 입력(ECAPA + MFCC)에서는 0.926~0.927이 한계.** 더 올리려면 입력 정보를 늘려야 한다(WavLM 입력, 69dcb26 준비 완료).
 
+### ✅ 실데이터 추론 검증 통과 (2026-10-11, Colab T4 GPU)
+
+제출 후보(A0 + A1 + A3 평균, `--blend 0`, 목소리 사전 없음)를 `pack_call_model.py`로 한 파일 체크포인트로
+묶고, 채점과 같은 방식으로 `inference.py` 한 줄을 실행했다.
+
+| 항목 | 결과 |
+| --- | --- |
+| 명령 | `python src/mission2/inference.py --audio_dir /content/val_audio --label_dir /content/val_label --ckpt_path /content/mission2_final.ckpt --output ./outputs/mission2.csv` |
+| 입력 | Validation 통화 3,640개 (WAV·JSON을 part 폴더에서 심볼릭 링크로 모음) |
+| 체크포인트 | 트랜스포머 3개 + ECAPA 인코더, 90.8MB 한 파일 (인터넷 없이 동작) |
+| CSV | 헤더 `audio file name,startAt,endAt,speaker`, **111,947행** (Validation 발화 전체) |
+| **정확도** | **0.9263 — 학습 때 Validation 확률로 계산한 3개 평균 값과 정확히 일치** |
+
+- 추론은 ECAPA·MFCC를 새로 계산하고 float16으로 반올림해 학습 캐시와 같은 값을 쓴다. 그 결과 학습 때 점수가 그대로 재현됐다.
+- Drive 용량 초과로 체크포인트를 Drive가 아닌 Colab 로컬(`/content`)에 만들어 실행했다.
+
+### EXP-011 변형 3 — Train 전체 + 같은 화자 보조 과제 (F1)
+
+| 모델 | 설정 | Validation |
+| --- | --- | ---: |
+| **F1** | `--holdout 0 --pair_weight 0.5` (seed 42) | **0.9252** (단독 최고) |
+| 목소리 사전 없는 9개 평균 (A0·A1·A3·F0·A2·C0·C1·C2·F1) | | 0.9277 |
+
+- 조금씩 앞섰던 두 변경(Train 전체 +0.14%p, 보조 과제 +0.2%p 안팎)을 합친 F1이 단독 최고. 같은 seed의 A0(0.9219) 대비 +0.33%p.
+- 9개 평균 0.9277은 후보(0.9263) 대비 +0.14%p. 0절 기준선(0.9247 + 0.3%p = 0.9277)에 걸치지만, Validation을 보며
+  멤버를 계속 늘린 결과라 우연이 섞였을 수 있다.
+
 ## 다음 실험 계획
 
 현재 기준선은 **EXP-005 (Validation Accuracy 0.9067, LightGBM 1단계 + 2단계 v2)** 입니다.
