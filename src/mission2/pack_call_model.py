@@ -45,6 +45,7 @@ def main() -> None:
         entries.append({
             "config": saved["config"], "scale": saved["scale"], "use_stage1": bool(saved["use_stage1"]),
             "use_second": bool(saved.get("use_second", False)),
+            "context": bool(saved.get("context", True)),
             "state_dict": {key: value.cpu().numpy() for key, value in saved["state_dict"].items()},
             "source": path.name, "holdout_accuracy": saved.get("holdout_accuracy"),
             "validation_accuracy": saved.get("validation_accuracy"),

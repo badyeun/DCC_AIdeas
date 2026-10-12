@@ -30,32 +30,61 @@ def normalize_rows(vectors: np.ndarray) -> np.ndarray:
 
 def call_inputs(
     ecapa: np.ndarray, mfcc: np.ndarray, scale: dict[str, np.ndarray],
-    stage1: np.ndarray | None = None, second: np.ndarray | None = None,
+    stage1: np.ndarray | None = None, second: np.ndarray | None = None, context: bool = True,
 ) -> np.ndarray:
     """통화 하나의 발화 입력 행렬. 통화 평균은 순서와 무관한 값이다.
 
     second: (선택) WavLM 화자 임베딩 512. 길이 1로 맞춘 값과 통화 평균을 뺀 값을 더한다.
+    context=False: 통화 평균을 뺀 값을 넣지 않는다. 각 행이 그 발화 하나의 특징만 담아, 발화를 서로
+    독립적으로 판정하는 모델(kind="mlp")에 쓴다 (2026-10-12 게시판 답변: 같은 통화 다른 발화 특징 사용 금지).
     """
     unit = normalize_rows(np.asarray(ecapa, dtype=np.float32))
     standard = (np.asarray(mfcc, dtype=np.float32) - scale["mean"]) / scale["std"]
-    parts = [unit, unit - unit.mean(axis=0, keepdims=True), standard, standard - standard.mean(axis=0, keepdims=True)]
+    if context:
+        parts = [unit, unit - unit.mean(axis=0, keepdims=True), standard, standard - standard.mean(axis=0, keepdims=True)]
+    else:
+        parts = [unit, standard]
     if second is not None:
         unit2 = normalize_rows(np.asarray(second, dtype=np.float32))
-        parts += [unit2, unit2 - unit2.mean(axis=0, keepdims=True)]
+        parts += [unit2, unit2 - unit2.mean(axis=0, keepdims=True)] if context else [unit2]
     if stage1 is not None:
         clipped = np.clip(np.asarray(stage1, dtype=np.float64), 1e-4, 1 - 1e-4)
         parts.append(np.log(clipped / (1 - clipped)).astype(np.float32)[:, None])
     return np.hstack(parts).astype(np.float32)
 
 
-def input_width(use_stage1: bool, second_dim: int = 0) -> int:
-    return ECAPA_DIM * 2 + MFCC_DIM * 2 + second_dim * 2 + (1 if use_stage1 else 0)
+def input_width(use_stage1: bool, second_dim: int = 0, context: bool = True) -> int:
+    copies = 2 if context else 1
+    return (ECAPA_DIM + MFCC_DIM + second_dim) * copies + (1 if use_stage1 else 0)
 
 
 def build_model(config: dict):
     """위치 인코딩 없는 트랜스포머 인코더. config는 체크포인트에 그대로 저장된다."""
     import torch
     from torch import nn
+
+    class UtteranceMLP(nn.Module):
+        """발화마다 따로 판정하는 MLP. 발화 사이에 정보가 오가는 연산(attention, 평균 등)이 없어
+        한 발화의 예측은 그 발화의 특징으로만 정해진다. 입력 형태는 트랜스포머와 같다(통화 단위 묶음)."""
+
+        def __init__(self) -> None:
+            super().__init__()
+            width = int(config["d_model"])
+            dropout = float(config["dropout"])
+            blocks = [nn.Linear(int(config["in_dim"]), width), nn.LayerNorm(width), nn.GELU(), nn.Dropout(dropout)]
+            for _ in range(int(config["layers"]) - 1):
+                blocks += [nn.Linear(width, width), nn.LayerNorm(width), nn.GELU(), nn.Dropout(dropout)]
+            self.body = nn.Sequential(*blocks)
+            self.head = nn.Linear(width, 1)
+            self.pair = None
+
+        def forward(self, inputs: "torch.Tensor", padding: "torch.Tensor", return_hidden: bool = False):
+            hidden = self.body(inputs)
+            logits = self.head(hidden).squeeze(-1)
+            return (logits, hidden) if return_hidden else logits
+
+    if config.get("kind") == "mlp":
+        return UtteranceMLP()
 
     class CallTransformer(nn.Module):
         def __init__(self) -> None:
@@ -112,7 +141,7 @@ def transformer_probability(
     outputs = []
     for model, entry in loaded:
         inputs = call_inputs(ecapa, mfcc, entry["scale"], stage1 if entry.get("use_stage1") else None,
-                             second if entry.get("use_second") else None)
+                             second if entry.get("use_second") else None, bool(entry.get("context", True)))
         outputs.append(predict_calls(model, [inputs], device, batch_calls=1)[0])
     return np.mean(outputs, axis=0)
 

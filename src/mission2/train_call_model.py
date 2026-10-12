@@ -39,6 +39,10 @@ def parse_args() -> argparse.Namespace:
                         help="WavLM 임베딩 캐시(wavlm_train_*, wavlm_val_*). 주면 두 번째 목소리 지문을 입력에 더한다.")
     parser.add_argument("--base_val_predictions", type=Path, default=None,
                         help="기존 파이프라인 *_val_predictions.npz. 주면 0.5:0.5로 섞은 정확도도 낸다.")
+    parser.add_argument("--kind", choices=("transformer", "mlp"), default="transformer",
+                        help="mlp: 발화마다 따로 판정하는 MLP (발화 사이에 정보가 오가지 않음)")
+    parser.add_argument("--no_call_context", dest="call_context", action="store_false",
+                        help="통화 평균을 뺀 값을 입력에 넣지 않는다. --kind mlp와 함께 쓰면 각 발화를 완전히 독립적으로 판정한다")
     parser.add_argument("--d_model", type=int, default=128)
     parser.add_argument("--layers", type=int, default=3)
     parser.add_argument("--heads", type=int, default=4)
@@ -153,7 +157,8 @@ def call_rows(data: dict, call: int) -> slice:
     return slice(int(data["offsets"][call]), int(data["offsets"][call + 1]))
 
 
-def make_call(data: dict, call: int, scale: dict, stage1: np.ndarray | None, keep: np.ndarray | None = None) -> np.ndarray:
+def make_call(data: dict, call: int, scale: dict, stage1: np.ndarray | None, keep: np.ndarray | None = None,
+              context: bool = True) -> np.ndarray:
     rows = call_rows(data, call)
     ecapa = np.asarray(data["ecapa"][rows], dtype=np.float32)
     mfcc = np.asarray(data["mfcc"][rows], dtype=np.float32)
@@ -163,16 +168,17 @@ def make_call(data: dict, call: int, scale: dict, stage1: np.ndarray | None, kee
         ecapa, mfcc = ecapa[keep], mfcc[keep]
         second = None if second is None else second[keep]
         probability = None if probability is None else probability[keep]
-    return call_inputs(ecapa, mfcc, scale, probability, second)
+    return call_inputs(ecapa, mfcc, scale, probability, second, context)
 
 
-def evaluate(model, data: dict, calls: np.ndarray, scale: dict, stage1, device: str) -> tuple[float, np.ndarray]:
+def evaluate(model, data: dict, calls: np.ndarray, scale: dict, stage1, device: str,
+             context: bool = True) -> tuple[float, np.ndarray]:
     """주어진 통화 전체를 판정해 정확도와 발화별 확률을 낸다 (확률은 calls 순서로 이어 붙임).
 
     입력을 한꺼번에 만들면 Validation만 약 400MB라, 통화 500개씩 나눠 만든다."""
     pieces: list[np.ndarray] = []
     for begin in range(0, len(calls), 500):
-        inputs = [make_call(data, call, scale, stage1) for call in calls[begin:begin + 500]]
+        inputs = [make_call(data, call, scale, stage1, None, context) for call in calls[begin:begin + 500]]
         pieces.extend(predict_calls(model, inputs, device))
     probabilities = np.concatenate(pieces)
     labels = np.concatenate([data["labels"][call_rows(data, call)] for call in calls])
@@ -210,7 +216,8 @@ def main() -> None:
     fit = fit[train["counts"][fit] > 0]
     scale = mfcc_scale(train, fit)
     config = {
-        "in_dim": input_width(stage1_train is not None, SECOND_DIM if train["second"] is not None else 0),
+        "in_dim": input_width(stage1_train is not None, SECOND_DIM if train["second"] is not None else 0, args.call_context),
+        "kind": args.kind, "context": args.call_context,
         "d_model": args.d_model, "layers": args.layers,
         "heads": args.heads, "ff": args.ff, "dropout": args.dropout,
     }
@@ -244,7 +251,7 @@ def main() -> None:
                 if len(keep) > args.max_call_len:
                     keep = rng.choice(keep, size=args.max_call_len, replace=False)
                 keep = rng.permutation(keep)
-                batch_inputs.append(make_call(train, call, scale, stage1_train, keep))
+                batch_inputs.append(make_call(train, call, scale, stage1_train, keep, args.call_context))
                 batch_labels.append(train["labels"][call_rows(train, call)][keep])
             longest = max(len(item) for item in batch_inputs)
             x = np.zeros((len(batch_inputs), longest, config["in_dim"]), dtype=np.float32)
@@ -281,11 +288,11 @@ def main() -> None:
             best_accuracy, best_epoch = held_accuracy, epoch
             best_state = {key: value.detach().cpu().clone() for key, value in model.state_dict().items()}
             torch.save({"model_type": "mission2_call_transformer", "config": config, "state_dict": best_state,
-                        "scale": scale, "use_stage1": stage1_train is not None, "use_second": train["second"] is not None, "best_epoch": epoch,
+                        "scale": scale, "use_stage1": stage1_train is not None, "use_second": train["second"] is not None, "context": args.call_context, "best_epoch": epoch,
                         "holdout_accuracy": None}, args.out.with_suffix(".best.pt"))
             print(f"[epoch {epoch:2d}] loss {running / len(fit):.4f}, holdout 없음 (Train 전체 학습) ({elapsed(start)})")
             continue
-        held_accuracy, _ = evaluate(model, train, held, scale, stage1_train, device)
+        held_accuracy, _ = evaluate(model, train, held, scale, stage1_train, device, args.call_context)
         marker = ""
         if held_accuracy > best_accuracy:
             best_accuracy, best_epoch, waited = held_accuracy, epoch, 0
@@ -294,7 +301,7 @@ def main() -> None:
             # 학습이 중간에 끊겨도 그때까지 가장 좋았던 모델이 남도록 매번 저장한다.
             args.out.parent.mkdir(parents=True, exist_ok=True)
             torch.save({"model_type": "mission2_call_transformer", "config": config, "state_dict": best_state,
-                        "scale": scale, "use_stage1": stage1_train is not None, "use_second": train["second"] is not None, "best_epoch": epoch,
+                        "scale": scale, "use_stage1": stage1_train is not None, "use_second": train["second"] is not None, "context": args.call_context, "best_epoch": epoch,
                         "holdout_accuracy": held_accuracy}, args.out.with_suffix(".best.pt"))
         else:
             waited += 1
@@ -305,7 +312,7 @@ def main() -> None:
 
     model.load_state_dict(best_state)
     val_calls = np.arange(len(val["counts"]))
-    val_accuracy, val_probability = evaluate(model, val, val_calls, scale, stage1_val, device)
+    val_accuracy, val_probability = evaluate(model, val, val_calls, scale, stage1_val, device, args.call_context)
     print(f"최고 epoch {best_epoch}: Train holdout Accuracy {best_accuracy:.4f}")
     if stage1_train is not None and len(held):
         held_rows = np.concatenate([np.arange(*call_rows(train, call).indices(len(train["labels"]))) for call in held])
@@ -330,7 +337,7 @@ def main() -> None:
     args.out.parent.mkdir(parents=True, exist_ok=True)
     torch.save({
         "model_type": "mission2_call_transformer", "config": config, "state_dict": best_state,
-        "scale": scale, "use_stage1": stage1_train is not None, "use_second": train["second"] is not None, "best_epoch": best_epoch,
+        "scale": scale, "use_stage1": stage1_train is not None, "use_second": train["second"] is not None, "context": args.call_context, "best_epoch": best_epoch,
         "holdout_accuracy": best_accuracy, "validation_accuracy": val_accuracy, "blend_accuracy": blend_accuracy,
         "args": {key: str(value) for key, value in vars(args).items()},
     }, args.out)
