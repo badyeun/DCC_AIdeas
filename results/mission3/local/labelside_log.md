@@ -415,3 +415,306 @@
   epoch 2: loss 0.4286 | Macro F1 0.62742 | 최소1개 강제 0.62552 | 빈 예측 120 | 9.6분
   epoch 3: loss 0.4011 | Macro F1 0.62713 | 최소1개 강제 0.62644 | 빈 예측 80 | 9.7분
   최고 epoch 2: 0.62742 (그대로 0.62742 / 강제 0.62552 중 높은 쪽)
+
+### 17:49:07 madatnlp/km-bert / raw / seed 42
+모델 madatnlp/km-bert | 전처리 raw | 손실 bce | 학습 23,360 / 자체검증 5,840
+  epoch 1: loss 0.5201 | Macro F1 0.61888 | 최소1개 강제 0.61825 | 빈 예측 263 | 4.7분
+  epoch 2: loss 0.4189 | Macro F1 0.62786 | 최소1개 강제 0.62693 | 빈 예측 167 | 5.1분
+  epoch 3: loss 0.3903 | Macro F1 0.62871 | 최소1개 강제 0.62771 | 빈 예측 138 | 5.1분
+  최고 epoch 3: 0.62871 (그대로 0.62871 / 강제 0.62771 중 높은 쪽)
+
+### 18:05:31 kykim/bert-kor-base / raw / seed 42
+모델 kykim/bert-kor-base | 전처리 raw | 손실 bce | 학습 23,360 / 자체검증 5,840
+  epoch 1: loss 0.5111 | Macro F1 0.62942 | 최소1개 강제 0.62923 | 빈 예측 215 | 4.0분
+  epoch 2: loss 0.4078 | Macro F1 0.63578 | 최소1개 강제 0.63521 | 빈 예측 104 | 4.6분
+  epoch 3: loss 0.3747 | Macro F1 0.63532 | 최소1개 강제 0.63430 | 빈 예측 120 | 4.6분
+  최고 epoch 2: 0.63578 (그대로 0.63578 / 강제 0.63521 중 높은 쪽)
+
+### 18:20:12 BM-K/KoSimCSE-roberta / raw / seed 42
+모델 BM-K/KoSimCSE-roberta | 전처리 raw | 손실 bce | 학습 23,360 / 자체검증 5,840
+  epoch 1: loss 0.5109 | Macro F1 0.62383 | 최소1개 강제 0.62292 | 빈 예측 238 | 4.6분
+  epoch 2: loss 0.4158 | Macro F1 0.63161 | 최소1개 강제 0.63044 | 빈 예측 133 | 4.5분
+  epoch 3: loss 0.3850 | Macro F1 0.63585 | 최소1개 강제 0.63541 | 빈 예측 99 | 4.6분
+  최고 epoch 3: 0.63585 (그대로 0.63585 / 강제 0.63541 중 높은 쪽)
+
+### 18:35:28 klue/roberta-small / raw / seed 42
+모델 klue/roberta-small | 전처리 raw | 손실 bce | 학습 23,360 / 자체검증 5,840
+  epoch 1: loss 0.5362 | Macro F1 0.61824 | 최소1개 강제 0.61681 | 빈 예측 145 | 2.4분
+  epoch 2: loss 0.4277 | Macro F1 0.62564 | 최소1개 강제 0.62464 | 빈 예측 125 | 2.4분
+  epoch 3: loss 0.4004 | Macro F1 0.62894 | 최소1개 강제 0.62692 | 빈 예측 93 | 2.4분
+  최고 epoch 3: 0.62894 (그대로 0.62894 / 강제 0.62692 중 높은 쪽)
+
+### 18:43:30 monologg/kobigbird-bert-base / raw / seed 42
+모델 monologg/kobigbird-bert-base | 전처리 raw | 손실 bce | 학습 23,360 / 자체검증 5,840
+  epoch 1: loss 0.5231 | Macro F1 0.62399 | 최소1개 강제 0.62215 | 빈 예측 216 | 12.0분
+  epoch 2: loss 0.4228 | Macro F1 0.63305 | 최소1개 강제 0.63226 | 빈 예측 115 | 12.0분
+  epoch 3: loss 0.3966 | Macro F1 0.63457 | 최소1개 강제 0.63356 | 빈 예측 107 | 12.0분
+  최고 epoch 3: 0.63457 (그대로 0.63457 / 강제 0.63356 중 높은 쪽)
+
+### 19:22:48 SangwonYoon/klue-roberta-large-tapt / raw / seed 42
+모델 SangwonYoon/klue-roberta-large-tapt | 전처리 raw | 손실 bce | 학습 23,360 / 자체검증 5,840
+  epoch 1: loss 0.4917 | Macro F1 0.63205 | 최소1개 강제 0.63027 | 빈 예측 171 | 16.7분
+  epoch 2: loss 0.4001 | Macro F1 0.63635 | 최소1개 강제 0.63554 | 빈 예측 123 | 19.3분
+  epoch 3: loss 0.3515 | Macro F1 0.63851 | 최소1개 강제 0.63776 | 빈 예측 75 | 18.7분
+  최고 epoch 3: 0.63851 (그대로 0.63851 / 강제 0.63776 중 높은 쪽)
+
+### 20:39:44 klue/roberta-base / raw / seed 42
+모델 klue/roberta-base | 전처리 raw | 손실 bce | 학습 23,360 / 자체검증 5,840
+  epoch 1: loss 0.5133 | Macro F1 0.62075 | 최소1개 강제 0.62040 | 빈 예측 152 | 4.6분
+  epoch 2: loss 0.4129 | Macro F1 0.63480 | 최소1개 강제 0.63390 | 빈 예측 77 | 4.6분
+  epoch 3: loss 0.3804 | Macro F1 0.63579 | 최소1개 강제 0.63444 | 빈 예측 64 | 4.6분
+  최고 epoch 3: 0.63579 (그대로 0.63579 / 강제 0.63444 중 높은 쪽)
+
+### 20:54:39 klue/roberta-base / raw / seed 42
+모델 klue/roberta-base | 전처리 raw | 손실 bce | 학습 23,360 / 자체검증 5,840
+  epoch 1: loss 0.5247 | Macro F1 0.61934 | 최소1개 강제 0.61671 | 빈 예측 200 | 4.0분
+  epoch 2: loss 0.4157 | Macro F1 0.62726 | 최소1개 강제 0.62620 | 빈 예측 98 | 4.0분
+  epoch 3: loss 0.3839 | Macro F1 0.63201 | 최소1개 강제 0.63088 | 빈 예측 99 | 4.0분
+  최고 epoch 3: 0.63201 (그대로 0.63201 / 강제 0.63088 중 높은 쪽)
+
+### 21:11:08 klue/roberta-base / raw / seed 42
+모델 klue/roberta-base | 전처리 raw | 손실 bce | 학습 23,360 / 자체검증 5,840
+  epoch 1: loss 0.5342 | Macro F1 0.61377 | 최소1개 강제 0.61162 | 빈 예측 168 | 3.5분
+  epoch 2: loss 0.4186 | Macro F1 0.62501 | 최소1개 강제 0.62402 | 빈 예측 140 | 3.5분
+  epoch 3: loss 0.3896 | Macro F1 0.63030 | 최소1개 강제 0.62886 | 빈 예측 92 | 3.5분
+  최고 epoch 3: 0.63030 (그대로 0.63030 / 강제 0.62886 중 높은 쪽)
+
+### 21:23:38 klue/roberta-base / raw / seed 42
+모델 klue/roberta-base | 전처리 raw | 손실 bce | 학습 23,360 / 자체검증 5,840
+  epoch 1: loss 0.5176 | Macro F1 0.62421 | 최소1개 강제 0.62236 | 빈 예측 195 | 3.4분
+  epoch 2: loss 0.4232 | Macro F1 0.62875 | 최소1개 강제 0.62707 | 빈 예측 156 | 3.4분
+  epoch 3: loss 0.3996 | Macro F1 0.63692 | 최소1개 강제 0.63571 | 빈 예측 113 | 3.4분
+  최고 epoch 3: 0.63692 (그대로 0.63692 / 강제 0.63571 중 높은 쪽)
+
+### 21:34:57 klue/roberta-base / raw / seed 42
+모델 klue/roberta-base | 전처리 raw | 손실 bce | 학습 23,360 / 자체검증 5,840
+  epoch 1: loss 0.5225 | Macro F1 0.62323 | 최소1개 강제 0.62131 | 빈 예측 194 | 2.9분
+  epoch 2: loss 0.4268 | Macro F1 0.62839 | 최소1개 강제 0.62747 | 빈 예측 159 | 2.9분
+  epoch 3: loss 0.4066 | Macro F1 0.63279 | 최소1개 강제 0.63222 | 빈 예측 129 | 2.9분
+  최고 epoch 3: 0.63279 (그대로 0.63279 / 강제 0.63222 중 높은 쪽)
+
+### 21:44:49 klue/roberta-base / raw / seed 42
+모델 klue/roberta-base | 전처리 raw | 손실 bce | 학습 23,360 / 자체검증 5,840
+  epoch 1: loss 0.5236 | Macro F1 0.60240 | 최소1개 강제 0.60014 | 빈 예측 237 | 4.1분
+  epoch 2: loss 0.4143 | Macro F1 0.63047 | 최소1개 강제 0.62919 | 빈 예측 108 | 4.0분
+  epoch 3: loss 0.3795 | Macro F1 0.63762 | 최소1개 강제 0.63575 | 빈 예측 116 | 4.0분
+  최고 epoch 3: 0.63762 (그대로 0.63762 / 강제 0.63575 중 높은 쪽)
+
+### 21:59:14 klue/roberta-large / raw / seed 1
+모델 klue/roberta-large | 전처리 raw | 손실 bce | 학습 23,360 / 자체검증 5,840
+  epoch 1: loss 0.4991 | Macro F1 0.62559 | 최소1개 강제 0.62382 | 빈 예측 145 | 16.3분
+  epoch 2: loss 0.3999 | Macro F1 0.64253 | 최소1개 강제 0.64149 | 빈 예측 123 | 17.9분
+  epoch 3: loss 0.3545 | Macro F1 0.63486 | 최소1개 강제 0.63410 | 빈 예측 104 | 17.9분
+  최고 epoch 2: 0.64253 (그대로 0.64253 / 강제 0.64149 중 높은 쪽)
+
+### 23:13:08 klue/roberta-large / raw / seed 7
+모델 klue/roberta-large | 전처리 raw | 손실 bce | 학습 23,360 / 자체검증 5,840
+  epoch 1: loss 0.4961 | Macro F1 0.63090 | 최소1개 강제 0.62979 | 빈 예측 126 | 16.4분
+  epoch 2: loss 0.3991 | Macro F1 0.64159 | 최소1개 강제 0.63961 | 빈 예측 133 | 17.9분
+  epoch 3: loss 0.3561 | Macro F1 0.63974 | 최소1개 강제 0.63831 | 빈 예측 84 | 17.9분
+  최고 epoch 2: 0.64159 (그대로 0.64159 / 강제 0.63961 중 높은 쪽)
+
+### 00:24:25 klue/roberta-large / raw / seed 42
+모델 klue/roberta-large | 전처리 raw | 손실 bce | 학습 23,360 / 자체검증 5,840
+  epoch 1: loss 0.5004 | Macro F1 0.63351 | 최소1개 강제 0.63349 | 빈 예측 155 | 16.4분
+  epoch 2: loss 0.4018 | Macro F1 0.64321 | 최소1개 강제 0.64199 | 빈 예측 117 | 16.4분
+  epoch 3: loss 0.3558 | Macro F1 0.64262 | 최소1개 강제 0.64160 | 빈 예측 90 | 16.4분
+  최고 epoch 2: 0.64321 (그대로 0.64321 / 강제 0.64199 중 높은 쪽)
+
+### 13:57:37 klue/roberta-large / raw / seed 1
+모델 klue/roberta-large | 전처리 raw | 손실 bce | 학습 23,360 / 자체검증 5,840
+  epoch 1: loss 0.4881 | Macro F1 0.62962 | 최소1개 강제 0.62876 | 빈 예측 146 | 16.4분
+  epoch 2: loss 0.3938 | Macro F1 0.64055 | 최소1개 강제 0.63971 | 빈 예측 125 | 18.0분
+  최고 epoch 2: 0.64055 (그대로 0.64055 / 강제 0.63971 중 높은 쪽)
+
+### 14:46:13 klue/roberta-large / raw / seed 42
+모델 klue/roberta-large | 전처리 raw | 손실 bce | 학습 23,360 / 자체검증 5,840
+  epoch 1: loss 0.4906 | Macro F1 0.63529 | 최소1개 강제 0.63472 | 빈 예측 149 | 16.4분
+  epoch 2: loss 0.3950 | Macro F1 0.64487 | 최소1개 강제 0.64412 | 빈 예측 124 | 16.5분
+  최고 epoch 2: 0.64487 (그대로 0.64487 / 강제 0.64412 중 높은 쪽)
+
+### 15:32:16 klue/roberta-large / raw / seed 1
+모델 klue/roberta-large | 전처리 raw | 손실 bce | 학습 29,200 / 자체검증 5,840
+  epoch 1: loss 0.4840 | Macro F1 0.66125(학습에 포함됨·참고용) | 최소1개 강제 0.66157 | 빈 예측 184 | 20.4분
+  epoch 2: loss 0.3934 | Macro F1 0.69207(학습에 포함됨·참고용) | 최소1개 강제 0.69074 | 빈 예측 104 | 22.4분
+  가중치 저장: submission_models/roberta-large_raw_s1_LGF.ckpt
+  최고 epoch 2: 0.69207 (그대로 0.69207 / 강제 0.69074 중 높은 쪽)
+
+### 16:28:30 klue/roberta-large / raw / seed 7
+모델 klue/roberta-large | 전처리 raw | 손실 bce | 학습 29,200 / 자체검증 5,840
+  epoch 1: loss 0.4786 | Macro F1 0.66371(학습에 포함됨·참고용) | 최소1개 강제 0.66299 | 빈 예측 134 | 20.5분
+  epoch 2: loss 0.3939 | Macro F1 0.68892(학습에 포함됨·참고용) | 최소1개 강제 0.68862 | 빈 예측 90 | 22.5분
+  가중치 저장: submission_models/roberta-large_raw_s7_LGF.ckpt
+  최고 epoch 2: 0.68892 (그대로 0.68892 / 강제 0.68862 중 높은 쪽)
+
+### 17:24:25 klue/roberta-large / raw / seed 42
+모델 klue/roberta-large | 전처리 raw | 손실 bce | 학습 29,200 / 자체검증 5,840
+  epoch 1: loss 0.4843 | Macro F1 0.66646(학습에 포함됨·참고용) | 최소1개 강제 0.66559 | 빈 예측 113 | 20.5분
+  epoch 2: loss 0.3936 | Macro F1 0.69413(학습에 포함됨·참고용) | 최소1개 강제 0.69260 | 빈 예측 122 | 22.5분
+  가중치 저장: submission_models/roberta-large_attn_raw_s42_LGF.ckpt
+  최고 epoch 2: 0.69413 (그대로 0.69413 / 강제 0.69260 중 높은 쪽)
+
+### 18:21:22 klue/roberta-large / synonym+filler / seed 42
+모델 klue/roberta-large | 전처리 synonym+filler | 손실 bce | 학습 23,360 / 자체검증 5,840
+  epoch 1: loss 0.4932 | Macro F1 0.62896 | 최소1개 강제 0.62798 | 빈 예측 130 | 15.1분
+  epoch 2: loss 0.4029 | Macro F1 0.63268 | 최소1개 강제 0.63085 | 빈 예측 101 | 16.6분
+  epoch 3: loss 0.3599 | Macro F1 0.63997 | 최소1개 강제 0.63840 | 빈 예측 94 | 16.6분
+  최고 epoch 3: 0.63997 (그대로 0.63997 / 강제 0.63840 중 높은 쪽)
+
+### 19:29:44 klue/roberta-large / synonym+filler / seed 42
+모델 klue/roberta-large | 전처리 synonym+filler | 손실 bce | 학습 29,200 / 자체검증 5,840
+  epoch 1: loss 0.4860 | Macro F1 0.65181(학습에 포함됨·참고용) | 최소1개 강제 0.65114 | 빈 예측 133 | 18.9분
+  epoch 2: loss 0.4012 | Macro F1 0.69086(학습에 포함됨·참고용) | 최소1개 강제 0.69108 | 빈 예측 101 | 18.9분
+  epoch 3: loss 0.3584 | Macro F1 0.72982(학습에 포함됨·참고용) | 최소1개 강제 0.73047 | 빈 예측 59 | 19.0분
+  가중치 저장: submission_models/roberta-large_synonym+filler_s42_LGF.ckpt
+  최고 epoch 3: 0.73047 (그대로 0.72982 / 강제 0.73047 중 높은 쪽)
+
+### 20:46:06 SangwonYoon/klue-roberta-large-tapt / raw / seed 42
+모델 SangwonYoon/klue-roberta-large-tapt | 전처리 raw | 손실 bce | 학습 29,200 / 자체검증 5,840
+  epoch 1: loss 0.4850 | Macro F1 0.65283(학습에 포함됨·참고용) | 최소1개 강제 0.65257 | 빈 예측 124 | 20.7분
+  epoch 2: loss 0.4012 | Macro F1 0.69163(학습에 포함됨·참고용) | 최소1개 강제 0.69063 | 빈 예측 144 | 22.3분
+  epoch 3: loss 0.3545 | Macro F1 0.73457(학습에 포함됨·참고용) | 최소1개 강제 0.73406 | 빈 예측 58 | 22.3분
+  가중치 저장: submission_models/klue-roberta-large-tapt_raw_s42_LGF.ckpt
+  최고 epoch 3: 0.73457 (그대로 0.73457 / 강제 0.73406 중 높은 쪽)
+
+### 22:13:09 klue/roberta-base / raw / seed 42
+모델 klue/roberta-base | 전처리 raw | 손실 bce | 데이터 1% bag0 | 학습 233 / 자체검증 5,840
+  epoch 1: loss 0.7752 | Macro F1 0.00000 | 최소1개 강제 0.03516 | 빈 예측 5840 | 0.0분
+  epoch 2: loss 0.7293 | Macro F1 0.00000 | 최소1개 강제 0.09061 | 빈 예측 5840 | 0.0분
+  epoch 2 가중치를 보관했습니다 (스케줄은 3 epoch 기준 유지)
+  --stop_at_save: 남은 epoch 을 돌리지 않고 마칩니다
+  가중치 저장: submission_models/roberta-base_f0.01b0_ml64_raw_s42_SMOKE.ckpt
+  최고 epoch 2: 0.09061 (그대로 0.00000 / 강제 0.09061 중 높은 쪽)
+
+### 22:13:29 klue/roberta-large / raw / seed 42
+모델 klue/roberta-large | 전처리 raw | 손실 bce | 학습 23,360 / 자체검증 5,840
+  epoch 1: loss 0.4951 | Macro F1 0.63347 | 최소1개 강제 0.63324 | 빈 예측 151 | 16.4분
+  epoch 2: loss 0.4025 | Macro F1 0.63723 | 최소1개 강제 0.63521 | 빈 예측 111 | 17.7분
+  epoch 3: loss 0.3595 | Macro F1 0.63831 | 최소1개 강제 0.63745 | 빈 예측 73 | 17.7분
+  최고 epoch 3: 0.63831 (그대로 0.63831 / 강제 0.63745 중 높은 쪽)
+
+### 23:25:12 klue/roberta-large / raw / seed 1
+모델 klue/roberta-large | 전처리 raw | 손실 bce | 학습 23,360 / 자체검증 5,840
+  epoch 1: loss 0.4950 | Macro F1 0.63737 | 최소1개 강제 0.63715 | 빈 예측 152 | 16.2분
+  epoch 2: loss 0.3993 | Macro F1 0.64088 | 최소1개 강제 0.63924 | 빈 예측 136 | 17.7분
+  epoch 3: loss 0.3542 | Macro F1 0.64046 | 최소1개 강제 0.63890 | 빈 예측 111 | 17.7분
+  최고 epoch 2: 0.64088 (그대로 0.64088 / 강제 0.63924 중 높은 쪽)
+
+### 00:36:53 klue/roberta-large / raw / seed 42
+모델 klue/roberta-large | 전처리 raw | 손실 bce | 학습 23,360 / 자체검증 5,840
+  epoch 1: loss 0.4879 | Macro F1 0.62844 | 최소1개 강제 0.62745 | 빈 예측 154 | 16.2분
+  epoch 2: loss 0.4010 | Macro F1 0.63651 | 최소1개 강제 0.63541 | 빈 예측 112 | 17.7분
+  epoch 3: loss 0.3485 | Macro F1 0.63581 | 최소1개 강제 0.63577 | 빈 예측 75 | 17.7분
+  최고 epoch 2: 0.63651 (그대로 0.63651 / 강제 0.63541 중 높은 쪽)
+
+### 01:47:56 klue/roberta-large / synonym+filler / seed 42
+모델 klue/roberta-large | 전처리 synonym+filler | 손실 bce | 학습 23,360 / 자체검증 5,840
+
+### 02:01:42 klue/roberta-base / raw / seed 42
+모델 klue/roberta-base | 전처리 raw | 손실 bce | 데이터 1% bag0 | 학습 233 / 자체검증 5,840
+  epoch 1: loss 0.7752 | Macro F1 0.00000 | 최소1개 강제 0.03516 | 빈 예측 5840 | 0.0분
+  epoch 2: loss 0.7293 | Macro F1 0.00000 | 최소1개 강제 0.09061 | 빈 예측 5840 | 0.0분
+  epoch 2 가중치를 보관했습니다 (스케줄은 3 epoch 기준 유지)
+  --stop_at_save: 남은 epoch 을 돌리지 않고 마칩니다
+  가중치 저장: submission_models/roberta-base_f0.01b0_ml64_raw_s42_SMOKE.ckpt
+  최고 epoch 2: 0.09061 (그대로 0.00000 / 강제 0.09061 중 높은 쪽)
+
+### 02:02:01 klue/roberta-large / raw / seed 1
+모델 klue/roberta-large | 전처리 raw | 손실 bce | 학습 29,200 / 자체검증 5,840
+  epoch 1: loss 0.4913 | Macro F1 0.65877(학습에 포함됨·참고용) | 최소1개 강제 0.65755 | 빈 예측 177 | 20.5분
+  epoch 2: loss 0.3999 | Macro F1 0.68760(학습에 포함됨·참고용) | 최소1개 강제 0.68734 | 빈 예측 113 | 22.4분
+  epoch 2 가중치를 보관했습니다 (스케줄은 3 epoch 기준 유지)
+  --stop_at_save: 남은 epoch 을 돌리지 않고 마칩니다
+  가중치 저장: submission_models/roberta-large_raw_s1_LGE2.ckpt
+  최고 epoch 2: 0.68760 (그대로 0.68760 / 강제 0.68734 중 높은 쪽)
+
+### 02:58:39 klue/roberta-large / raw / seed 7
+모델 klue/roberta-large | 전처리 raw | 손실 bce | 학습 29,200 / 자체검증 5,840
+  epoch 1: loss 0.4872 | Macro F1 0.65966(학습에 포함됨·참고용) | 최소1개 강제 0.65943 | 빈 예측 129 | 20.5분
+  epoch 2: loss 0.4002 | Macro F1 0.69753(학습에 포함됨·참고용) | 최소1개 강제 0.69760 | 빈 예측 112 | 20.5분
+  epoch 2 가중치를 보관했습니다 (스케줄은 3 epoch 기준 유지)
+  --stop_at_save: 남은 epoch 을 돌리지 않고 마칩니다
+  가중치 저장: submission_models/roberta-large_raw_s7_LGE2.ckpt
+  최고 epoch 2: 0.69760 (그대로 0.69753 / 강제 0.69760 중 높은 쪽)
+
+### 03:54:30 klue/roberta-large / raw / seed 42
+모델 klue/roberta-large | 전처리 raw | 손실 bce | 학습 29,200 / 자체검증 5,840
+  epoch 1: loss 0.4929 | Macro F1 0.66435(학습에 포함됨·참고용) | 최소1개 강제 0.66364 | 빈 예측 90 | 20.5분
+  epoch 2: loss 0.3997 | Macro F1 0.69217(학습에 포함됨·참고용) | 최소1개 강제 0.69159 | 빈 예측 85 | 22.5분
+  epoch 2 가중치를 보관했습니다 (스케줄은 3 epoch 기준 유지)
+  --stop_at_save: 남은 epoch 을 돌리지 않고 마칩니다
+  가중치 저장: submission_models/roberta-large_attn_raw_s42_LGE2.ckpt
+  최고 epoch 2: 0.69217 (그대로 0.69217 / 강제 0.69159 중 높은 쪽)
+
+### 04:51:35 klue/roberta-large / synonym+filler / seed 42
+모델 klue/roberta-large | 전처리 synonym+filler | 손실 bce | 학습 23,360 / 자체검증 5,840
+  epoch 1: loss 0.4966 | Macro F1 0.62491 | 최소1개 강제 0.62407 | 빈 예측 220 | 15.3분
+  epoch 2: loss 0.4042 | Macro F1 0.64129 | 최소1개 강제 0.64093 | 빈 예측 144 | 16.7분
+  epoch 3: loss 0.3588 | Macro F1 0.64213 | 최소1개 강제 0.64105 | 빈 예측 96 | 16.7분
+  최고 epoch 3: 0.64213 (그대로 0.64213 / 강제 0.64105 중 높은 쪽)
+
+### 06:00:21 SangwonYoon/klue-roberta-large-tapt / raw / seed 42
+모델 SangwonYoon/klue-roberta-large-tapt | 전처리 raw | 손실 bce | 학습 23,360 / 자체검증 5,840
+  epoch 1: loss 0.4976 | Macro F1 0.62744 | 최소1개 강제 0.62699 | 빈 예측 192 | 16.7분
+  epoch 2: loss 0.4014 | Macro F1 0.64306 | 최소1개 강제 0.64322 | 빈 예측 122 | 20.3분
+  epoch 3: loss 0.3502 | Macro F1 0.64181 | 최소1개 강제 0.64087 | 빈 예측 101 | 20.3분
+  최고 epoch 2: 0.64322 (그대로 0.64306 / 강제 0.64322 중 높은 쪽)
+
+### 07:11:49 SangwonYoon/klue-roberta-large-tapt / raw / seed 1
+모델 SangwonYoon/klue-roberta-large-tapt | 전처리 raw | 손실 bce | 학습 23,360 / 자체검증 5,840
+  epoch 1: loss 0.4954 | Macro F1 0.62746 | 최소1개 강제 0.62606 | 빈 예측 133 | 16.5분
+  epoch 2: loss 0.3995 | Macro F1 0.64268 | 최소1개 강제 0.64102 | 빈 예측 110 | 16.6분
+  epoch 3: loss 0.3503 | Macro F1 0.63557 | 최소1개 강제 0.63393 | 빈 예측 99 | 16.5분
+  최고 epoch 2: 0.64268 (그대로 0.64268 / 강제 0.64102 중 높은 쪽)
+
+### 12:48:23 klue/roberta-base / raw / seed 42
+모델 klue/roberta-base | 전처리 raw | 손실 bce | 학습 23,360 / 자체검증 5,840
+  epoch 1: loss 0.5132 | Macro F1 0.62500 | 최소1개 강제 0.62361 | 빈 예측 200 | 4.6분
+  epoch 2: loss 0.4166 | Macro F1 0.63234 | 최소1개 강제 0.63152 | 빈 예측 125 | 5.0분
+  epoch 3: loss 0.3854 | Macro F1 0.64071 | 최소1개 강제 0.63941 | 빈 예측 83 | 5.1분
+  가중치 저장: submission_models/roberta-base_raw_s42_SOUP.ckpt
+  최고 epoch 3: 0.64071 (그대로 0.64071 / 강제 0.63941 중 높은 쪽)
+
+### 13:04:19 klue/roberta-base / raw / seed 1
+모델 klue/roberta-base | 전처리 raw | 손실 bce | 학습 23,360 / 자체검증 5,840
+  epoch 1: loss 0.5120 | Macro F1 0.63196 | 최소1개 강제 0.63115 | 빈 예측 131 | 4.6분
+  epoch 2: loss 0.4165 | Macro F1 0.63296 | 최소1개 강제 0.63250 | 빈 예측 145 | 4.6분
+  epoch 3: loss 0.3852 | Macro F1 0.63524 | 최소1개 강제 0.63438 | 빈 예측 86 | 4.6분
+  가중치 저장: submission_models/roberta-base_raw_s1_SOUP.ckpt
+  최고 epoch 3: 0.63524 (그대로 0.63524 / 강제 0.63438 중 높은 쪽)
+
+### 13:19:31 klue/roberta-base / raw / seed 7
+모델 klue/roberta-base | 전처리 raw | 손실 bce | 학습 23,360 / 자체검증 5,840
+  epoch 1: loss 0.5082 | Macro F1 0.62634 | 최소1개 강제 0.62446 | 빈 예측 247 | 4.6분
+  epoch 2: loss 0.4157 | Macro F1 0.63901 | 최소1개 강제 0.63785 | 빈 예측 106 | 4.6분
+  epoch 3: loss 0.3841 | Macro F1 0.63778 | 최소1개 강제 0.63638 | 빈 예측 87 | 4.5분
+  가중치 저장: submission_models/roberta-base_raw_s7_SOUP.ckpt
+  최고 epoch 2: 0.63901 (그대로 0.63901 / 강제 0.63785 중 높은 쪽)
+
+### 18:25:58 klue/roberta-base / raw / seed 42
+모델 klue/roberta-base | 전처리 raw | 손실 bce | 학습 23,360 / 자체검증 5,840
+  소프트 타깃 soft_targets_ens3.npy · alpha 1.0
+  epoch 1: loss 0.6181 | Macro F1 0.59016 | 최소1개 강제 0.59024 | 빈 예측 1 | 4.6분
+  epoch 2: loss 0.5521 | Macro F1 0.60304 | 최소1개 강제 0.60311 | 빈 예측 2 | 5.0분
+  epoch 3: loss 0.5473 | Macro F1 0.60369 | 최소1개 강제 0.60369 | 빈 예측 0 | 5.0분
+  최고 epoch 3: 0.60369 (그대로 0.60369 / 강제 0.60369 중 높은 쪽)
+
+### 18:41:48 klue/roberta-base / raw / seed 42
+모델 klue/roberta-base | 전처리 raw | 손실 bce | 학습 23,360 / 자체검증 5,840
+  소프트 타깃 soft_targets_ens3.npy · alpha 0.7
+  epoch 1: loss 0.5923 | Macro F1 0.60313 | 최소1개 강제 0.60320 | 빈 예측 8 | 4.5분
+  epoch 2: loss 0.5197 | Macro F1 0.61699 | 최소1개 강제 0.61711 | 빈 예측 4 | 5.0분
+  epoch 3: loss 0.5096 | Macro F1 0.61898 | 최소1개 강제 0.61903 | 빈 예측 2 | 5.0분
+  최고 epoch 3: 0.61903 (그대로 0.61898 / 강제 0.61903 중 높은 쪽)
+
+### 18:57:36 klue/roberta-base / raw / seed 42
+모델 klue/roberta-base | 전처리 raw | 손실 bce | 학습 23,360 / 자체검증 5,840
+  소프트 타깃 soft_targets_ens3.npy · alpha 0.5
+  epoch 1: loss 0.5735 | Macro F1 0.61453 | 최소1개 강제 0.61429 | 빈 예측 29 | 4.5분
+  epoch 2: loss 0.4943 | Macro F1 0.62455 | 최소1개 강제 0.62394 | 빈 예측 24 | 5.0분
+  epoch 3: loss 0.4784 | Macro F1 0.62675 | 최소1개 강제 0.62671 | 빈 예측 8 | 5.0분
+  최고 epoch 3: 0.62675 (그대로 0.62675 / 강제 0.62671 중 높은 쪽)
+
+### 19:50:56 klue/roberta-base / raw / seed 42
+모델 klue/roberta-base | 전처리 raw | 손실 bce | 학습 23,360 / 자체검증 5,840
+  epoch 1: loss 0.3253 | Macro F1 0.57969 | 최소1개 강제 0.58668 | 빈 예측 905 | 4.6분
