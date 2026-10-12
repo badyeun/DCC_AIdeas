@@ -64,11 +64,23 @@ class Classifier(nn.Module):
     """
 
     def __init__(self, name, n_labels, dropout=0.1, head="mean", attn_dim=256,
-                 label_corr=False, aux_dim=0):
+                 label_corr=False, aux_dim=0, pool_layer=-1, freeze_layers=0):
         super().__init__()
         self.encoder = AutoModel.from_pretrained(name)
         self.drop = nn.Dropout(dropout)
         self.head_kind = head
+        # Which transformer layer to read. The last one is tuned hardest to the
+        # training labels; an earlier layer carries more general features and
+        # is wrong about different calls, which is what the ensemble wants.
+        self.pool_layer = pool_layer
+        # Freezing the bottom layers leaves the general features alone and
+        # adapts only the upper ones -- a different model from the same weights.
+        if freeze_layers:
+            for p_ in self.encoder.embeddings.parameters():
+                p_.requires_grad = False
+            for layer in self.encoder.encoder.layer[:freeze_layers]:
+                for p_ in layer.parameters():
+                    p_.requires_grad = False
         hidden = self.encoder.config.hidden_size
         # Nine independent sigmoids ignore that the labels travel together:
         # 오심 shows up beside 구토 and 어지러움 far more often than chance.
@@ -84,7 +96,9 @@ class Classifier(nn.Module):
         # structure nine independent sigmoids cannot represent. The head is
         # dropped at inference, so it only shapes the encoder.
         self.aux = nn.Linear(hidden, aux_dim) if aux_dim else None
-        if head in ("mean", "cls", "max"):
+        if head == "meanmax":
+            self.head = nn.Linear(hidden * 2, n_labels)
+        elif head in ("mean", "cls", "max"):
             self.head = nn.Linear(hidden, n_labels)
         else:
             self.project = nn.Linear(hidden, attn_dim)
@@ -94,9 +108,21 @@ class Classifier(nn.Module):
             nn.init.xavier_uniform_(self.out_weight)
 
     def forward(self, input_ids, attention_mask, **kw):
-        hidden = self.encoder(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
+        if self.pool_layer == -1:
+            hidden = self.encoder(input_ids=input_ids,
+                                  attention_mask=attention_mask).last_hidden_state
+        else:
+            out = self.encoder(input_ids=input_ids, attention_mask=attention_mask,
+                               output_hidden_states=True)
+            hidden = out.hidden_states[self.pool_layer]
         mask = attention_mask.unsqueeze(-1).to(hidden.dtype)
         pooled = (hidden * mask).sum(1) / mask.sum(1).clamp(min=1e-6)
+        if self.head_kind == "meanmax":
+            mx = hidden.masked_fill(mask == 0, float("-inf")).max(1).values
+            logits = self.head(self.drop(torch.cat([pooled, mx], dim=-1)))
+            if self.corr is not None:
+                logits = logits + self.corr(logits)
+            return (logits, self.aux(self.drop(pooled))) if self.aux is not None else logits
         if self.head_kind in ("mean", "cls", "max"):
             # Three ways to collapse the tokens into one vector. They score
             # about the same on their own, but they are wrong about different
@@ -451,7 +477,9 @@ def run(args, log):
                              shuffle=False, collate_fn=collate, pin_memory=True)
 
     model = Classifier(args.model, len(TARGETS), args.dropout, head=args.head,
-                       label_corr=args.label_corr, aux_dim=aux_dim).to(device)
+                       label_corr=args.label_corr, aux_dim=aux_dim,
+                       pool_layer=args.pool_layer,
+                       freeze_layers=args.freeze_layers).to(device)
     if args.grad_checkpoint:
         model.encoder.gradient_checkpointing_enable()
     pw = pos_weight(Y[tr], device, args.pos_weight)
@@ -473,6 +501,7 @@ def run(args, log):
              else get_linear_schedule_with_warmup(opt, warm, steps))
 
     history, best, best_probs = [], {"best_macro_f1": -1.0}, None
+    snapshot, snapshot_at = None, None
     for epoch in range(1, args.epochs + 1):
         model.train()
         started, total = time.time(), 0.0
@@ -537,6 +566,25 @@ def run(args, log):
         # does not always pay, so rank each epoch by whichever decision wins.
         if max(plain, forced) > best["best_macro_f1"]:
             best, best_probs = history[-1], P
+        # Shipping the epoch that a longer schedule peaks at.
+        #
+        # The weights saved below are whichever are live when the loop ends, so
+        # a 3-epoch run ships epoch 3. klue/roberta-large peaks at epoch 2 and
+        # declines after, and shortening the run to 2 epochs does NOT give the
+        # same model -- the learning rate then decays to zero over a shorter
+        # horizon, which measured -0.00198 on the holdout for mean s1. So the
+        # schedule keeps its full length and the weights are snapshotted at the
+        # epoch that was validated. That epoch is fixed in advance from a
+        # holdout run and never read off the numbers this run prints, so it
+        # adds no degree of freedom -- which matters because --full_train has
+        # no honest holdout to choose on.
+        if args.save_at_epoch and epoch == args.save_at_epoch:
+            snapshot = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+            snapshot_at = epoch
+            log(f"  epoch {epoch} 가중치를 보관했습니다 (스케줄은 {args.epochs} epoch 기준 유지)")
+            if args.stop_at_save:
+                log("  --stop_at_save: 남은 epoch 을 돌리지 않고 마칩니다")
+                break
 
     head_tag = {"mean": "", "label_attention": "_attn"}.get(args.head, f"_{args.head}")
     pw_tag = "" if args.pos_weight == "sqrt5" else f"_pw{args.pos_weight}"
@@ -554,6 +602,8 @@ def run(args, log):
              + ("" if args.aux == "none" else f"_aux{args.aux.replace(':', '')}w{args.aux_weight:g}")
              + (f"_rdrop{args.rdrop:g}" if args.rdrop else "")
              + ("" if args.oversample == "none" else f"_os{args.oversample}")
+             + ("" if args.pool_layer == -1 else f"_L{args.pool_layer}")
+             + ("" if args.freeze_layers == 0 else f"_fz{args.freeze_layers}")
              + (f"_sf1{args.softf1:g}" if args.softf1 else "")
              + ("" if args.scheduler == "linear" else f"_{args.scheduler}")
              + ("" if args.warmup == 0.1 else f"_wu{args.warmup:g}")
@@ -577,7 +627,8 @@ def run(args, log):
     if args.save_model:
         ckpt_dir = OUT / "submission_models"
         ckpt_dir.mkdir(parents=True, exist_ok=True)
-        torch.save({"state_dict": {k: v.cpu() for k, v in model.state_dict().items()},
+        shipped = snapshot or {k: v.cpu() for k, v in model.state_dict().items()}
+        torch.save({"state_dict": shipped,
                     "model_name": args.arch_name or args.model, "head": args.head,
                     "max_length": args.max_length, "dropout": args.dropout,
                     "target_symptoms": list(TARGETS), "threshold": 0.5,
@@ -587,7 +638,8 @@ def run(args, log):
                     # 440MB of pretrained weights it immediately overwrites.
                     "encoder_config": model.encoder.config.to_dict(),
                     "trained_on": int(len(tr)), "epochs": args.epochs,
-                    "lr": args.lr, "seed": args.seed},
+                    "lr": args.lr, "seed": args.seed,
+                    "saved_at_epoch": snapshot_at or args.epochs},
                    ckpt_dir / f"{tag}.ckpt")
         tok.save_pretrained(ckpt_dir / "tokenizer")
         log(f"  가중치 저장: submission_models/{tag}.ckpt")
@@ -611,7 +663,7 @@ if __name__ == "__main__":
     p.add_argument("--max_length", type=int, default=512)
     p.add_argument("--dropout", type=float, default=0.1)
     p.add_argument("--head", default="mean",
-                   choices=("mean", "cls", "max", "label_attention"))
+                   choices=("mean", "cls", "max", "meanmax", "label_attention"))
     p.add_argument("--pos_weight", default="sqrt5",
                    choices=("none", "pow025", "pow035", "sqrt3", "sqrt5", "sqrt8", "sqrt",
                             "pow065", "pow080", "full"))
@@ -626,6 +678,10 @@ if __name__ == "__main__":
                    help="Mixing weight: target = (1-a)*hard + a*soft.")
     p.add_argument("--label_weight", default="none",
                    help="none | invfreq | custom:w1,...,w9 -- per-symptom loss scale.")
+    p.add_argument("--pool_layer", type=int, default=-1,
+                   help="Transformer layer to pool from; -1 is the last.")
+    p.add_argument("--freeze_layers", type=int, default=0,
+                   help="Freeze embeddings and the bottom N encoder layers.")
     p.add_argument("--scheduler", default="linear", choices=("linear", "cosine"))
     p.add_argument("--warmup", type=float, default=0.1,
                    help="Fraction of steps spent warming up.")
@@ -645,6 +701,11 @@ if __name__ == "__main__":
     p.add_argument("--folds", type=int, default=0, help="Number of OOF folds; 0 disables.")
     p.add_argument("--llrd", type=float, default=1.0,
                    help="Layer-wise LR decay; 1.0 keeps every layer at --lr.")
+    p.add_argument("--save_at_epoch", type=int, default=0,
+                   help="Ship the weights from the end of this epoch rather than the last. "
+                        "Fix it from a holdout run; never pick it from this run's output.")
+    p.add_argument("--stop_at_save", action="store_true",
+                   help="With --save_at_epoch, skip the remaining epochs.")
     p.add_argument("--full_train", action="store_true",
                    help="Train on all 29,200 calls; no holdout is left to score on.")
     p.add_argument("--arch_name", default="",

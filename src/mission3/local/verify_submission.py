@@ -29,7 +29,9 @@ from pathlib import Path
 import torch
 
 ROOT = Path(__file__).resolve().parents[3]
-SUB = ROOT / "results" / "mission3" / "local" / "submission_final"
+# 어느 폴더를 검증할지는 인자로 받습니다. 11개 폴더(Validation 0.65658)와
+# 16개 폴더가 공존하는 동안, 검증한 폴더와 제출할 폴더가 어긋나면 안 됩니다.
+DEFAULT_SUB = ROOT / "results" / "mission3" / "local" / "submission_final"
 TRAIN = ROOT / "data" / "대학부 데이터" / "Training" / "2.라벨링데이터" / "TL_서울_구급"
 TARGETS = {"고열", "구토", "두통", "복통", "어지러움", "열상", "오심", "전신쇠약", "호흡곤란"}
 PY_EXE = r"C:\DevBox\python\cpython-3.12-windows-x86_64-none\python.exe"
@@ -48,8 +50,13 @@ def main():
     ap.add_argument("--n", type=int, default=30, help="검증에 쓸 통화 수")
     ap.add_argument("--device", default="cpu", choices=("cpu", "cuda"),
                     help="기본 cpu. 학습이 GPU를 쓰는 동안에도 검증할 수 있게.")
+    ap.add_argument("--dir", default=str(DEFAULT_SUB),
+                    help="검증할 제출 폴더. 기본은 11개 구성.")
     args = ap.parse_args()
 
+    SUB = Path(args.dir)
+    if not SUB.is_dir():
+        raise SystemExit(f"제출 폴더가 없습니다: {SUB}")
     print(f"제출 폴더: {SUB}\n")
     ckpts = sorted(SUB.glob("*.ckpt"))
     check("체크포인트가 존재한다", bool(ckpts), f"{len(ckpts)}개")
