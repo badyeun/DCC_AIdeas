@@ -62,6 +62,9 @@ def main() -> None:
     np.savez(args.out.with_suffix(".npz"),
              holdout_stems=train["stems"][held], holdout_prob=held_probability, holdout_y=y[held],
              val_stems=val["stems"], val_prob=val_probability, val_y=val["gender"])
+    # 제출용: sklearn 버전과 무관하게 numpy만으로 다시 계산할 수 있도록 숫자만 저장한다.
+    np.savez(args.out.with_suffix(".model.npz"), columns=columns, scaler_mean=scaler.mean_, scaler_scale=scaler.scale_,
+             coef=model.coef_[0], intercept=model.intercept_, C=c, blocks=np.asarray(args.blocks))
     args.out.with_suffix(".json").write_text(json.dumps(
         {"holdout": accuracy, "validation": val_accuracy, "C": c, "blocks": args.blocks}, ensure_ascii=False), encoding="utf-8")
 

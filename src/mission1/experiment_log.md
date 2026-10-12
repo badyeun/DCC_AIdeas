@@ -455,3 +455,26 @@ Colab에서 `export_labels_for_local.py`로 통화별 stem·gender·발화 수�
 - 섞는 비율 곡선: holdout 최소(49)는 w=0.70~0.75, Val은 w=0.60~0.85에서 63~65로 평평하다. 우연히 한 점에서만 좋은 것이 아니다.
 - ECAPA LR 오류는 신고자 음성 길이와 무관하게 고르게 분포(구간별 1.5~2.7%). 72개 중 56개가 확신도 0.9 미만.
 - 남은 일: 통화 단위 트랜스포머(`train_gender_call_model.py`) 결과, 제출 추론 통합(예은 최종 제출 폴더 필요), Colab 실데이터 재현 확인.
+
+### EXP-012 추가 — 통화 단위 트랜스포머 (`train_gender_call_model.py`)
+
+신고자·대원 발화 전체 + 역할 표시, 신고자 발화 attention pooling, 128차원 3층. 최고 epoch 7, 12에서 조기 종료.
+
+| 모델 | holdout 오류 | Val 오류 |
+| --- | ---: | ---: |
+| 트랜스포머 단독 | 59 | 70 |
+| 예은 + 트랜스포머 (w=0.65, holdout 선택) | 56 | 64 |
+| 예은 + (ECAPA LR + 트랜스포머 평균) (w=0.80) | 52 | 63 |
+| **예은 + ECAPA LR (w=0.75)** | **49** | **63** |
+
+→ 트랜스포머는 로지스틱 회귀보다 나을 게 없다(holdout 기준 더 나쁨). 제출 후보는 단순한 **예은 + ECAPA LR**로 정한다.
+
+### 제출 폴더 v2 (`submission_v2/`, `build_submission_v2.py`)
+
+- 예은 원본 폴더는 수정하지 않고, 3모델 추론에 필요한 파일만 복사 + ECAPA 인코더·LR 숫자(`ecapa_gender/ecapa_lr.npz`, blend 0.75) + 추론 코드.
+- `inference_ecapa_blend.py`: 예은 `inference_3model_final.py`의 모델·특징 함수를 그대로 불러 같은 식으로 3모델 확률을 내고, ECAPA 확률과 25:75로 섞는다.
+- `ecapa_gender.py`: Mission 2 캐시 생성 과정을 그대로 재현(speaker 0/1 발화 전체를 JSON 차례로 32개씩 묶어 ECAPA → float16, 발화 길이 값도 캐시와 같은 float16).
+- 로컬 검증: (1) 캐시 임베딩으로 계산한 특징·확률이 학습 값과 같음(특징 차이 0, 확률 차이 1.5e-7, 판정 차이 0),
+  (2) 합성 음성에서 파형·조각·ECAPA 임베딩·길이 값이 Mission 2 코드와 차이 0, (3) 합성 음성 5개로 공식 명령 완주(실패 fallback 포함).
+- 예은 폴더의 `outputs/mission1.csv`는 오류 91개(예전 단일 모델 0.9750 결과)로, 3모델 스크립트의 Validation 전체 재추론 기록은 없다.
+  Colab 실데이터 검증(`verify_v2_colab.py`)에서 예은 3모델 부분도 함께 확인한다.
