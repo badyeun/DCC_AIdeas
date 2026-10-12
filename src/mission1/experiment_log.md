@@ -427,3 +427,31 @@ final_probs = 0.5 * attention_f0_probs + 0.5 * stats_f0_probs
 3. ensemble weight와 M/F threshold는 공식 Validation이 아니라 내부 holdout 또는 OOF 예측으로만 탐색한다.
 4. Attention+F0와 Stats+F0의 multi-seed ensemble을 우선 평가한다.
 5. 최종 제출 전, 실제 WAV부터 CSV까지 실행하는 inference가 신고자 구간 추출, 3-chunk, F0, statistics, scaler, 50:50 ensemble을 동일하게 재현하는지 확인한다.
+
+## EXP-012 — ECAPA 화자 임베딩(Mission 2 캐시 재사용) + 예은 3모델 앙상블과 섞기 (2026-10-12)
+
+**가설**: 예은 3모델은 모두 WavLM 입력이라 오류가 많이 겹친다(세 모델 모두 틀린 통화가 앙상블 오류의 대부분).
+다른 방식으로 학습된 화자 인식 임베딩(ECAPA)은 다른 통화에서 틀릴 것이고, 섞으면 오류가 줄 것이다.
+
+**데이터**: Mission 2 때 만든 발화별 ECAPA(192)·MFCC(261) 캐시(로컬 memmap)를 그대로 쓴다. 추가 추출 비용은 없다.
+Colab에서 `export_labels_for_local.py`로 통화별 stem·gender·발화 수만 뽑아 붙였다(발화 수가 캐시와 전 통화 일치).
+비교는 **예은 앙상블을 고른 내부 holdout**(`wavlm_import/internal_split_seed42.npz`, stem 오름차순 + `train_test_split(0.1, 42, stratify)`)과
+같은 2,920통화다. 이 split을 재현해 예은 파일과 전부 일치함을 확인했다. HuBERT용 `train_holdout_split_seed42.npz`와는 301개만 겹치는 다른 split이다.
+예은 확률 파일로 계산한 기준값이 노트북 기록과 같다(holdout 오류 61, Val 오류 77).
+
+**모델**: 신고자(`speaker=1`) 발화 ECAPA(길이 1)의 발화 길이 가중 평균 + 표준편차(384) → 표준화 → 로지스틱 회귀. C는 holdout으로 선택(0.003).
+코드: `gender_data.py`, `train_gender_pooled.py`, `blend_with_yeeun.py`.
+
+| 모델 | holdout 오류 (2,920) | Val 오류 (3,640) | Val Acc |
+| --- | ---: | ---: | ---: |
+| 예은 3모델 40:40:20 (현 제출본) | 61 | 77 | 0.9788 |
+| 신고자 MFCC 통계 + LR | 123 | 167 | 0.9541 |
+| 신고자 ECAPA + LR | 54 | 72 | 0.9802 |
+| 신고자 ECAPA + MFCC + LR | 53 | 72 | 0.9802 |
+| 위 + 대원 평균·개수 + LR | 59 | 78 | 0.9786 |
+| **예은 0.25 + ECAPA LR 0.75** (비율은 holdout으로 선택) | **49** | **63** | **0.9827** |
+
+- 오류 겹침(Val): 둘 다 틀림 37, 예은만 40, ECAPA만 35 → 정보가 상당히 다르다.
+- 섞는 비율 곡선: holdout 최소(49)는 w=0.70~0.75, Val은 w=0.60~0.85에서 63~65로 평평하다. 우연히 한 점에서만 좋은 것이 아니다.
+- ECAPA LR 오류는 신고자 음성 길이와 무관하게 고르게 분포(구간별 1.5~2.7%). 72개 중 56개가 확신도 0.9 미만.
+- 남은 일: 통화 단위 트랜스포머(`train_gender_call_model.py`) 결과, 제출 추론 통합(예은 최종 제출 폴더 필요), Colab 실데이터 재현 확인.
