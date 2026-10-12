@@ -23,7 +23,15 @@ YEEUN_FILES = (
     "pretrained/wavlm-base-plus/config.json", "pretrained/wavlm-base-plus/preprocessor_config.json",
     "pretrained/wavlm-base-plus/model.safetensors",
 )
-OUR_FILES = ("submission_v2/inference.py", "submission_v2/inference_ecapa_blend.py", "submission_v2/ecapa_gender.py")
+OUR_FILES = ("submission_v2/inference.py", "submission_v2/inference_ecapa_blend.py", "submission_v2/ecapa_gender.py",
+             "submission_v2/README.md", "Mission1_ecapa_training.ipynb")
+# 제출물 "학습 코드"용: ECAPA 쪽 학습 코드와, 그 입력인 발화별 특징 캐시를 만든 Mission 2 코드
+TRAINING_CODE = {
+    "training_code": ("gender_data.py", "train_gender_pooled.py", "blend_with_yeeun.py",
+                      "export_labels_for_local.py", "build_submission_v2.py", "make_ecapa_notebook.py"),
+    "training_code/mission2_ecapa_cache": ("../mission2/common.py", "../mission2/speaker_embed.py",
+                                           "../mission2/train_speaker_embed.py", "../mission2/train_mfcc_rf.py"),
+}
 # ruamel.yaml 0.19 이상은 speechbrain(hyperpyyaml)과 충돌한 적이 있어 고정한다.
 EXTRA_REQUIREMENTS = ["speechbrain==1.1.1", "ruamel.yaml==0.18.6"]
 
@@ -52,6 +60,10 @@ def main() -> None:
     for name in OUR_FILES:
         shutil.copy2(here / name, args.out / Path(name).name)
         print(f"추가 {Path(name).name}")
+    for folder, names in TRAINING_CODE.items():
+        (args.out / folder).mkdir(parents=True, exist_ok=True)
+        for name in names:
+            shutil.copy2(here / name, args.out / folder / Path(name).name)
     model_dir = args.out / "ecapa_gender"
     shutil.copytree(args.encoder_dir, model_dir / "encoder")
     with np.load(args.lr_model) as data:
