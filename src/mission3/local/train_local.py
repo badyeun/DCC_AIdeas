@@ -31,6 +31,12 @@ OUT = Path(__file__).resolve().parents[3] / "results" / "mission3" / "local"
 
 
 class Calls(Dataset):
+    """통화 하나 = 전사 텍스트 1개 + 증상 9개 타깃.
+
+    타깃은 0/1 하드 라벨일 수도, 교사 확률을 섞은 소프트 타깃일 수도 있습니다
+    (`--soft_targets`). `aux` 는 보조 과제용이며 기본은 쓰지 않습니다.
+    """
+
     def __init__(self, texts, Y=None, aux=None):
         self.texts, self.Y, self.aux = texts, Y, aux
 
@@ -43,6 +49,12 @@ class Calls(Dataset):
 
 
 class Collate:
+    """배치 안에서 가장 긴 전사에 맞춰 토큰화합니다(동적 패딩).
+
+    512 로 고정 패딩하면 중앙값이 230 토큰인 이 데이터에서 절반 이상이
+    낭비됩니다. 배치마다 길이를 맞추면 같은 시간에 더 많이 학습합니다.
+    """
+
     def __init__(self, tokenizer, max_length):
         self.tok, self.max_length = tokenizer, max_length
 
@@ -108,6 +120,13 @@ class Classifier(nn.Module):
             nn.init.xavier_uniform_(self.out_weight)
 
     def forward(self, input_ids, attention_mask, **kw):
+        """(배치, 9) 로짓을 돌려줍니다.
+
+        `pool_layer` 가 -1 이면 마지막 층을, 아니면 그 층의 출력을 씁니다.
+        헤드 종류에 따라 토큰을 모으는 방식이 달라집니다 -- 추론 코드의
+        같은 이름 함수와 **정확히 일치해야** 합니다. 학습기에만 있는 헤드를
+        만들면 추론에서 state_dict 적재가 실패합니다.
+        """
         if self.pool_layer == -1:
             hidden = self.encoder(input_ids=input_ids,
                                   attention_mask=attention_mask).last_hidden_state
@@ -200,6 +219,11 @@ class SoftMacroF1(nn.Module):
         self.eps = eps
 
     def forward(self, logits, targets):
+        """확률 자체로 Macro F1 을 계산해 손실로 씁니다 (미분 가능).
+
+        BCE 는 확률을 맞히고 0.5 판정이 잘 떨어지길 기대하지만, 이쪽은 지표를
+        직접 최적화합니다. 측정 결과 BCE 보다 나쁘므로 제출에는 쓰지 않습니다.
+        """
         p = torch.sigmoid(logits.float())
         y = targets.float()
         tp = (p * y).sum(0)
@@ -300,6 +324,11 @@ class AsymmetricLoss(nn.Module):
         self.gamma_neg, self.gamma_pos, self.margin, self.eps = gamma_neg, gamma_pos, margin, eps
 
     def forward(self, logits, targets):
+        """ASL (Asymmetric Loss): 쉬운 음성의 비중을 깎습니다.
+
+        다중 라벨에서 음성이 압도적으로 많을 때 쓰는 손실입니다. 측정 결과
+        음수였으므로 제출에는 쓰지 않습니다(`--loss bce` 가 기본).
+        """
         p = torch.sigmoid(logits.float())
         p_neg = (p - self.margin).clamp(min=0) if self.margin > 0 else p
         pos = targets * ((1 - p) ** self.gamma_pos) * torch.log(p.clamp(min=self.eps))
@@ -316,6 +345,10 @@ class FocalLoss(nn.Module):
         self.register_buffer("pw", pos_weight if pos_weight is not None else torch.tensor(1.0))
 
     def forward(self, logits, targets):
+        """Focal Loss: 이미 잘 맞히는 샘플의 기울기를 줄입니다.
+
+        측정 결과 BCE 보다 나쁘므로 제출에는 쓰지 않습니다.
+        """
         p = torch.sigmoid(logits.float())
         pos = self.pw * targets * ((1 - p) ** self.gamma) * torch.log(p.clamp(min=self.eps))
         neg = (1 - targets) * (p ** self.gamma) * torch.log((1 - p).clamp(min=self.eps))
@@ -332,11 +365,17 @@ class EMA:
 
     @torch.no_grad()
     def update(self, model):
+        """가중치의 지수이동평균을 한 스텝 갱신합니다."""
         for k, v in model.state_dict().items():
             if k in self.shadow:
                 self.shadow[k].mul_(self.decay).add_(v.detach().float(), alpha=1 - self.decay)
 
     def swapped(self, model):
+        """평균 가중치를 모델에 넣고, 원래 가중치를 돌려줍니다(복원용).
+
+        평가할 때만 평균 가중치를 쓰고 학습은 원래 가중치로 계속하기 위한
+        것입니다. 호출자가 반환값으로 반드시 복원해야 합니다.
+        """
         backup = {k: v.detach().clone() for k, v in model.state_dict().items() if k in self.shadow}
         model.load_state_dict({k: v.to(dtype=backup[k].dtype) for k, v in self.shadow.items()},
                               strict=False)
@@ -355,6 +394,10 @@ def param_groups(model, lr, llrd=1.0):
     depth = len(layers) if layers is not None else 0
 
     def depth_of(name):
+        """파라미터 이름에서 층 깊이를 읽습니다 (층별 학습률 감쇠용).
+
+        아래쪽 층일수록 학습률을 낮춰 사전학습 지식을 덜 흔들려는 기법입니다.
+        """
         if llrd >= 1.0 or not depth:
             return depth                       # every parameter gets the top rate
         if "embeddings" in name:
@@ -379,6 +422,7 @@ def param_groups(model, lr, llrd=1.0):
 
 @torch.no_grad()
 def predict(model, loader, device, amp):
+    """(통화 수, 9) 확률 행렬을 돌려줍니다. 평가 전용(기울기 없음)."""
     model.eval()
     chunks = []
     for batch in loader:
@@ -406,6 +450,17 @@ def score_both(Y_true, P):
 
 
 def run(args, log):
+    """한 번의 학습 실행 전체: 데이터 적재 → 학습 → 평가 → 저장.
+
+    같은 홀드아웃 분할(seed 2026)을 모든 실험이 공유하므로 실행끼리 짝비교가
+    됩니다. `--full_train` 이면 29,200통화 전부로 학습하고 홀드아웃을 남기지
+    않습니다 -- 그때 출력되는 Macro F1 은 학습에 쓴 통화로 잰 값이라
+    일반화 성능이 아니며, 수렴 확인용입니다.
+
+    실행이 끝나면 확률 · 학습 기록(JSON) · 선택적으로 체크포인트를 남깁니다.
+    체크포인트에는 전처리 변형과 인코더 설정을 함께 적어, 추론이 네트워크
+    없이 같은 구조를 세울 수 있게 합니다.
+    """
     device = torch.device("cuda")
     amp = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
     torch.manual_seed(args.seed)
@@ -451,6 +506,23 @@ def run(args, log):
         soft = np.load(args.soft_targets).astype(np.float32)
         if soft.shape != Y.shape:
             raise SystemExit(f"soft_targets 모양 불일치: {soft.shape} vs {Y.shape}")
+        if args.soft_debias and args.pos_weight != "none":
+            # pos_weight 와 소프트 타깃의 충돌을 상쇄한다.
+            #
+            # 하드 라벨에서 pos_weight w 는 두 항의 기울기 균형만 바꾸고
+            # 최적해는 0 또는 1 그대로다. 소프트 타깃 y 에서는 최적해가
+            # w*y / (w*y + 1 - y) 로 **이동**한다 -- w=5, y=0.23 이면 모델이
+            # 0.60 을 예측하도록 학습되는데 판정은 0.5 다. 측정에서도 alpha 가
+            # 커질수록 단조 악화했다(0.5 -> 0.62675, 1.0 -> 0.60369).
+            #
+            # 그래서 교사 확률 p 를 그대로 넣지 않고, 가중 손실의 최적해가 p 가
+            # 되는 타깃 y* = p / (w - (w-1)p) 를 넣는다. 이러면 pos_weight 의
+            # 이점(불균형 보정)과 교사 정보를 동시에 쓸 수 있다.
+            w = pos_weight(Y[tr], torch.device("cpu"), args.pos_weight).numpy()
+            den = w - (w - 1.0) * soft
+            soft = np.clip(soft / np.maximum(den, 1e-6), 0.0, 1.0).astype(np.float32)
+            log(f"  소프트 타깃 역보정 적용 (pos_weight {args.pos_weight}, "
+                f"w {w.min():.2f}~{w.max():.2f})")
         targets = (1 - args.soft_alpha) * targets + args.soft_alpha * soft
         log(f"  소프트 타깃 {Path(args.soft_targets).name} · alpha {args.soft_alpha}")
 
@@ -595,6 +667,7 @@ def run(args, log):
              # soft_targets_constant.npy and one against soft_targets_oof.npy
              # produced the same filename, and the later run silently
              # overwrote the earlier one's saved probabilities.
+             + ("_db" if args.soft_debias and args.soft_targets else "")
              + (f"_{Path(args.soft_targets).stem.replace('soft_targets_', '')}"
                 f"{args.soft_alpha:g}" if args.soft_targets else "")
              + ("" if args.label_weight == "none" else f"_lw{args.label_weight.replace(':', '')}")
@@ -701,6 +774,10 @@ if __name__ == "__main__":
     p.add_argument("--folds", type=int, default=0, help="Number of OOF folds; 0 disables.")
     p.add_argument("--llrd", type=float, default=1.0,
                    help="Layer-wise LR decay; 1.0 keeps every layer at --lr.")
+    p.add_argument("--soft_debias", action="store_true",
+                   help="With --soft_targets and a pos_weight, invert the weight's "
+                        "effect on the target so the loss optimum equals the "
+                        "teacher probability.")
     p.add_argument("--save_at_epoch", type=int, default=0,
                    help="Ship the weights from the end of this epoch rather than the last. "
                         "Fix it from a holdout run; never pick it from this run's output.")
@@ -721,6 +798,7 @@ if __name__ == "__main__":
     logfile = Path(args.log)
 
     def log(line):
+        """화면과 로그 파일에 동시에 적습니다 (제출 노트북이 이 로그를 씁니다)."""
         print(line, flush=True)
         with logfile.open("a", encoding="utf-8") as handle:
             handle.write(line + "\n")

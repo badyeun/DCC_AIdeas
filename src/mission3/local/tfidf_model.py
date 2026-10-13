@@ -32,6 +32,15 @@ BLEND_WEIGHT = 0.10
 
 
 def prepare(texts):
+    """TF-IDF 가 쓰는 전처리 변형을 적용합니다.
+
+    `VARIANT`("synonym+filler")는 TF-IDF A/B 에서 이긴 변형입니다. 선형
+    모델은 표현이 조금만 달라도 다른 특징으로 보기 때문에, 동의어를 통일하고
+    간투사를 지우는 쪽이 유리합니다 -- 신경망 멤버와 선택이 다른 이유입니다.
+
+    학습과 추론이 같은 변형을 써야 하므로 `fit` 과 `predict` 둘 다 이 함수를
+    거칩니다.
+    """
     return [normalize(t, **VARIANTS[VARIANT]) for t in texts]
 
 
@@ -53,6 +62,16 @@ def fit(texts, Y, C=4.0):
 
 
 def predict(bundle, texts):
+    """통화별 9개 증상 확률 (n, 9) 을 돌려줍니다.
+
+    증상마다 독립적인 이진 분류기를 두고 각각의 양성 확률을 모읍니다.
+    앙상블에서는 이 확률이 10% 비중으로 섞입니다(`BLEND_WEIGHT`).
+
+    Args:
+        bundle: `load()` 로 읽은 번들. 글자/단어 벡터라이저와 9개 분류기를
+            담고 있습니다.
+        texts: 원문 전사 리스트. 정규화는 안에서 처리합니다.
+    """
     texts = prepare(texts)
     X = hstack([bundle["char"].transform(texts), bundle["word"].transform(texts)]).tocsr()
     P = np.zeros((X.shape[0], len(bundle["models"])), dtype=np.float64)
@@ -62,12 +81,14 @@ def predict(bundle, texts):
 
 
 def save(bundle, path):
+    """번들을 pickle 로 저장합니다 (벡터라이저 + 9개 분류기)."""
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     with open(path, "wb") as f:
         pickle.dump(bundle, f, protocol=4)
 
 
 def load(path):
+    """저장된 번들을 읽습니다. 제출 폴더의 `weights/tfidf.pkl` 이 이것입니다."""
     with open(path, "rb") as f:
         return pickle.load(f)
 

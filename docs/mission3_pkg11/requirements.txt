@@ -1,0 +1,10 @@
+# Mission 3 최종 제출 환경 (실제 학습·추론에 사용한 버전)
+# GPU: NVIDIA RTX 5060 Ti (Blackwell sm_120) — cu128 빌드가 필요합니다.
+# CPU 추론도 동작하지만 12개 앙상블은 느립니다.
+
+--extra-index-url https://download.pytorch.org/whl/cu128
+torch==2.11.0
+transformers==5.17.0
+numpy==2.5.3
+scikit-learn==1.9.1
+scipy==1.18.1

@@ -74,6 +74,25 @@ def split(texts, Y, seed=2026, holdout_fraction=0.2):
 
 
 def macro_f1(Y_true, Y_pred, per_symptom=False):
+    """대회 평가 지표: 9개 증상 F1 의 단순 평균.
+
+    증상별 데이터 양이 크게 다르지만(복통 838건 vs 두통 374건) Macro 평균은
+    희귀한 증상도 같은 비중으로 봅니다. 그래서 흔한 증상만 잘 맞혀도 점수가
+    오르지 않습니다.
+
+    한 증상의 예측과 정답이 모두 없으면(tp=fp=fn=0) F1 을 0 으로 둡니다.
+    분모가 0 이 되는 경우를 1.0 으로 보는 구현도 있는데, 그러면 "아무것도
+    예측하지 않기"가 보상을 받으므로 여기서는 쓰지 않습니다.
+
+    Args:
+        Y_true: (통화 수, 9) 0/1 정답 행렬.
+        Y_pred: (통화 수, 9) 0/1 예측 행렬. 확률이 아니라 **판정 결과**이며,
+            판정은 전 증상 임계값 0.5 로 이루어집니다.
+        per_symptom: True 면 (평균, 증상별 F1 리스트) 를 함께 돌려줍니다.
+
+    Returns:
+        Macro F1 (float), 또는 per_symptom=True 일 때 (float, list).
+    """
     scores = []
     for i in range(len(TARGETS)):
         t, p = Y_true[:, i] == 1, Y_pred[:, i] == 1

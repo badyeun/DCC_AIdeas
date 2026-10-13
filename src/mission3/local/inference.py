@@ -45,6 +45,22 @@ class Classifier(nn.Module):
 
     def __init__(self, name, n_labels, dropout=0.1, head="mean", attn_dim=256,
                  encoder_config=None):
+        """체크포인트에 기록된 설정 그대로 모델을 세웁니다.
+
+        Args:
+            name: 사전학습 모델 이름. `encoder_config` 가 있으면 쓰이지
+                않습니다(토크나이저 경로 대비용으로만 보관).
+            n_labels: 증상 수 (9).
+            dropout: 학습 때 쓴 값. 추론에서는 eval() 이라 동작하지 않지만,
+                구조가 같아야 state_dict 가 들어맞습니다.
+            head: 토큰들을 한 벡터로 모으는 방식. "mean" / "cls" / "max" /
+                "label_attention" 중 하나이며, 멤버마다 다릅니다.
+            attn_dim: label_attention 헤드의 중간 차원. 학습기와 추론기 모두
+                256 고정이라 어긋날 수 없습니다.
+            encoder_config: 체크포인트가 들고 있는 인코더 설정. 이것이 있으면
+                사전학습 가중치를 받지 않고 구조만 만들어 **오프라인으로**
+                동작합니다.
+        """
         super().__init__()
         # from_pretrained downloads the published weights and load_state_dict
         # then replaces every one of them. Building from the stored config
@@ -68,6 +84,13 @@ class Classifier(nn.Module):
             nn.init.xavier_uniform_(self.out_weight)
 
     def forward(self, input_ids, attention_mask, **kw):
+        """(배치, 9) 로짓을 돌려줍니다. 확률로 바꾸는 것은 호출자 쪽입니다.
+
+        헤드 종류에 따라 토큰을 모으는 방식이 다릅니다. mean 은 패딩을 제외한
+        평균, cls 는 첫 토큰, max 는 차원별 최댓값이고, label_attention 은
+        증상마다 다른 가중치로 토큰을 모읍니다 -- "숨"과 "피"에 주목해야 하는
+        위치가 다르기 때문입니다.
+        """
         hidden = self.encoder(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
         mask = attention_mask.unsqueeze(-1).to(hidden.dtype)
         if self.head_kind in ("mean", "cls", "max"):
@@ -131,6 +154,15 @@ def read_inputs(label_dir: Path):
 
 @torch.no_grad()
 def probabilities(ckpt_path: Path, texts, device, batch_size):
+    """체크포인트 하나로 통화별 9개 증상 확률 (n, 9) 을 계산합니다.
+
+    멤버마다 기대하는 입력과 구조가 다르므로, 체크포인트에 기록된 전처리
+    변형 · 헤드 · 인코더 설정 · 최대 길이를 그대로 따릅니다. 호출자는
+    이 함수를 멤버마다 한 번씩 부른 뒤 결과를 평균합니다.
+
+    모델은 끝에서 메모리에서 지웁니다. 16개를 동시에 올리면 8 GiB GPU 에
+    들어가지 않습니다.
+    """
     blob = torch.load(ckpt_path, map_location="cpu", weights_only=False)
     # Members of the submitted ensemble do not all read the same text: the
     # normalised-text models were trained on unified wording with fillers
@@ -183,6 +215,11 @@ def probabilities(ckpt_path: Path, texts, device, batch_size):
 
 
 def main():
+    """출제문제 11쪽의 실행 규격 한 줄을 처리합니다.
+
+    주석 JSON 을 읽고, 앙상블 멤버마다 확률을 계산해 평균하고, TF-IDF 를
+    10% 섞은 뒤 전 증상 0.5 에서 판정해 CSV 로 저장합니다.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--audio_dir", default="", help="미사용 (대회 인터페이스 호환).")
     parser.add_argument("--label_dir", required=True)
