@@ -502,3 +502,15 @@ Colab에서 `export_labels_for_local.py`로 통화별 stem·gender·발화 수�
 | ipynb 하나로 | `Mission1_training.ipynb` = Part A(WavLM 3모델, 저장소의 정리본 `mission1_submission/Mission1_final.ipynb` 실행 출력 그대로) + Part B(ECAPA, 로컬 실행) + 최종 추론 | 실행 오류 없음. 예은 Drive 제출 폴더의 `Mission1_final.ipynb`는 3모델 학습 로그가 없는 예전판이라 쓰지 않음 |
 
 가중치·사전학습 모델·requirements는 Colab 검증본과 해시가 같다. 최종 폴더: `mission1_submission_final/` (zip).
+
+### 팀장 체크리스트 반영 (2026-10-13 밤)
+
+| 항목 | 조치 | 확인 |
+| --- | --- | --- |
+| requirements.txt | `torch==2.11.0+cpu`·`torchaudio==2.11.0+cpu`(PyPI에 없음) → `2.11.0`. 실제 import하는 패키지만 버전 고정 (학습 전용 scikit-learn·nbformat·nbconvert는 주석으로 구분) | `pip install --dry-run --no-deps --ignore-installed -r requirements.txt` 13개 모두 설치 가능 |
+| 인터넷 없이 실행 | `from_pretrained`는 로컬 폴더 + `local_files_only=True`, ECAPA는 로컬 폴더 `from_hparams` | `HF_HUB_OFFLINE=1`로 합성 음성 추론 → 정상, 결과 동일 |
+| 학습 코드 | `training_code/mission2_ecapa_cache/`(연구용 스크립트 4개) → `training_code/feature_cache/`(Mission 2 제출본의 `features.py`, `make_feature_cache.py`, sys.path만 같은 폴더로). `gender_data.build_work_arrays` 추가(shard → 학습용 float16 배열) | 새로 만든 배열이 기존 학습 배열과 완전히 같음 |
+| 노트북 | 출력이 비던 경로 설정 셀에 경로 확인 print | 코드 셀 14개 모두 출력 있음, 오류 0 |
+| PPT 수치 | 파라미터 Total 118,013,946 / Active 116,630,586 / 직접 학습 1,481,098, 장비, batch, 시간 → `PPT_자료/mission1_PPT_내용.md` | |
+
+추론 코드·가중치·사전학습 모델은 바뀌지 않음(zip 안 파일의 sha256이 Colab 검증본·로컬 비교 검증본과 같음).

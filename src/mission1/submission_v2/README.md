@@ -60,5 +60,16 @@ ecapa_gender/encoder/         ECAPA 사전학습 모델
 ecapa_gender/ecapa_lr.pt      로지스틱 회귀 가중치(표준화 평균·표준편차, 계수, 절편)와 섞는 비율
 requirements.txt
 Mission1_training.ipynb       학습 기록 전체 (학습 로그 포함): WavLM 3모델 학습 → ECAPA 모델 학습 → 섞는 비율 선택 → 실데이터 추론 검증
-training_code/                ECAPA 쪽 학습 코드 (.py)와 특징 캐시 생성 코드
+training_code/                ECAPA 쪽 학습 코드 (.py)
 ```
+
+## 학습 재현 순서 (ECAPA 쪽, `training_code/`)
+
+WavLM 3모델의 학습 코드와 로그는 `Mission1_training.ipynb` Part A에 있다.
+
+1. `feature_cache/make_feature_cache.py` (Colab GPU): 통화별 발화 구간마다 ECAPA 임베딩(192)·MFCC 통계(261) 캐시 shard 생성 (Mission 2와 같은 캐시)
+2. `export_labels_for_local.py` (Colab): 같은 통화 순서로 파일 이름·`gender`·발화 수만 JSON에서 추출 (WAV는 읽지 않음)
+3. `gender_data.build_work_arrays`: shard를 이어 붙여 학습용 float16 배열 생성
+4. `train_gender_pooled.py --blocks caller_ecapa`: 신고자 ECAPA 평균·표준편차 → 로지스틱 회귀, C는 내부 holdout으로 선택
+5. `blend_with_yeeun.py`: WavLM 3모델 확률과 섞는 비율을 내부 holdout으로 선택 (0.75)
+6. `build_submission_v2.py`, `make_ecapa_notebook.py`: 이 제출 폴더와 학습 노트북 생성

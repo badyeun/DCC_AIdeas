@@ -30,9 +30,9 @@ Part A의 3모델은 모두 WavLM 입력이라 오류가 많이 겹친다(앙상
 - 사전학습 모델: `speechbrain/spkrec-ecapa-voxceleb`(공개 모델, 가중치 고정, 미세조정 없음). 상용 API 없음.
 - 모델 선택(C, 섞는 비율)은 Training 내부 holdout 2,920통화로만 했다(Part A 앙상블을 고른 것과 같은 holdout).
 
-**특징 캐시**: 발화별 ECAPA 192차원 임베딩과 MFCC 통계는 Mission 2 때 Colab GPU에서
-`training_code/mission2_ecapa_cache/train_speaker_embed.py`, `train_mfcc_rf.py`로 만든 캐시를 그대로 쓴다
-(speaker 0/1 발화를 JSON 차례대로 잘라 32개씩 ECAPA, float16 저장). 통화별 `gender`와 파일 이름은
+**특징 캐시**: 발화별 ECAPA 192차원 임베딩과 MFCC 통계는 Mission 2와 같은 캐시를 쓴다. Colab GPU에서
+`training_code/feature_cache/make_feature_cache.py`로 만든다(speaker 0/1 발화를 JSON 차례대로 잘라 32개씩 ECAPA, float16 저장).
+`gender_data.build_work_arrays`가 shard를 이어 붙여 학습용 배열로 만들고, 통화별 `gender`와 파일 이름은
 `export_labels_for_local.py`(JSON만 읽음)로 같은 통화 순서에 맞춰 붙였다."""),
     ("code", """import sys, time
 from pathlib import Path
@@ -44,7 +44,9 @@ EXPORT = Path(r"C:/유니짜장/DCC_Aideas/mission1_local/export_raw/mission1_ex
 WORK = Path(r"C:/유니짜장/DCC_Aideas/mission1_local/notebook_run")
 WORK.mkdir(parents=True, exist_ok=True)
 sys.path.insert(0, str(SRC))
-from gender_data import load_split, yeeun_holdout_mask, pooled_features"""),
+from gender_data import load_split, yeeun_holdout_mask, pooled_features
+for name, path in (("학습 코드", SRC), ("발화별 특징 배열", M2_LOCAL / "work"), ("통화별 라벨·Part A 확률", EXPORT)):
+    print(f"{name}: {path} (있음: {path.exists()})")"""),
     ("md", """## 1. 데이터 정렬 검증
 JSON에서 센 통화별 발화 수가 캐시의 통화 경계와 **모든 통화에서** 같아야 한다(다르면 `load_split`이 멈춘다).
 Part A의 내부 holdout은 stem 오름차순 + `train_test_split(test_size=0.1, random_state=42, stratify=gender)`로 재현하고,

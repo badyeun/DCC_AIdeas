@@ -28,15 +28,38 @@ YEEUN_FILES = (
 # 추론 코드 (WavLM 쪽은 예은 코드에서 최종 추론에 쓰는 부분만 그대로 옮긴 wavlm_3model.py, common.py)
 OUR_FILES = ("submission_v2/inference.py", "submission_v2/inference_ecapa_blend.py", "submission_v2/ecapa_gender.py",
              "submission_v2/wavlm_3model.py", "submission_v2/common.py", "submission_v2/README.md")
-# 제출물 "학습 코드"용: ECAPA 쪽 학습 코드와, 그 입력인 발화별 특징 캐시를 만든 Mission 2 코드
+# 제출물 "학습 코드"용: ECAPA 쪽 학습 코드와, 그 입력인 발화별 특징 캐시를 만드는 코드.
+# 특징 캐시는 Mission 2와 같은 것이라 Mission 2 제출본에서 정리한 코드(features.py, make_feature_cache.py)를 쓴다.
 TRAINING_CODE = {
     "training_code": ("gender_data.py", "train_gender_pooled.py", "blend_with_yeeun.py",
                       "export_labels_for_local.py", "build_submission_v2.py", "make_ecapa_notebook.py"),
-    "training_code/mission2_ecapa_cache": ("../mission2/common.py", "../mission2/speaker_embed.py",
-                                           "../mission2/train_speaker_embed.py", "../mission2/train_mfcc_rf.py"),
+    "training_code/feature_cache": ("../mission2/submission/features.py",
+                                    "../mission2/submission/training_code/make_feature_cache.py"),
 }
+# make_feature_cache.py는 Mission 2 제출 폴더 구조(한 단계 위의 features.py)를 가정하므로 같은 폴더를 보게 고친다.
+FEATURE_CACHE_PATH_LINE = (
+    "sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # 제출 폴더의 features.py",
+    "sys.path.insert(0, str(Path(__file__).resolve().parent))  # 같은 폴더의 features.py",
+)
+# 실제로 import하는 패키지만, Colab(Python 3.13) 학습·검증 환경의 버전으로 고정한다.
+# torch/torchaudio의 "+cpu" 표기는 PyPI에 없어 pip install이 실패하므로 쓰지 않는다.
+REQUIREMENTS = """# Mission 1 추론
+numpy==2.1.3
+torch==2.11.0
+torchaudio==2.11.0
+transformers==5.18.0
+safetensors==0.8.0
+speechbrain==1.1.1
 # ruamel.yaml 0.19 이상은 speechbrain(hyperpyyaml)과 충돌한 적이 있어 고정한다.
-EXTRA_REQUIREMENTS = ["speechbrain==1.1.1", "ruamel.yaml==0.18.6"]
+ruamel.yaml==0.18.6
+librosa==0.11.0
+soundfile==0.14.0
+scipy==1.16.3
+# 학습 코드(로지스틱 회귀, holdout 분할)와 학습 기록 노트북 생성에만 필요
+scikit-learn==1.9.0
+nbformat==5.10.4
+nbconvert==7.17.1
+"""
 
 
 def digest(path: Path) -> str:
@@ -67,6 +90,11 @@ def main() -> None:
         (args.out / folder).mkdir(parents=True, exist_ok=True)
         for name in names:
             shutil.copy2(here / name, args.out / folder / Path(name).name)
+    cache_script = args.out / "training_code" / "feature_cache" / "make_feature_cache.py"
+    text = cache_script.read_text(encoding="utf-8")
+    if FEATURE_CACHE_PATH_LINE[0] not in text:
+        raise ValueError("make_feature_cache.py의 sys.path 줄이 예상과 다릅니다.")
+    cache_script.write_text(text.replace(*FEATURE_CACHE_PATH_LINE), encoding="utf-8")
     model_dir = args.out / "ecapa_gender"
     shutil.copytree(args.encoder_dir, model_dir / "encoder")
     with np.load(args.lr_model) as data:
@@ -79,8 +107,7 @@ def main() -> None:
             "coef": torch.from_numpy(np.asarray(data["coef"], dtype=np.float64)),
             "intercept": float(data["intercept"][0]), "C": float(data["C"]), "blend": float(args.blend),
         }, model_dir / "ecapa_lr.pt")
-    requirements = (args.yeeun_dir / "requirements.txt").read_text(encoding="utf-8").strip().splitlines()
-    (args.out / "requirements.txt").write_text("\n".join(requirements + EXTRA_REQUIREMENTS) + "\n", encoding="utf-8")
+    (args.out / "requirements.txt").write_text(REQUIREMENTS, encoding="utf-8")
     print(f"완료: {args.out}")
 
 

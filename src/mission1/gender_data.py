@@ -1,7 +1,8 @@
 """Mission 1 로컬 실험용 데이터: Mission 2 발화별 캐시 + 통화별 성별 라벨.
 
-- 발화별 특징은 Mission 2가 만든 디스크 배열(memmap, float16)을 **읽기만** 한다.
+- 발화별 특징은 디스크 배열(memmap, float16)을 **읽기만** 한다.
   `mission2_local/work/{split}_ecapa.npy`(192), `{split}_mfcc.npy`(261, 마지막 열 = log1p(발화 초)).
+  이 배열은 특징 캐시 shard(`feature_cache/make_feature_cache.py`로 생성)를 `build_work_arrays`로 이어 붙인 것이다.
 - 발화별 speaker(0 대원 / 1 신고자)와 통화 경계(counts)는 `mission2_embed_cache` shard에서 읽는다.
   Mission 1 규칙상 `speaker`는 추론 때도 쓸 수 있으므로 입력으로 써도 된다.
 - 통화별 `gender`·파일 stem은 Colab에서 `export_labels_for_local.py`로 뽑은 `labels_{split}.npz`.
@@ -34,6 +35,35 @@ def read_speaker_cache(embed_cache_dir: Path, split: str) -> tuple[np.ndarray, n
     if not labels:
         raise FileNotFoundError(f"shard가 없습니다: {embed_cache_dir}/embed_{split}_00000.npz")
     return np.concatenate(labels), np.concatenate(counts)
+
+
+def build_work_arrays(mfcc_cache_dir: Path, embed_cache_dir: Path, work_dir: Path) -> None:
+    """특징 캐시 shard들을 통화 순서 그대로 이어 붙여 float16 디스크 배열로 저장한다.
+
+    `{work_dir}/{split}_ecapa.npy`(발화 × 192), `{split}_mfcc.npy`(발화 × 261). 학습 때 필요한 통화만
+    memmap으로 읽어 RAM이 적은 PC에서도 학습할 수 있게 하려는 것이다(값은 캐시를 float16으로 반올림한 것).
+    """
+    work_dir.mkdir(parents=True, exist_ok=True)
+    for split in ("train", "val"):
+        for cache_dir, prefix, width, name in ((embed_cache_dir, f"embed_{split}", ECAPA_DIM, "ecapa"),
+                                               (mfcc_cache_dir, split, MFCC_DIM, "mfcc")):
+            paths = sorted(cache_dir.glob(f"{prefix}_[0-9][0-9][0-9][0-9][0-9].npz"))
+            if not paths:
+                raise FileNotFoundError(f"shard가 없습니다: {cache_dir}/{prefix}_00000.npz")
+            rows = 0
+            for path in paths:
+                with np.load(path) as data:
+                    rows += len(data["y"])
+            output = np.lib.format.open_memmap(work_dir / f"{split}_{name}.npy", mode="w+", dtype=np.float16, shape=(rows, width))
+            start = 0
+            for path in paths:
+                with np.load(path) as data:
+                    block = data["x"]
+                    output[start:start + len(block)] = block.astype(np.float16)
+                    start += len(block)
+            output.flush()
+            del output
+            print(f"[{split}] {name}: 발화 {rows:,} × {width}")
 
 
 def load_split(m2_local: Path, export_dir: Path | None, split: str) -> dict:
