@@ -831,7 +831,8 @@ self-attention으로 참고하며 **비교 방식 자체를 학습**하게 했�
 - 특징 캐시: 가짜 데이터로 만든 캐시의 MFCC·ECAPA가 추론 경로 값과 비트 단위로 같음.
 - 학습: 정리한 학습 코드로 A0_base 설정 첫 epoch를 다시 돌려 원래 로그와 같은 값(loss 0.2590, holdout 0.9080).
 - 체크포인트: `pack_model.py`로 로컬에서 다시 묶음(`mission2_final10.ckpt`, sha256 `df8689fe…`). 인코더 파일은 Mission 1과 같은 ECAPA 파일.
-- 실데이터: 정리한 추론 파일 + 새 체크포인트로 Colab 재검증 (결과 아래).
+- 실데이터: **정리한 추론 파일 + 새 체크포인트로 Colab 재검증 통과 (2026-10-13, T4 GPU)** — 111,947행, **Accuracy 0.9277**, 추론 1시간 16분(08:23:57 → 09:40:14 UTC). 환경 Python 3.13, torch 2.11.0+cu130, speechbrain 1.1.1, librosa 0.11.0, numpy 2.1.3.
+- 제출 폴더 `mission2_submission_final/`과 zip을 `build_submission.py`로 조립(추론 파일·체크포인트 sha256이 검증본과 같음).
 
 ## 다음 실험 계획
 

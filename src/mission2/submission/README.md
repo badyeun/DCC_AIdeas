@@ -36,7 +36,9 @@
 | 신고자(1) | 0.9113 | 0.9535 | 0.9319 | 58,102 |
 | **Macro avg** | | | **0.9274** | 111,947 |
 
-최종 0.9277은 이 폴더 그대로 아래 공식 명령을 실행해 Validation WAV 전체를 다시 추론해 얻은 값이다(Colab T4 GPU). 학습 때 저장한 확률로 계산한 값과 같다.
+최종 0.9277은 이 폴더 그대로 아래 공식 명령을 실행해 Validation WAV 전체를 다시 추론해 얻은 값이다(Colab T4 GPU, 111,947행, 1시간 16분). 학습 때 저장한 확률로 계산한 값과 같다.
+
+검증 환경: Python 3.13, torch 2.11.0+cu130, torchaudio 2.11.0+cu130, speechbrain 1.1.1, librosa 0.11.0, numpy 2.1.3, soundfile 0.14.0, joblib 1.6.0, ruamel.yaml 0.18.6 (`pip install -r requirements.txt` 후)
 
 ## 실행
 
@@ -51,7 +53,7 @@ python inference.py \
 
 - 출력: `audio file name,startAt,endAt,speaker` 헤더의 CSV. 입력 JSON의 발화마다 한 행이며 `speaker`는 0 또는 1.
 - `--audio_dir` 아래의 `.wav`를 하위 폴더까지 찾고, JSON은 `--label_dir` 아래에서 같은 이름으로 짝을 찾는다.
-- GPU가 있으면 자동으로 쓴다. Validation 3,640통화 기준 Colab T4에서 약 2시간(Drive에서 WAV 읽기 포함).
+- GPU가 있으면 자동으로 쓴다. Validation 3,640통화 기준 Colab T4에서 1시간 16분~2시간 5분(실측 2회, Drive에서 WAV 읽기 속도에 따라 다름).
 - 비어 있거나 거꾸로 된 구간처럼 처리할 수 없는 발화는 행을 빠뜨리지 않고 Training 다수 클래스(1)로 채운다.
 
 ## 폴더 구성

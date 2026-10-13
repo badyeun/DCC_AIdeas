@@ -165,7 +165,8 @@ python inference.py --audio_dir <Validation WAV> --label_dir <Validation JSON> -
 | 입력 | Validation 통화 3,640개 WAV·JSON (WAV를 새로 읽어 특징을 처음부터 계산) |
 | 출력 | `audio file name,startAt,endAt,speaker` 헤더, 111,947행 |
 | **Accuracy** | **{accuracy}** (4절 학습 결과와 같음) |
-| 추론 시간 | {time} (Drive에서 WAV 읽기 포함) |"""
+| 추론 시간 | {time} (Drive에서 WAV 읽기 포함) |
+| 환경 | Python 3.13, torch 2.11.0+cu130, speechbrain 1.1.1, librosa 0.11.0, numpy 2.1.3 (`requirements.txt`로 설치) |"""
 
 
 def main() -> None:
