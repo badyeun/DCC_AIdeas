@@ -1,0 +1,148 @@
+{
+  "format": "mission3_training_reference_v1",
+  "version": "ver19",
+  "candidate_id": "nausea_gce",
+  "run_id": "20261008T072419Z_07dc5385",
+  "training_scope": "fit_only",
+  "decision_rule": "categorical predict/argmax",
+  "labels": [
+    "고열",
+    "구토",
+    "두통",
+    "복통",
+    "어지러움",
+    "열상",
+    "오심",
+    "전신쇠약",
+    "호흡곤란"
+  ],
+  "split_seed": 42,
+  "holdout_size": 0.2,
+  "training_samples": 29200,
+  "fit_samples": 23360,
+  "holdout_samples": 5840,
+  "training_digest": "1d0c54e5f27b507663f5690fce7c2fd350b20b33f4bafe2aabbfd4370bf30525",
+  "selected_epochs": 3,
+  "historical_model": {
+    "model_id": "klue/roberta-base",
+    "resolved_revision": "02f94ba5e3fcb7e2a58a390b8639b0fac974a8da",
+    "loss_mode": "nausea_ce_gce"
+  },
+  "array_hashes": {
+    "fit_indices": "08b71a25fd798963eec81d98775112a6355d88be110c37e33d5adf37685cb437",
+    "holdout_indices": "20f8fcb447a5ca4de0434da94680da48a58b46f6c2c2e03139b60f8738e5b0ed",
+    "training_targets": "416fe9b7e8cf31471124b89a41fcc14255d12bc8441970b4d6203957fb286074",
+    "holdout_targets": "e43046eb56f91c77a261820c1ccf5151f5adf1911fbe45ff41f953e6cc307d7e",
+    "predictions": "b470a8060e202fe6749c35e7779d2354530821039762e576a41e9fefd550101b"
+  },
+  "metrics": {
+    "macro_f1": 0.6412755833526849,
+    "micro_f1": 0.6520991272217621,
+    "samples": 5840,
+    "per_symptom": {
+      "고열": {
+        "f1": 0.6606129398410897,
+        "precision": 0.8027586206896552,
+        "recall": 0.5612343297974928,
+        "support": 1037,
+        "false_positive": 143,
+        "false_negative": 455
+      },
+      "구토": {
+        "f1": 0.5701058201058201,
+        "precision": 0.6962843295638126,
+        "recall": 0.4826427771556551,
+        "support": 893,
+        "false_positive": 188,
+        "false_negative": 462
+      },
+      "두통": {
+        "f1": 0.531021897810219,
+        "precision": 0.5650485436893203,
+        "recall": 0.5008605851979346,
+        "support": 581,
+        "false_positive": 224,
+        "false_negative": 290
+      },
+      "복통": {
+        "f1": 0.8100759696121551,
+        "precision": 0.8831734960767219,
+        "recall": 0.7481536189069424,
+        "support": 1354,
+        "false_positive": 134,
+        "false_negative": 341
+      },
+      "어지러움": {
+        "f1": 0.6765531062124248,
+        "precision": 0.6872964169381107,
+        "recall": 0.6661404893449092,
+        "support": 1267,
+        "false_positive": 384,
+        "false_negative": 423
+      },
+      "열상": {
+        "f1": 0.8862094951017332,
+        "precision": 0.9274447949526814,
+        "recall": 0.8484848484848485,
+        "support": 693,
+        "false_positive": 46,
+        "false_negative": 105
+      },
+      "오심": {
+        "f1": 0.3708523096942095,
+        "precision": 0.32796317606444186,
+        "recall": 0.42664670658682635,
+        "support": 668,
+        "false_positive": 584,
+        "false_negative": 383
+      },
+      "전신쇠약": {
+        "f1": 0.5856079404466501,
+        "precision": 0.6190975865687304,
+        "recall": 0.5555555555555556,
+        "support": 1062,
+        "false_positive": 363,
+        "false_negative": 472
+      },
+      "호흡곤란": {
+        "f1": 0.6804407713498623,
+        "precision": 0.7406296851574213,
+        "recall": 0.6292993630573248,
+        "support": 785,
+        "false_positive": 173,
+        "false_negative": 291
+      }
+    }
+  },
+  "predictions_payload": {
+    "encoding": "zlib+base64/int8-c-order",
+    "shape": [
+      5840,
+      9
+    ],
+    "sha256": "b470a8060e202fe6749c35e7779d2354530821039762e576a41e9fefd550101b",
+    "data": "eNqdnduW3UYIRNn//9N5cDwjddcFOQ9eSXxmjtQXKAooZv78w8+fzPufv3/D8694/PnnX94f4Odnfn/k/pnnR9/f+PjS69vN7/n97Mz9q1Ff+nq84wfTu76/hvef9/ucH1bPIj76fH25aI8XwK0F1zOar+PYJ/F5923XD1ybde2vWqDz4B3fIM+J2nDxwqjFRr6b+ArkISe83fkW4dXuS3OtPOXBxLEhbDFh5f0+6e9636HnJUBfq2RtyskkrDOwMA3HM3Pt75wGTZrB628Ry3N8hu2eWisCz3vPa6dRtkLYh0mbMvJukS+puvv3+XzsznUV0b9Wb0qyZpwLfnwSfxmjoUZthHcB7qwSvJNwed6uoy7c5HtKMzv2bCLuyHW7o2lKX0i4qfjrrx7tcIuM3Dy1KFiHxpTjZ4zR7y1lttfyvDg8D8UsDpg62zhrTLALW3wirZ/wuQIfGXiJ/o7so5BPcDyPspD4hRqEQ0YsNcVXWpj0tI2HT0lXmDcWQhlzjv9NBCLq8MDthnAnAG3QiMdBuMZiLgg77j7NzycVKL0/bOwDDQkHc2CstT204K4at/3H3shxUMuaU8bfi/GAgYQheG6BvPlEJGSgNhp6PC8IBpM9Vl6fjRBoZA+BPcrEl1NoPb3g+1KVZ77sOSygwdMDyWAEbQAvOIf7Xkp85IkE/t9ahw9x/tSfeYJnE4+BjREUfGaBgz5AFHGWV7DQhNgng6MP1tyRb7z5RHNBw6vEcO9pEzJQuNx68ssEPoEG5Y2Bw4SB2LjTMhXCenoGrCCiY+WQBv+OPOmrQ3QKpDNJswmUX0iLNX5X/n4XCKEvEcphEBGZmFNfgrUt+uIW3smiqw8+QNua9b84ZxYPpEUFq9iW/M0TcCgTyAFyoOqjpev7IUf4FgEWBqZFbTSc9SDTFDxv72645Ozz8ZQXnm3G76A7CCiMHRwi0Z0R/Yj0G5bKwp1NzwuFE4ANMSyVZA8wC7qDJyF25msiC7ogrxrAMtFEAPPubDhEFAltG4CPpeMx1EcMrpnKkTrv+QNCshVFxbyY+3ibixqAeu+Au+t4h4KLIufYNI2NkPecZo5xbEnCTvdFTjDyaTN5cg8xTocVufdPqZ/gqUucctndRvZSOOEGBoh2i8KF4b6BbMNTEjnmPd9UHvHueOBkgCIb2joc3OAiJaN7eth13gGJvrDOtdDXZ1IJbgdEQIKe6ithQAw77l3O1FCKBstB4X7Zy5KgTjXBweIRdcTUAuNZeE7NAKmMIYmEpwXyIouPj0qW3KAnHt8+dJOKCxDl5kbTs5QIr3H8HuRQQssp0R8+rZNinCvxTYuRiKebmZrfqDiz8xK+ZsYtAuOrCDDXkJSZzfR1yCBsciDxnln22sTEntT1eMaRD5gDlv4njaKsrBfq7kSTdYBwi3tNCmtlrf7mZWZzMsfmAdOdJ9tFTadTzBCT8RevvKh4eMOCxHOfXlwTyI5jnF5kOLvtljcOQ4gEy79KaCKqCPQJp8XpPmeDKhUK3HthmWU8dVkfFjwmxbMHH8eqdGpRjyQRUXEBM4uYiAV5LII7EV+7qA3DdHeWuJgv6eNu9oCY3J6Ya/9SOWM9EZmMzkaPSpsvyXfNpX4rs0mcrObwQ6g4zbJlkqHyTNRHj+ePRAnjbpwoprJFa2ELtvU2BEtC3y25UCR7a5KkHqIdi5oTq+fLE8rd3tZb+PfeLVBMgYtGqA6IRnXNT1kM+yRObAFYnITFgwWuPcWaLMxpDz1cqWRKPaAtyt4wOlNOfKltntrUyjp3ZWM3DE+kWf0We15Okd1V1qmxm+R14ZU6mRrBqxV7fcRg1B0T4TeTtAps2AxVltmy7HRDTUxqT0uR0aLjueqlcUmPc3NL7Ud5SsQuGydBvbioLiF8AVj9vaHVhw0dYStOCyNEoRpCY0zEkEgbRz425zlQFTvEnqmvRxQEy2ZKEfGXOkVVcrEp/IZPhpfYd2NI8Ety779PtrFJEdS83sMOpGo3mVgR1phwWgwXxl2M7eMTMrRWFQCpkqkRDvt8DCG3sUBNXPWjp6fBE9ENqok7iA3JYqPT5F5cTqIglPsyC//Xcy7uQbYZlmAcYjkrOa5ovBidx07uP4T2HLwa7jLxofCyUZN+lVL/V8jQkxdUo27Ric4sQEthWkjQKEG+M6rV5KSuCsvncLVUtsAq0BH28pCOMwGDOj58QZgcnpHiNIlU3oRCA6pPtX1kzFTeuOOFXhCrQYNpfERfB8y9I0RJkdTV1RXYhEplKgRKx/gvpqTVL+zEDiwVFhGrt+ArJWrLx/ROYAuvqf/Rqyxi+N8qMQy90HPrfEj95HzKkSawLZM+jqMfCwdFbayikj7edyw6hDb8mLILveAjBOkpUcOdCGsAyKkTRMIM/ZNY7/V4+FgH9IJHLChzZzyzkzLWtV1lQlX5FUHHS+TlZWon3MsINAyQQ9wvVabxArCLczXV8DUrRA6lD1yHKah6BNnaRnv6hOD6zYnK4Qn9MzSaSRa3mSDTH8yb9tm1W6f6zF0QIVlxZLPKgkZGsm7ZxBE8WrYE7j1ZuP6EVPHmYlOgIvMDqtevlbWGEK8wgY2ATRXepKiQ8Bh07zYLL1canXzrR0Et4E9EDrt8ofgNWVwDV/nNBBpa2VOLmrqGkGczHdnrb5YpwqwNd7iMAWY9g8Qd4dhQc14k3qaWQTrQd4VcVyphwYkjodSiaKSz40csoxqScPyr7hG77Q3fLS6qvAolpIPsiY+oMiwLqZgphvChaJsvDczpw2xSijIqwysbBrbw2Fx6H7S2xngDwtn7vaoFjXU6ETGblgQVJ27yH+9ywHU5yi2O5euiG6WckFWC06zl+AzLWvsn9pqNBb2dL1jK4noELYpMUv9iTehSCPzY0RWL/73UTMzCTEwHS12IjRargcSSxiTuM4ugNm5u4wECNTxaou289DS7Kh1kpX+vR+qiBCYlyLEX7Co/fT1r4UJ2Sgj63Lj+u8/f9AsqPrTjBXUC93vwW3c0Nj4sfxAt9vwu2YDkviR5nlflcNHH2VVlNlhUW7wIXFetcJ0RC73bUvIwWfyW13Nhr64JNAacFh2tylo2mdGo6WEjoFrp3aS3wnMjrpOLhVUGtKjSTNRqOI0nKz7x+c7YyhqLrBaiKJap/mf1IX+esxyEc8baXxyqmTQEqLWQg9N0FAoFHDhAHolSPsCZxodvC6b0rdmW+ZEUxRZimbrhMbBq5Lx+CKC4zS+VWS9F+6ygOeUonu6R6zrTz/PELFXNc/nvItzkZm0WkvKbKPJ9Ya3FXQV6FyJYinvH/n570LNtI6JlG0u5DutZVFJVnhaVT/4xRzXOHdvC2ROt48uKSOm80xFqVvxCEKwIilz8vBS/yr+nR6FJKEkfTNaeaNI5DmKkGfthnSQrYL8lJI0lJBKFm8An52zRuiJR6FDO6GnJPZ+mCfH7FXWVYkUanW49WvMqTO2MDKLUMSwhcoy9UeX1S9FFfLWRp63XJh4Mz7zVADdycyxCbL1UpGjiQ0MiG90/76W9Zvssco0Lg6ehyAIy4TMt2Etp23YWnBixJplaNF6OYooWWLSuBAOV6ib5QHU2+n4TaCSWYDu9oSRM0oCPMD+qutZVvSjJ27FpjssdqR3bBtHgLvPtUUEdRqDwaopPSj0p9mEIMax2Glb9Ljk7xAQNVs7ASY8eDk9zx8TTiSPGg/dHOzuF1Us1gbGvrTepz5Kg82MqMLHGgT6Eb3FHpksfp0yN7P7RWxmSQZaHLM+IRruRhBc2Ck3GU3nCueqVN+p5LgtMlhSbNPPS30W7HP7GeUGFhSeyfAIumUthQTvF/wtd8OJOWeaXDiasCug0mYvEpST5hWg08SBKO4cjHRIqBFaXb8x0rVnK6DXh4m84BTHkyzPtXoIgQlSfP2252tNbEaP+Fo+zZYFmFSYSL6Njg8srt35PPXLIlURb2nCVyqzSLrG+lIXwNoGEo+ExCTvbwIdArS733ZeEEwMxH9MTFTmKjFVscxA87zcllslHiI/x13k82TBrdsId9HixcAXU4l0TCvraVDnVKFNQy5Ex/dVsxa15J6uj9Tlz3a8QnlJ2FEqDuzsAIn3uVO59oTXO6Lm75hwuB5GRrFbkavopt49hQGDcdyofnrT2bkRkcxOYNJWvU1iPVsHwG7NssB1dS4yznHGmyX1NvOyhUa3HMkCp8NfzCU61fj93qRYFGl8SJnssCG0KzmxqVTtm8pXzClM9T4Cy0US5kB6lYsoF19kfG4WQKUliIkedJyDj783OX1ZC5HTQTKhJZ9Mx6eBSrAnGVgDWuHyMxEdMD2wA5+xtYcrMUgpilyk/4/POoT+j0mh93ECyoixYteY266jWvN2YM09W4KHGVD1xgfESSNZW729yZLUxglkAGWY5yLFMh+R2660SqrrRpL2ZfA/nwd5QZ5ecPrPokokEk698Je0edbTuW1biK7vC5Ir5HDaNy02WsXoNfp9E4SbOylOo1Y9sFRU8ygloNkHaYIgqo0jJC6cAgcuqLzDGRnp0IqWJpZ1ruIZNWZjRhMtWV521p1a01unZNpAtbp5YRBgJJM9wkEgimrwbJoW0GAO7q4+nDF+m1OA5a9O7IXtpVxMjD7tZLNNeFZV0Zd7ym9eK0WLDcvaowQCuxiKAKMIpYflXSeGZrGumWze397nulNneRRSppFUnUhFtHHkrH83TKq1fYD99rzuy1YChY8QPmyGt3ZunroFt1O9Q4OmcLK9uQDJy8pq7RjTCBKujeQj5FoeoC0dZSc2wK5V8x7mQnJ9M3OwU6zRPGC8+weALJod6DYqwDdnd0MbCjivPLu+1EGhsFnutvebiCWKtkb+wBAy2mdxXAtue0yzcxGr2k3yJ0s2Eo30WmLVNFSGNL9TJ8bGGmGafVyJhyEPRENoJGy6lyiJs4fTVhcKls7b1IBHoJeOF5cyIlIWh+dxZzBqmTRZLEC5dqyIy5uQy+DSpuWXz8tjTEF1tFF22Q6ZDSQb/NK07VlOQ6PRaa72TONsZnxAam6XPKWn8zLvFSJysdNSkXdpTIlnApVlueH4zPDr1izQJuM7iVz5cpVOCqhKbU8aGQfN3h3IHPRGBu1YYcJWYnkXlp8uRrwb2aZQlyvRzYaQ3SJtpjg1VZmVJNm5NQ8cq+WE6zgjBxGSXtCXBbc5lI2TObZxCrWvu2MVf+YyU8D0enn6ZNJpvh2kDK6ROSavHsykAl6QhJ9ondYQ1Niw7J1Jbt6beWDOTXoeT0G+gjRyp3dZaq89tIFuNRA6+dqUc/x5nE7LOaWLItIE5Lgfd+vK6srTy/hGz4WKvS3AAWWo7DZFrlEex4YK4Zp0GT8o5kSRZaqHIppjoc20olLRLNgmqxEef9jzMg5bBAlFx6zp2+LhzVWMWSC7HVNTkL5ILOCPxe6R6DOSZLLkvossO/8czgd86/EL4Rsq+Zqo7FJJRnW9XYIxX5cYnVWbQKg516oyZSkz3OqV741gFy4vZybWDxjb7V41TJkyzSoQA6BhkKqSe1PHUC1CnjFRehcm3zbqGuWgnQUvb/6xYHfTDjfOlME5ks9ejmUprir+g+OxMuBCu2jkkFYKqCe91xTm/R6FvE0qPIxilybNYrlBDbo4wjjGZ8GH+8czH8Sepge735OOIvEBE0AlLrwyTyJn8pgp9pgkQKzat1JjYPgVic7LlCahjqbEKWjjKAkelxnpxOiO9mmETCqWxIYxDvt/41VkNDbq8Tv21FAT7hVdfYJLtv/25sNjwMHNyEej8mAIaNWxTYmfte9WUkwzGWPE90p7KuEDt+0ZO2Ory2a4dCgb2/PbLU/vZKq2Aviihszpej+egkQxx/k7tR3v9j51+QhLZ4E2v1Vb9bNB0ZqZFQKTutqmz1AO8NomVNAas8BP3GtI9+nSxl00/ZcM59/wfX/UkgLwILcMA+sJtDKNKDiI5TBvHgF0ALTsoKdlYZpC5FIdJja7Il+ECbQzjrREblesWQw8t0fYtu9kg6KLFwuoat2qqrvzvG5Oy9cWFRKkpz3WNuCphn20icWR396emPBZ91Ub0gET4a+RgaeEzIsjHgWpJcDJNNes8fr5szgTcsQ9mEHBgxqi5gAV90MYJ/dXj6OMziLOSO553PT6xuw7XcUlhX87q4Smz5v3IobXwO8YBEVKHid1sPeFOKlcCKHIjRemJzP0bi5x2puWjcudKWpYFzDRXwg7LIy4CfYACsUI2ZIlrX4y7M8Gx7mgx1momEUjTFDm6xP2sivpwdP0rEiozW99vutNLWQ1ZdHgeBUfDCCv87B5fThFm+W0d/dggyW8Gzj0FKFvZ+NSStpw7Eey8mfOIkEKlY/1R5Q2NtNxi4vvo5BGxsv45JoFSSEWUPA/uaByJ2ls7W2MPM8sbHbiykEZJMtcThEyNH+/tveoxPJUCHtdtrNjsJNwXLjbT+2GGSaGL4D7um74RFtCENVUuKnJTE+5q7/zKiz7xJtNtvr1ObZyk8FSvd5So2jGgbhF4ElPceQ73U+0w8K9V06H0pFUi44SSqdIPInTFE7bKOVKA/Z1T4IsuehJbwCpIyqEGmdreuP5bTvc/iQMcvg=="
+  },
+  "provenance": {
+    "source_run_training_digest": "1d0c54e5f27b507663f5690fce7c2fd350b20b33f4bafe2aabbfd4370bf30525",
+    "source_run_source_digest": "4a4064efe4a5c81fa52fad8e000157ab0f23d75854503d3972d7e57f3beeadb4",
+    "source_hashes": {
+      "experiments/nausea_gce/20261008T080049Z_74b9b8c0/holdout_predictions.npz": "84e2d1f158cf83d6000055d5ead377a5c479bb034fe054037fdea208b91888b1",
+      "experiments/nausea_gce/20261008T080049Z_74b9b8c0/training_metrics.json": "6e70346a77b296613a6dfe3927b3c65443bb38c3ad26d344539bb178e273695b",
+      "experiments/nausea_gce/completed.json": "959c5f5029e198ad5c276e4084dacc57b9e73e5817ca5702a02f9a3524fb9944",
+      "training_split.npz": "524a04326803a3eb41696b322a9a76e20f8afcfdbcccd37ebe089ebc6f77e264",
+      "run_identity.json": "507e1030d9749fa1ea39e5b68f7966d76bfee44d88901b377517e43e5f612f51",
+      "final_selection.json": "cd3de6fc7eb388ff5a359a11bcd43d50690fbbb8cf43934fed3fdeb17ad0524b"
+    },
+    "source_selection_weights_sha256": "7cf8eb27e79dae667ee146f05ccc25a50f5048a0b201110f52a86ac86131bd11",
+    "recreated_training_split_matches": true,
+    "original_training_targets_match": true,
+    "validation_accessed": false
+  },
+  "limitations": [
+    "This Training holdout has been used repeatedly across previous versions; it is not a fresh test set.",
+    "Historical ver19 and new ver20 differ in architecture and training recipe; this is a model comparison, not an isolated causal experiment.",
+    "The historical predictions came from fit-only training, never the full-Training final model.",
+    "Improvement here does not guarantee higher official Validation or hidden-test F1."
+  ]
+}

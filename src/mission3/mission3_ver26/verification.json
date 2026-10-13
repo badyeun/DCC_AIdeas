@@ -1,0 +1,23 @@
+{
+  "verified_at_utc": "2026-10-11T13:14:27.822417+00:00",
+  "tests_run": 8,
+  "failures": 0,
+  "errors": 0,
+  "successful": true,
+  "test_duration_seconds": 5.043,
+  "suite": "src.mission3.mission3_ver26.test_screening",
+  "device": "cpu",
+  "tiny_real_transformer_and_peft_training_verified": true,
+  "real_qwen4b_nf4_gpu_training_verified": false,
+  "real_colab_execution_verified": false,
+  "notebook": "src/mission3/mission3_ver26.ipynb",
+  "notebook_bytes": 205830,
+  "notebook_sha256": "4e7d78f2c67fe6e6a2523c2218bbc7fb4f5bb6e30ddb3ebac20f32ff47b1747d",
+  "default_budget_minutes": 480,
+  "maximum_budget_minutes": 480,
+  "default_epochs": 3,
+  "default_pilot_samples": 4000,
+  "full_training_supported": false,
+  "official_validation_evaluated": false,
+  "dependency_note": "Used existing outputs/mission3_ver25_verification/dependencies and outputs/mission3_verification_dependencies via PYTHONPATH; no installation."
+}

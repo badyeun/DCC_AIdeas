@@ -1,0 +1,85 @@
+{
+  "verified_at_utc": "2026-10-12T01:26:17.516317+00:00",
+  "tests_run": 15,
+  "failures": 0,
+  "errors": 0,
+  "successful": true,
+  "verification_method": "Two focused suites verified separately against the same final source snapshot.",
+  "suites": [
+    {
+      "name": "src.mission3.mission3_ver27.test_screening",
+      "tests_run": 9,
+      "successful": true,
+      "duration_seconds": 4.708
+    },
+    {
+      "name": "src.mission3.mission3_ver27.test_baseline",
+      "tests_run": 6,
+      "successful": true,
+      "result_reported_by": "parent agent executing baseline suite"
+    }
+  ],
+  "device": "cpu",
+  "tiny_real_transformer_and_peft_training_verified": true,
+  "real_qwen4b_nf4_gpu_training_verified": false,
+  "real_colab_execution_verified": false,
+  "notebook": "src/mission3/mission3_ver27.ipynb",
+  "notebook_bytes": 230501,
+  "notebook_sha256": "72410bd08937032fd6afb9c5635e295205b80722fb41027f600651623df837ff",
+  "embedded_source_count": 15,
+  "source_hashes": {
+    "__init__.py": "e696cddbf4cbc5a378801b075ffdf5e544b86dc7c2f836bfad70660b2d1b3fba",
+    "data.py": "2e88d3adaae34e5c4d9a84c0b81071cff797805ebd0d6fbe7cb362702eb35cd6",
+    "analysis.py": "615f3e9afd95f1b5b2e41a9d0cea9f21b56242e667a0fbd3ef64dd194f6971b5",
+    "bootstrap.py": "8715aa383c8575ec9ceb899979396544ea88fa657232e75f5748bc531df5b7f3",
+    "budget.py": "1661c855bc01a0ac5c6ec98cbbc43c511a03426c248da44a3ab911b77f0ed957",
+    "batching.py": "d2dd7d42428f02d62cea0c760fe0df9d76e3c34e369505b11f637a9c49f13d81",
+    "trainer.py": "2e8471930a64f8721b1c196acebbe579d761100d108ad4a341235aff002d13ce",
+    "runtime.py": "a78459a74a87b76f85b73623031d6c71c82050e3fd5763703da15e72e2d3943d",
+    "run_notebook.py": "8e10d759b53081c1b7afcba67d1babf03eb3f9d9cc15057b1d1ee2dd72f83833",
+    "build_notebook.py": "354ebbaef274701ce7c11de13936b18a568672cf4a033495692439207f03c770",
+    "requirements.txt": "3325f01b60f9c3a6f2e718411408c9374b03c0aa42dfa0982e7dcbc0f29637a7",
+    "README.md": "0be3d24d25451f21eeb952220c20cd5cf2478aa14d496419cb1f3468887e0724",
+    "model_specs.json": "d53f2b6b8c1ef178b6a4fa27fd338082b753be575f7e78993363d6e26cb3735c",
+    "baseline.py": "b3110bc63604887b174736382c3f4e418e7987c0b51045e41f8debf22c2adce4",
+    "baseline_reference.json": "448fbac8ab1c125f7d5d731fc8c133e65666b544ad50a635079718d4cc0762a1"
+  },
+  "default_budget_minutes": 480,
+  "maximum_budget_minutes": 480,
+  "default_epochs": 3,
+  "default_pilot_samples": 4000,
+  "lora_lr": 3e-05,
+  "head_lr": 9e-05,
+  "full_training_supported": false,
+  "official_validation_evaluated": false,
+  "baseline_required": true,
+  "baseline_actual_data_preflight": {
+    "evidence_path": "outputs/mission3_ver27_verification/baseline_preflight_verified.json",
+    "evidence_sha256": "42d2ea8c24e77f45e0f5628a15a95fd560492f0f75691a6abf23d63de4ef6544",
+    "verified": {
+      "version": "ver26",
+      "run_id": "20261011T133609Z_f22b4e55",
+      "source_path": "C:\\Users\\JooSeong\\WorkSpace\\03_Dev\\21_데이터크리에이트캠프\\DCC_AIdeas\\results\\mission3\\ver26-drive\\20261011T133609Z_f22b4e55",
+      "completion_sha256": "cf2a3924106aff767b26256dead3fea1afd21651e0d287e2f3ea7adb100b8fb8",
+      "training_dataset_digest": "71b751de9931f10a6d5e2b17d38bf36d0f986baef82e47f7d98159a30348aa6f",
+      "required_artifact_hashes_verified": 13,
+      "split_subset_and_original_targets_verified": true,
+      "scores_recomputed": true,
+      "weight_files_required_or_copied": false,
+      "selected_epochs": {
+        "control": 3,
+        "qwen": 2
+      },
+      "macro_f1": {
+        "qwen": 0.6276905157603386,
+        "control": 0.6345984637314397,
+        "ensemble": 0.6461876722348602
+      },
+      "real_training_labels_verified": true,
+      "gpu_training_performed": false,
+      "new_performance_verified": false
+    }
+  },
+  "independent_read_only_review": "No material findings; embedded source parity and all code cell compilation verified.",
+  "dependency_note": "Used existing outputs/mission3_ver25_verification/dependencies and outputs/mission3_verification_dependencies via PYTHONPATH; no installation."
+}

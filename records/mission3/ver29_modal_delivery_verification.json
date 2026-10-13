@@ -1,0 +1,24 @@
+{
+  "verified_at_utc": "2026-10-13T07:46:58.073063+00:00",
+  "success": true,
+  "tests_run": 21,
+  "failures": [],
+  "errors": [],
+  "core_sources_unchanged": true,
+  "kaggle_notebook_unchanged": true,
+  "input_zip_unchanged": true,
+  "input_zip_bytes": 67664405,
+  "input_zip_sha256": "cfa2f2e0a63a5788848e175f92b685ac7b36ca62b99142664a3b589d2986f7ff",
+  "code_cells_compiled": 4,
+  "embedded_core_source_files": 16,
+  "notebook_sha256": "84b90236816faa6ccfade578c2b944ace51c22f5236d885c8c69bec90ef51790",
+  "adapter_source_sha256": {
+    "build_notebook.py": "23aa1592339afa835f12639ba97f5b2b4e8a19247a81525689081eb45736b33a",
+    "support.py": "ad5cea7a3e9955a81bde4105e46ef69aa93d20b1726fbfd51d9b7f7087d8825b",
+    "test_support.py": "c2c1fc94c31e53a465660c1934a92e46023b478ab4c9a3822e83159cef7eaa5f",
+    "__init__.py": "81e86a82e633f54ab265a1874c7d53c1f0725cdc412c7a25b44b0755d80e3c11"
+  },
+  "real_modal_l4_execution_verified": false,
+  "real_volume_remote_persistence_verified": false,
+  "f1_at_least_0_7_verified": false
+}

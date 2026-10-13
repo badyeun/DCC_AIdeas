@@ -1,0 +1,18 @@
+{
+  "verified_at_utc": "2026-10-12T09:18:03.154277+00:00",
+  "local_tests": {
+    "passed": 22,
+    "failed": 0,
+    "log": "local_tests.log"
+  },
+  "notebook_code_cells_compiled": 4,
+  "embedded_source_files": 15,
+  "embedded_sources_match_disk": true,
+  "notebook_sha256": "d28e6ea89592f4b30b490020fb3bd87f481fea9f95b92e8f9c2e4dd14dfe1377",
+  "input_archive_bytes": 66224512,
+  "input_archive_sha256": "7f4911ebdd6471ac95c190bcc905c20ffd20c8e57386a6675e2bf2af643cce35",
+  "input_original_bytes_and_split_verified": true,
+  "real_pretrained_gpu_training_verified": false,
+  "kaggle_account_upload_runtime_verified": false,
+  "actual_f1_above_0_7_verified": false
+}

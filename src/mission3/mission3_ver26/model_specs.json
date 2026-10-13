@@ -1,0 +1,21 @@
+{
+  "qwen": {
+    "model_id": "Qwen/Qwen3-4B-Instruct-2507",
+    "revision": "cdbee75f17c01a7cc42f958dc650907174af0554",
+    "revision_policy": "Pinned to the completed ver25 public pretrained snapshot for controlled screening.",
+    "model_card": "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507",
+    "source": "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507",
+    "license": "Apache-2.0",
+    "license_note": "Apache-2.0 per upstream LICENSE. Bundle base license and notices with redistributed weights.",
+    "license_url": "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507/blob/main/LICENSE"
+  },
+  "control": {
+    "model_id": "klue/roberta-base",
+    "revision": "02f94ba5e3fcb7e2a58a390b8639b0fac974a8da",
+    "source": "https://huggingface.co/klue/roberta-base",
+    "model_card": "https://huggingface.co/klue/roberta-base",
+    "license": "CC-BY-SA-4.0",
+    "license_note": "CC-BY-SA-4.0 per upstream model card; preserve attribution and share-alike terms.",
+    "license_url": "https://huggingface.co/klue/roberta-base"
+  }
+}

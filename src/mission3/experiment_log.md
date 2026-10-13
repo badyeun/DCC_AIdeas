@@ -1,5 +1,9 @@
 # Mission 3 실험 기록
 
+> 이 문서의 상세 기록 범위는 ver1~ver9입니다. 이후 기록은
+> [ver1~ver24 인수인계](../../docs/mission3_handoff_through_ver24.txt)와
+> [프로젝트 종료 요약 및 ver24~ver29 결과](../../records/mission3/project_closeout.txt)를 참고하세요.
+
 > Mission 1의 실험 기록과 같은 형식으로 실행 설정, 학습 이력, Validation 상세,
 > 해석 및 재현 방법을 정리합니다. 아래 수치는 저장된 결과 JSON과 CSV에 근거합니다.
 > 코드의 기본 설정과 실제 저장된 실행 설정을 구분하며, 남아 있지 않은 실행 기록은 임의로 채우지 않습니다.

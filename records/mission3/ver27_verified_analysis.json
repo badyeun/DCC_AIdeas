@@ -1,0 +1,2477 @@
+{
+  "verified_at_utc": "2026-10-12T05:11:49.032999+00:00",
+  "run": "results\\mission3\\ver27-drive\\20261012T013918Z_e9ca9fac",
+  "integrity": {
+    "inventory_files": 139,
+    "downloaded_files": 127,
+    "hash_matches": 126,
+    "source_text_matches_workspace": {
+      "analysis.py": true,
+      "baseline.py": true,
+      "baseline_reference.json": true,
+      "batching.py": true,
+      "bootstrap.py": true,
+      "budget.py": true,
+      "build_notebook.py": true,
+      "data.py": true,
+      "model_specs.json": true,
+      "README.md": true,
+      "requirements.txt": true,
+      "runtime.py": true,
+      "run_notebook.py": true,
+      "trainer.py": true,
+      "__init__.py": true
+    },
+    "missing_weight_artifacts": [
+      {
+        "path": "fit_control/epoch_1/encoder/model.safetensors",
+        "bytes": 440132272
+      },
+      {
+        "path": "fit_control/epoch_2/encoder/model.safetensors",
+        "bytes": 440132272
+      },
+      {
+        "path": "fit_qwen/epoch_1/adapter/adapter_model.safetensors",
+        "bytes": 132184864
+      },
+      {
+        "path": "fit_qwen/epoch_1/tokenizer/tokenizer.json",
+        "bytes": 11422654
+      },
+      {
+        "path": "fit_qwen/epoch_1/tokenizer/vocab.json",
+        "bytes": 2776833
+      },
+      {
+        "path": "fit_qwen/epoch_2/adapter/adapter_model.safetensors",
+        "bytes": 132184864
+      },
+      {
+        "path": "fit_qwen/epoch_2/tokenizer/tokenizer.json",
+        "bytes": 11422654
+      },
+      {
+        "path": "fit_qwen/epoch_2/tokenizer/vocab.json",
+        "bytes": 2776833
+      },
+      {
+        "path": "fit_qwen/epoch_3/adapter/adapter_model.safetensors",
+        "bytes": 132184864
+      },
+      {
+        "path": "fit_qwen/epoch_3/tokenizer/tokenizer.json",
+        "bytes": 11422654
+      },
+      {
+        "path": "fit_qwen/epoch_3/tokenizer/vocab.json",
+        "bytes": 2776833
+      },
+      {
+        "path": "shared_base/5f5f83d972826e38968a/model.safetensors",
+        "bytes": 2653123937
+      }
+    ],
+    "complete_local_backup": false
+  },
+  "runtime": {
+    "version": "ver27",
+    "format": "mission3_ver27_learning_curve_v1",
+    "run_mode": "pilot",
+    "status": "screening_complete",
+    "training_scope": "training_subset",
+    "submission_ready": false,
+    "full_training_enabled": false,
+    "scheduler_horizon_epochs": 3,
+    "fitted_samples": 4000,
+    "training_samples": 29200,
+    "device": "cuda",
+    "confirmation_evaluated": false,
+    "validation_evaluated": false,
+    "baseline_comparison_completed": true,
+    "baseline_gate_status": "no_clear_gain",
+    "elapsed_worker_seconds": 10343.002962155,
+    "elapsed_invocation_seconds": 10374.779543207998
+  },
+  "data": {
+    "training_rows": 29200,
+    "original_labels_verified": true,
+    "dataset_digest_verified": true,
+    "same_split_and_subset_as_ver26": true,
+    "split_rows": {
+      "fit": 20440,
+      "development": 4380,
+      "confirmation": 4380
+    },
+    "normalized_duplicate_groups_do_not_cross_splits": true
+  },
+  "epoch_results": {
+    "qwen": [
+      {
+        "epoch": 1,
+        "metrics": {
+          "macro_f1": 0.6041920572810745,
+          "micro_f1": 0.6200412371134021,
+          "samples": 4380,
+          "per_symptom": {
+            "고열": {
+              "f1": 0.6474064346684176,
+              "precision": 0.661744966442953,
+              "recall": 0.6336760925449871,
+              "support": 778,
+              "false_positive": 252,
+              "false_negative": 285,
+              "true_positive": 493,
+              "true_negative": 3350,
+              "average_precision": 0.7239902976505503
+            },
+            "구토": {
+              "f1": 0.556469708302169,
+              "precision": 0.5577211394302849,
+              "recall": 0.5552238805970149,
+              "support": 670,
+              "false_positive": 295,
+              "false_negative": 298,
+              "true_positive": 372,
+              "true_negative": 3415,
+              "average_precision": 0.5725689526176797
+            },
+            "두통": {
+              "f1": 0.44831591173054586,
+              "precision": 0.4541176470588235,
+              "recall": 0.4426605504587156,
+              "support": 436,
+              "false_positive": 232,
+              "false_negative": 243,
+              "true_positive": 193,
+              "true_negative": 3712,
+              "average_precision": 0.44628477295434066
+            },
+            "복통": {
+              "f1": 0.7671232876712328,
+              "precision": 0.7626459143968871,
+              "recall": 0.7716535433070866,
+              "support": 1016,
+              "false_positive": 244,
+              "false_negative": 232,
+              "true_positive": 784,
+              "true_negative": 3120,
+              "average_precision": 0.8526278504874829
+            },
+            "어지러움": {
+              "f1": 0.643719806763285,
+              "precision": 0.7549575070821529,
+              "recall": 0.5610526315789474,
+              "support": 950,
+              "false_positive": 173,
+              "false_negative": 417,
+              "true_positive": 533,
+              "true_negative": 3257,
+              "average_precision": 0.7180145405974759
+            },
+            "열상": {
+              "f1": 0.8648648648648649,
+              "precision": 0.8390596745027125,
+              "recall": 0.8923076923076924,
+              "support": 520,
+              "false_positive": 89,
+              "false_negative": 56,
+              "true_positive": 464,
+              "true_negative": 3771,
+              "average_precision": 0.9346529189947627
+            },
+            "오심": {
+              "f1": 0.3141263940520446,
+              "precision": 0.29391304347826086,
+              "recall": 0.3373253493013972,
+              "support": 501,
+              "false_positive": 406,
+              "false_negative": 332,
+              "true_positive": 169,
+              "true_negative": 3473,
+              "average_precision": 0.2516226119467675
+            },
+            "전신쇠약": {
+              "f1": 0.5101897399859452,
+              "precision": 0.5798722044728435,
+              "recall": 0.45545796737766625,
+              "support": 797,
+              "false_positive": 263,
+              "false_negative": 434,
+              "true_positive": 363,
+              "true_negative": 3320,
+              "average_precision": 0.5534413674632074
+            },
+            "호흡곤란": {
+              "f1": 0.6855123674911661,
+              "precision": 0.714548802946593,
+              "recall": 0.6587436332767402,
+              "support": 589,
+              "false_positive": 155,
+              "false_negative": 201,
+              "true_positive": 388,
+              "true_negative": 3636,
+              "average_precision": 0.6987686456371809
+            }
+          },
+          "macro_average_precision": 0.6391079953721608,
+          "average_precision_valid_labels": 9,
+          "nausea_f1": 0.3141263940520446,
+          "decision_rule": "independent logits >= 0 (sigmoid >= 0.5); zero ties are positive"
+        },
+        "train_loss": 0.6800440850481391,
+        "development_loss": 0.46639230395965364,
+        "train_seconds": 2426.306473918001,
+        "evaluation_seconds": 735.3531618709994
+      },
+      {
+        "epoch": 2,
+        "metrics": {
+          "macro_f1": 0.6234313572831017,
+          "micro_f1": 0.6361022101717196,
+          "samples": 4380,
+          "per_symptom": {
+            "고열": {
+              "f1": 0.6536856745479833,
+              "precision": 0.7121212121212122,
+              "recall": 0.6041131105398457,
+              "support": 778,
+              "false_positive": 190,
+              "false_negative": 308,
+              "true_positive": 470,
+              "true_negative": 3412,
+              "average_precision": 0.7360176874162137
+            },
+            "구토": {
+              "f1": 0.56353591160221,
+              "precision": 0.5979899497487438,
+              "recall": 0.5328358208955224,
+              "support": 670,
+              "false_positive": 240,
+              "false_negative": 313,
+              "true_positive": 357,
+              "true_negative": 3470,
+              "average_precision": 0.5971682446961895
+            },
+            "두통": {
+              "f1": 0.48759124087591244,
+              "precision": 0.6706827309236948,
+              "recall": 0.3830275229357798,
+              "support": 436,
+              "false_positive": 82,
+              "false_negative": 269,
+              "true_positive": 167,
+              "true_negative": 3862,
+              "average_precision": 0.49059476529492185
+            },
+            "복통": {
+              "f1": 0.7811860940695297,
+              "precision": 0.8127659574468085,
+              "recall": 0.7519685039370079,
+              "support": 1016,
+              "false_positive": 176,
+              "false_negative": 252,
+              "true_positive": 764,
+              "true_negative": 3188,
+              "average_precision": 0.862214487069604
+            },
+            "어지러움": {
+              "f1": 0.6636311895276039,
+              "precision": 0.7224287484510533,
+              "recall": 0.6136842105263158,
+              "support": 950,
+              "false_positive": 224,
+              "false_negative": 367,
+              "true_positive": 583,
+              "true_negative": 3206,
+              "average_precision": 0.7360822064648305
+            },
+            "열상": {
+              "f1": 0.8524017467248908,
+              "precision": 0.7808,
+              "recall": 0.9384615384615385,
+              "support": 520,
+              "false_positive": 137,
+              "false_negative": 32,
+              "true_positive": 488,
+              "true_negative": 3723,
+              "average_precision": 0.9407250640579018
+            },
+            "오심": {
+              "f1": 0.36927851047323507,
+              "precision": 0.3020304568527919,
+              "recall": 0.4750499001996008,
+              "support": 501,
+              "false_positive": 550,
+              "false_negative": 263,
+              "true_positive": 238,
+              "true_negative": 3329,
+              "average_precision": 0.29804177297171985
+            },
+            "전신쇠약": {
+              "f1": 0.5375170532060027,
+              "precision": 0.5889387144992526,
+              "recall": 0.49435382685069007,
+              "support": 797,
+              "false_positive": 275,
+              "false_negative": 403,
+              "true_positive": 394,
+              "true_negative": 3308,
+              "average_precision": 0.5877117713312394
+            },
+            "호흡곤란": {
+              "f1": 0.702054794520548,
+              "precision": 0.7081174438687392,
+              "recall": 0.6960950764006791,
+              "support": 589,
+              "false_positive": 169,
+              "false_negative": 179,
+              "true_positive": 410,
+              "true_negative": 3622,
+              "average_precision": 0.7212363574564243
+            }
+          },
+          "macro_average_precision": 0.6633102618621162,
+          "average_precision_valid_labels": 9,
+          "nausea_f1": 0.36927851047323507,
+          "decision_rule": "independent logits >= 0 (sigmoid >= 0.5); zero ties are positive"
+        },
+        "train_loss": 0.4478249180195853,
+        "development_loss": 0.4439918768778362,
+        "train_seconds": 2430.0760943669993,
+        "evaluation_seconds": 734.6707937770007
+      },
+      {
+        "epoch": 3,
+        "metrics": {
+          "macro_f1": 0.627609747439115,
+          "micro_f1": 0.6445436105476673,
+          "samples": 4380,
+          "per_symptom": {
+            "고열": {
+              "f1": 0.6494367130550033,
+              "precision": 0.6703146374829001,
+              "recall": 0.6298200514138818,
+              "support": 778,
+              "false_positive": 241,
+              "false_negative": 288,
+              "true_positive": 490,
+              "true_negative": 3361,
+              "average_precision": 0.7373473558298811
+            },
+            "구토": {
+              "f1": 0.5825396825396826,
+              "precision": 0.6220338983050847,
+              "recall": 0.5477611940298508,
+              "support": 670,
+              "false_positive": 223,
+              "false_negative": 303,
+              "true_positive": 367,
+              "true_negative": 3487,
+              "average_precision": 0.6054609072565006
+            },
+            "두통": {
+              "f1": 0.48711340206185566,
+              "precision": 0.5558823529411765,
+              "recall": 0.4334862385321101,
+              "support": 436,
+              "false_positive": 151,
+              "false_negative": 247,
+              "true_positive": 189,
+              "true_negative": 3793,
+              "average_precision": 0.48515569212626103
+            },
+            "복통": {
+              "f1": 0.7755710029791459,
+              "precision": 0.782565130260521,
+              "recall": 0.7687007874015748,
+              "support": 1016,
+              "false_positive": 217,
+              "false_negative": 235,
+              "true_positive": 781,
+              "true_negative": 3147,
+              "average_precision": 0.8625010262898796
+            },
+            "어지러움": {
+              "f1": 0.6711970726607422,
+              "precision": 0.6666666666666666,
+              "recall": 0.6757894736842105,
+              "support": 950,
+              "false_positive": 321,
+              "false_negative": 308,
+              "true_positive": 642,
+              "true_negative": 3109,
+              "average_precision": 0.7366100227992758
+            },
+            "열상": {
+              "f1": 0.8818181818181818,
+              "precision": 0.8362068965517241,
+              "recall": 0.9326923076923077,
+              "support": 520,
+              "false_positive": 95,
+              "false_negative": 35,
+              "true_positive": 485,
+              "true_negative": 3765,
+              "average_precision": 0.9440338289857513
+            },
+            "오심": {
+              "f1": 0.3466135458167331,
+              "precision": 0.34592445328031807,
+              "recall": 0.3473053892215569,
+              "support": 501,
+              "false_positive": 329,
+              "false_negative": 327,
+              "true_positive": 174,
+              "true_negative": 3550,
+              "average_precision": 0.29825469896067913
+            },
+            "전신쇠약": {
+              "f1": 0.5512104283054003,
+              "precision": 0.5454545454545454,
+              "recall": 0.5570890840652447,
+              "support": 797,
+              "false_positive": 370,
+              "false_negative": 353,
+              "true_positive": 444,
+              "true_negative": 3213,
+              "average_precision": 0.5885498368524025
+            },
+            "호흡곤란": {
+              "f1": 0.70298769771529,
+              "precision": 0.7285974499089253,
+              "recall": 0.6791171477079796,
+              "support": 589,
+              "false_positive": 149,
+              "false_negative": 189,
+              "true_positive": 400,
+              "true_negative": 3642,
+              "average_precision": 0.7149343288453059
+            }
+          },
+          "macro_average_precision": 0.6636497442162153,
+          "average_precision_valid_labels": 9,
+          "nausea_f1": 0.3466135458167331,
+          "decision_rule": "independent logits >= 0 (sigmoid >= 0.5); zero ties are positive"
+        },
+        "train_loss": 0.39924109148886056,
+        "development_loss": 0.4443828822338652,
+        "train_seconds": 2442.0861197930008,
+        "evaluation_seconds": 734.9590908610007
+      }
+    ],
+    "control": [
+      {
+        "epoch": 1,
+        "metrics": {
+          "macro_f1": 0.6140300626444837,
+          "micro_f1": 0.6150830981498903,
+          "samples": 4380,
+          "per_symptom": {
+            "고열": {
+              "f1": 0.6424731182795699,
+              "precision": 0.6732394366197183,
+              "recall": 0.6143958868894601,
+              "support": 778,
+              "false_positive": 232,
+              "false_negative": 300,
+              "true_positive": 478,
+              "true_negative": 3370,
+              "average_precision": 0.70327789007292
+            },
+            "구토": {
+              "f1": 0.5162907268170426,
+              "precision": 0.4449244060475162,
+              "recall": 0.6149253731343284,
+              "support": 670,
+              "false_positive": 514,
+              "false_negative": 258,
+              "true_positive": 412,
+              "true_negative": 3196,
+              "average_precision": 0.5737440524201298
+            },
+            "두통": {
+              "f1": 0.4876905041031653,
+              "precision": 0.4988009592326139,
+              "recall": 0.47706422018348627,
+              "support": 436,
+              "false_positive": 209,
+              "false_negative": 228,
+              "true_positive": 208,
+              "true_negative": 3735,
+              "average_precision": 0.47364642575618515
+            },
+            "복통": {
+              "f1": 0.7633501967397415,
+              "precision": 0.8899082568807339,
+              "recall": 0.6683070866141733,
+              "support": 1016,
+              "false_positive": 84,
+              "false_negative": 337,
+              "true_positive": 679,
+              "true_negative": 3280,
+              "average_precision": 0.8525842561345127
+            },
+            "어지러움": {
+              "f1": 0.6834451901565995,
+              "precision": 0.7291169451073986,
+              "recall": 0.6431578947368422,
+              "support": 950,
+              "false_positive": 227,
+              "false_negative": 339,
+              "true_positive": 611,
+              "true_negative": 3203,
+              "average_precision": 0.7238218776732905
+            },
+            "열상": {
+              "f1": 0.8708133971291866,
+              "precision": 0.8666666666666667,
+              "recall": 0.875,
+              "support": 520,
+              "false_positive": 70,
+              "false_negative": 65,
+              "true_positive": 455,
+              "true_negative": 3790,
+              "average_precision": 0.9259963573127898
+            },
+            "오심": {
+              "f1": 0.36020334059549747,
+              "precision": 0.2831050228310502,
+              "recall": 0.49500998003992014,
+              "support": 501,
+              "false_positive": 628,
+              "false_negative": 253,
+              "true_positive": 248,
+              "true_negative": 3251,
+              "average_precision": 0.29023809430127956
+            },
+            "전신쇠약": {
+              "f1": 0.5153374233128835,
+              "precision": 0.5042016806722689,
+              "recall": 0.5269761606022585,
+              "support": 797,
+              "false_positive": 413,
+              "false_negative": 377,
+              "true_positive": 420,
+              "true_negative": 3170,
+              "average_precision": 0.5516514859082617
+            },
+            "호흡곤란": {
+              "f1": 0.6866666666666666,
+              "precision": 0.67430441898527,
+              "recall": 0.6994906621392191,
+              "support": 589,
+              "false_positive": 199,
+              "false_negative": 177,
+              "true_positive": 412,
+              "true_negative": 3592,
+              "average_precision": 0.7167079350972365
+            }
+          },
+          "macro_average_precision": 0.6457409305196228,
+          "average_precision_valid_labels": 9,
+          "nausea_f1": 0.36020334059549747,
+          "decision_rule": "independent logits >= 0 (sigmoid >= 0.5); zero ties are positive"
+        },
+        "train_loss": 0.6010621580481529,
+        "development_loss": 0.4762846964788118,
+        "train_seconds": 52.94786973299961,
+        "evaluation_seconds": 14.423490822000531
+      },
+      {
+        "epoch": 2,
+        "metrics": {
+          "macro_f1": 0.6350615086597744,
+          "micro_f1": 0.6430744595676541,
+          "samples": 4380,
+          "per_symptom": {
+            "고열": {
+              "f1": 0.6607538802660754,
+              "precision": 0.7773913043478261,
+              "recall": 0.5745501285347043,
+              "support": 778,
+              "false_positive": 128,
+              "false_negative": 331,
+              "true_positive": 447,
+              "true_negative": 3474,
+              "average_precision": 0.7242733364122039
+            },
+            "구토": {
+              "f1": 0.5631067961165048,
+              "precision": 0.5635276532137519,
+              "recall": 0.5626865671641791,
+              "support": 670,
+              "false_positive": 292,
+              "false_negative": 293,
+              "true_positive": 377,
+              "true_negative": 3418,
+              "average_precision": 0.5877356807626798
+            },
+            "두통": {
+              "f1": 0.5137880986937591,
+              "precision": 0.6996047430830039,
+              "recall": 0.4059633027522936,
+              "support": 436,
+              "false_positive": 76,
+              "false_negative": 259,
+              "true_positive": 177,
+              "true_negative": 3868,
+              "average_precision": 0.5044569431580428
+            },
+            "복통": {
+              "f1": 0.7812177502579979,
+              "precision": 0.8210412147505423,
+              "recall": 0.7450787401574803,
+              "support": 1016,
+              "false_positive": 165,
+              "false_negative": 259,
+              "true_positive": 757,
+              "true_negative": 3199,
+              "average_precision": 0.860272472695106
+            },
+            "어지러움": {
+              "f1": 0.6721144024514811,
+              "precision": 0.6527777777777778,
+              "recall": 0.6926315789473684,
+              "support": 950,
+              "false_positive": 350,
+              "false_negative": 292,
+              "true_positive": 658,
+              "true_negative": 3080,
+              "average_precision": 0.742487660109505
+            },
+            "열상": {
+              "f1": 0.8868274582560297,
+              "precision": 0.8566308243727598,
+              "recall": 0.9192307692307692,
+              "support": 520,
+              "false_positive": 80,
+              "false_negative": 42,
+              "true_positive": 478,
+              "true_negative": 3780,
+              "average_precision": 0.9359199311261506
+            },
+            "오심": {
+              "f1": 0.3728813559322034,
+              "precision": 0.30363864491844417,
+              "recall": 0.48303393213572854,
+              "support": 501,
+              "false_positive": 555,
+              "false_negative": 259,
+              "true_positive": 242,
+              "true_negative": 3324,
+              "average_precision": 0.2993841037492114
+            },
+            "전신쇠약": {
+              "f1": 0.5537897310513448,
+              "precision": 0.5399284862932062,
+              "recall": 0.5683814303638645,
+              "support": 797,
+              "false_positive": 386,
+              "false_negative": 344,
+              "true_positive": 453,
+              "true_negative": 3197,
+              "average_precision": 0.5851869656681183
+            },
+            "호흡곤란": {
+              "f1": 0.7110741049125728,
+              "precision": 0.6977124183006536,
+              "recall": 0.7249575551782682,
+              "support": 589,
+              "false_positive": 185,
+              "false_negative": 162,
+              "true_positive": 427,
+              "true_negative": 3606,
+              "average_precision": 0.7429387186005667
+            }
+          },
+          "macro_average_precision": 0.6647395346979538,
+          "average_precision_valid_labels": 9,
+          "nausea_f1": 0.3728813559322034,
+          "decision_rule": "independent logits >= 0 (sigmoid >= 0.5); zero ties are positive"
+        },
+        "train_loss": 0.4581898047327995,
+        "development_loss": 0.44957323210833944,
+        "train_seconds": 53.00455258900001,
+        "evaluation_seconds": 14.5349356300012
+      },
+      {
+        "epoch": 3,
+        "metrics": {
+          "macro_f1": 0.6340395368182796,
+          "micro_f1": 0.6470731509296095,
+          "samples": 4380,
+          "per_symptom": {
+            "고열": {
+              "f1": 0.6616231086657497,
+              "precision": 0.7115384615384616,
+              "recall": 0.6182519280205655,
+              "support": 778,
+              "false_positive": 195,
+              "false_negative": 297,
+              "true_positive": 481,
+              "true_negative": 3407,
+              "average_precision": 0.7234277400484976
+            },
+            "구토": {
+              "f1": 0.5746209098164405,
+              "precision": 0.6174957118353345,
+              "recall": 0.5373134328358209,
+              "support": 670,
+              "false_positive": 223,
+              "false_negative": 310,
+              "true_positive": 360,
+              "true_negative": 3487,
+              "average_precision": 0.5884250367507944
+            },
+            "두통": {
+              "f1": 0.5196451204055766,
+              "precision": 0.5807365439093485,
+              "recall": 0.4701834862385321,
+              "support": 436,
+              "false_positive": 148,
+              "false_negative": 231,
+              "true_positive": 205,
+              "true_negative": 3796,
+              "average_precision": 0.5088145122663716
+            },
+            "복통": {
+              "f1": 0.7882769075290551,
+              "precision": 0.8099688473520249,
+              "recall": 0.7677165354330708,
+              "support": 1016,
+              "false_positive": 183,
+              "false_negative": 236,
+              "true_positive": 780,
+              "true_negative": 3181,
+              "average_precision": 0.8580583643342463
+            },
+            "어지러움": {
+              "f1": 0.6710726995424504,
+              "precision": 0.6489675516224189,
+              "recall": 0.6947368421052632,
+              "support": 950,
+              "false_positive": 357,
+              "false_negative": 290,
+              "true_positive": 660,
+              "true_negative": 3073,
+              "average_precision": 0.7344350186886772
+            },
+            "열상": {
+              "f1": 0.8788990825688073,
+              "precision": 0.8403508771929824,
+              "recall": 0.9211538461538461,
+              "support": 520,
+              "false_positive": 91,
+              "false_negative": 41,
+              "true_positive": 479,
+              "true_negative": 3769,
+              "average_precision": 0.9386446430741737
+            },
+            "오심": {
+              "f1": 0.36752899197145406,
+              "precision": 0.33225806451612905,
+              "recall": 0.4111776447105788,
+              "support": 501,
+              "false_positive": 414,
+              "false_negative": 295,
+              "true_positive": 206,
+              "true_negative": 3465,
+              "average_precision": 0.30551905071590935
+            },
+            "전신쇠약": {
+              "f1": 0.54521625163827,
+              "precision": 0.5706447187928669,
+              "recall": 0.5219573400250941,
+              "support": 797,
+              "false_positive": 313,
+              "false_negative": 381,
+              "true_positive": 416,
+              "true_negative": 3270,
+              "average_precision": 0.5761030736562059
+            },
+            "호흡곤란": {
+              "f1": 0.6994727592267135,
+              "precision": 0.7249544626593807,
+              "recall": 0.6757215619694398,
+              "support": 589,
+              "false_positive": 151,
+              "false_negative": 191,
+              "true_positive": 398,
+              "true_negative": 3640,
+              "average_precision": 0.7311577898763403
+            }
+          },
+          "macro_average_precision": 0.6627316921568018,
+          "average_precision_valid_labels": 9,
+          "nausea_f1": 0.36752899197145406,
+          "decision_rule": "independent logits >= 0 (sigmoid >= 0.5); zero ties are positive"
+        },
+        "train_loss": 0.41135994336009024,
+        "development_loss": 0.44788109599175874,
+        "train_seconds": 53.5580803569992,
+        "evaluation_seconds": 14.567112153999915
+      }
+    ]
+  },
+  "timings_per_epoch": {
+    "qwen": {
+      "train_seconds": 2432.8228960260003,
+      "evaluation_seconds": 734.9943488363336
+    },
+    "control": {
+      "train_seconds": 53.170167559666275,
+      "evaluation_seconds": 14.508512868667216
+    }
+  },
+  "development": {
+    "qwen": {
+      "macro_f1": 0.627609747439115,
+      "micro_f1": 0.6445436105476673,
+      "samples": 4380,
+      "per_symptom": {
+        "고열": {
+          "f1": 0.6494367130550033,
+          "precision": 0.6703146374829001,
+          "recall": 0.6298200514138818,
+          "support": 778,
+          "false_positive": 241,
+          "false_negative": 288,
+          "true_positive": 490,
+          "true_negative": 3361,
+          "average_precision": 0.7373473558298811
+        },
+        "구토": {
+          "f1": 0.5825396825396826,
+          "precision": 0.6220338983050847,
+          "recall": 0.5477611940298508,
+          "support": 670,
+          "false_positive": 223,
+          "false_negative": 303,
+          "true_positive": 367,
+          "true_negative": 3487,
+          "average_precision": 0.6054609072565006
+        },
+        "두통": {
+          "f1": 0.48711340206185566,
+          "precision": 0.5558823529411765,
+          "recall": 0.4334862385321101,
+          "support": 436,
+          "false_positive": 151,
+          "false_negative": 247,
+          "true_positive": 189,
+          "true_negative": 3793,
+          "average_precision": 0.48515569212626103
+        },
+        "복통": {
+          "f1": 0.7755710029791459,
+          "precision": 0.782565130260521,
+          "recall": 0.7687007874015748,
+          "support": 1016,
+          "false_positive": 217,
+          "false_negative": 235,
+          "true_positive": 781,
+          "true_negative": 3147,
+          "average_precision": 0.8625010262898796
+        },
+        "어지러움": {
+          "f1": 0.6711970726607422,
+          "precision": 0.6666666666666666,
+          "recall": 0.6757894736842105,
+          "support": 950,
+          "false_positive": 321,
+          "false_negative": 308,
+          "true_positive": 642,
+          "true_negative": 3109,
+          "average_precision": 0.7366100227992758
+        },
+        "열상": {
+          "f1": 0.8818181818181818,
+          "precision": 0.8362068965517241,
+          "recall": 0.9326923076923077,
+          "support": 520,
+          "false_positive": 95,
+          "false_negative": 35,
+          "true_positive": 485,
+          "true_negative": 3765,
+          "average_precision": 0.9440338289857513
+        },
+        "오심": {
+          "f1": 0.3466135458167331,
+          "precision": 0.34592445328031807,
+          "recall": 0.3473053892215569,
+          "support": 501,
+          "false_positive": 329,
+          "false_negative": 327,
+          "true_positive": 174,
+          "true_negative": 3550,
+          "average_precision": 0.29825469896067913
+        },
+        "전신쇠약": {
+          "f1": 0.5512104283054003,
+          "precision": 0.5454545454545454,
+          "recall": 0.5570890840652447,
+          "support": 797,
+          "false_positive": 370,
+          "false_negative": 353,
+          "true_positive": 444,
+          "true_negative": 3213,
+          "average_precision": 0.5885498368524025
+        },
+        "호흡곤란": {
+          "f1": 0.70298769771529,
+          "precision": 0.7285974499089253,
+          "recall": 0.6791171477079796,
+          "support": 589,
+          "false_positive": 149,
+          "false_negative": 189,
+          "true_positive": 400,
+          "true_negative": 3642,
+          "average_precision": 0.7149343288453059
+        }
+      },
+      "macro_average_precision": 0.6636497442162153,
+      "average_precision_valid_labels": 9,
+      "nausea_f1": 0.3466135458167331,
+      "decision_rule": "independent logits >= 0 (sigmoid >= 0.5); zero ties are positive"
+    },
+    "control": {
+      "macro_f1": 0.6350615086597744,
+      "micro_f1": 0.6430744595676541,
+      "samples": 4380,
+      "per_symptom": {
+        "고열": {
+          "f1": 0.6607538802660754,
+          "precision": 0.7773913043478261,
+          "recall": 0.5745501285347043,
+          "support": 778,
+          "false_positive": 128,
+          "false_negative": 331,
+          "true_positive": 447,
+          "true_negative": 3474,
+          "average_precision": 0.7242733364122039
+        },
+        "구토": {
+          "f1": 0.5631067961165048,
+          "precision": 0.5635276532137519,
+          "recall": 0.5626865671641791,
+          "support": 670,
+          "false_positive": 292,
+          "false_negative": 293,
+          "true_positive": 377,
+          "true_negative": 3418,
+          "average_precision": 0.5877356807626798
+        },
+        "두통": {
+          "f1": 0.5137880986937591,
+          "precision": 0.6996047430830039,
+          "recall": 0.4059633027522936,
+          "support": 436,
+          "false_positive": 76,
+          "false_negative": 259,
+          "true_positive": 177,
+          "true_negative": 3868,
+          "average_precision": 0.5044569431580428
+        },
+        "복통": {
+          "f1": 0.7812177502579979,
+          "precision": 0.8210412147505423,
+          "recall": 0.7450787401574803,
+          "support": 1016,
+          "false_positive": 165,
+          "false_negative": 259,
+          "true_positive": 757,
+          "true_negative": 3199,
+          "average_precision": 0.860272472695106
+        },
+        "어지러움": {
+          "f1": 0.6721144024514811,
+          "precision": 0.6527777777777778,
+          "recall": 0.6926315789473684,
+          "support": 950,
+          "false_positive": 350,
+          "false_negative": 292,
+          "true_positive": 658,
+          "true_negative": 3080,
+          "average_precision": 0.742487660109505
+        },
+        "열상": {
+          "f1": 0.8868274582560297,
+          "precision": 0.8566308243727598,
+          "recall": 0.9192307692307692,
+          "support": 520,
+          "false_positive": 80,
+          "false_negative": 42,
+          "true_positive": 478,
+          "true_negative": 3780,
+          "average_precision": 0.9359199311261506
+        },
+        "오심": {
+          "f1": 0.3728813559322034,
+          "precision": 0.30363864491844417,
+          "recall": 0.48303393213572854,
+          "support": 501,
+          "false_positive": 555,
+          "false_negative": 259,
+          "true_positive": 242,
+          "true_negative": 3324,
+          "average_precision": 0.2993841037492114
+        },
+        "전신쇠약": {
+          "f1": 0.5537897310513448,
+          "precision": 0.5399284862932062,
+          "recall": 0.5683814303638645,
+          "support": 797,
+          "false_positive": 386,
+          "false_negative": 344,
+          "true_positive": 453,
+          "true_negative": 3197,
+          "average_precision": 0.5851869656681183
+        },
+        "호흡곤란": {
+          "f1": 0.7110741049125728,
+          "precision": 0.6977124183006536,
+          "recall": 0.7249575551782682,
+          "support": 589,
+          "false_positive": 185,
+          "false_negative": 162,
+          "true_positive": 427,
+          "true_negative": 3606,
+          "average_precision": 0.7429387186005667
+        }
+      },
+      "macro_average_precision": 0.6647395346979538,
+      "average_precision_valid_labels": 9,
+      "nausea_f1": 0.3728813559322034,
+      "decision_rule": "independent logits >= 0 (sigmoid >= 0.5); zero ties are positive"
+    },
+    "ensemble": {
+      "macro_f1": 0.6400311913975444,
+      "micro_f1": 0.6532383525751249,
+      "samples": 4380,
+      "per_symptom": {
+        "고열": {
+          "f1": 0.6661931818181818,
+          "precision": 0.7444444444444445,
+          "recall": 0.602827763496144,
+          "support": 778,
+          "false_positive": 161,
+          "false_negative": 309,
+          "true_positive": 469,
+          "true_negative": 3441,
+          "average_precision": 0.7427273236370002
+        },
+        "구토": {
+          "f1": 0.5739268680445151,
+          "precision": 0.6139455782312925,
+          "recall": 0.5388059701492537,
+          "support": 670,
+          "false_positive": 227,
+          "false_negative": 309,
+          "true_positive": 361,
+          "true_negative": 3483,
+          "average_precision": 0.6177685589062277
+        },
+        "두통": {
+          "f1": 0.5194444444444445,
+          "precision": 0.6584507042253521,
+          "recall": 0.4288990825688073,
+          "support": 436,
+          "false_positive": 97,
+          "false_negative": 249,
+          "true_positive": 187,
+          "true_negative": 3847,
+          "average_precision": 0.5125324875472462
+        },
+        "복통": {
+          "f1": 0.7893660531697342,
+          "precision": 0.8212765957446808,
+          "recall": 0.7598425196850394,
+          "support": 1016,
+          "false_positive": 168,
+          "false_negative": 244,
+          "true_positive": 772,
+          "true_negative": 3196,
+          "average_precision": 0.87218492614247
+        },
+        "어지러움": {
+          "f1": 0.6804451510333863,
+          "precision": 0.6851654215581644,
+          "recall": 0.6757894736842105,
+          "support": 950,
+          "false_positive": 295,
+          "false_negative": 308,
+          "true_positive": 642,
+          "true_negative": 3135,
+          "average_precision": 0.7485844560349043
+        },
+        "열상": {
+          "f1": 0.8903225806451613,
+          "precision": 0.8548672566371681,
+          "recall": 0.9288461538461539,
+          "support": 520,
+          "false_positive": 82,
+          "false_negative": 37,
+          "true_positive": 483,
+          "true_negative": 3778,
+          "average_precision": 0.9496613954197474
+        },
+        "오심": {
+          "f1": 0.36123348017621143,
+          "precision": 0.32334384858044163,
+          "recall": 0.4091816367265469,
+          "support": 501,
+          "false_positive": 429,
+          "false_negative": 296,
+          "true_positive": 205,
+          "true_negative": 3450,
+          "average_precision": 0.30630216745717287
+        },
+        "전신쇠약": {
+          "f1": 0.5728643216080402,
+          "precision": 0.5735849056603773,
+          "recall": 0.5721455457967378,
+          "support": 797,
+          "false_positive": 339,
+          "false_negative": 341,
+          "true_positive": 456,
+          "true_negative": 3244,
+          "average_precision": 0.6027036245024731
+        },
+        "호흡곤란": {
+          "f1": 0.7064846416382252,
+          "precision": 0.7101200686106347,
+          "recall": 0.7028862478777589,
+          "support": 589,
+          "false_positive": 169,
+          "false_negative": 175,
+          "true_positive": 414,
+          "true_negative": 3622,
+          "average_precision": 0.7457433284780055
+        }
+      },
+      "macro_average_precision": 0.6775786964583609,
+      "average_precision_valid_labels": 9,
+      "nausea_f1": 0.36123348017621143,
+      "decision_rule": "independent logits >= 0 (sigmoid >= 0.5); zero ties are positive"
+    }
+  },
+  "ver26_development": {
+    "qwen": {
+      "macro_f1": 0.6276905157603386,
+      "micro_f1": 0.6444354512343181,
+      "samples": 4380,
+      "per_symptom": {
+        "고열": {
+          "f1": 0.6504279131007241,
+          "precision": 0.6666666666666666,
+          "recall": 0.6349614395886889,
+          "support": 778,
+          "false_positive": 247,
+          "false_negative": 284,
+          "true_positive": 494,
+          "true_negative": 3355,
+          "average_precision": 0.7387064243035478
+        },
+        "구토": {
+          "f1": 0.5716440422322775,
+          "precision": 0.5777439024390244,
+          "recall": 0.5656716417910448,
+          "support": 670,
+          "false_positive": 277,
+          "false_negative": 291,
+          "true_positive": 379,
+          "true_negative": 3433,
+          "average_precision": 0.5984083530387986
+        },
+        "두통": {
+          "f1": 0.45722713864306785,
+          "precision": 0.640495867768595,
+          "recall": 0.3555045871559633,
+          "support": 436,
+          "false_positive": 87,
+          "false_negative": 281,
+          "true_positive": 155,
+          "true_negative": 3857,
+          "average_precision": 0.48155727332049636
+        },
+        "복통": {
+          "f1": 0.7875439477649422,
+          "precision": 0.8041025641025641,
+          "recall": 0.7716535433070866,
+          "support": 1016,
+          "false_positive": 191,
+          "false_negative": 232,
+          "true_positive": 784,
+          "true_negative": 3173,
+          "average_precision": 0.8714537396479765
+        },
+        "어지러움": {
+          "f1": 0.6650803093396788,
+          "precision": 0.7647058823529411,
+          "recall": 0.588421052631579,
+          "support": 950,
+          "false_positive": 172,
+          "false_negative": 391,
+          "true_positive": 559,
+          "true_negative": 3258,
+          "average_precision": 0.7477152550842145
+        },
+        "열상": {
+          "f1": 0.872791519434629,
+          "precision": 0.8071895424836601,
+          "recall": 0.95,
+          "support": 520,
+          "false_positive": 118,
+          "false_negative": 26,
+          "true_positive": 494,
+          "true_negative": 3742,
+          "average_precision": 0.9475021523101841
+        },
+        "오심": {
+          "f1": 0.36123348017621143,
+          "precision": 0.32334384858044163,
+          "recall": 0.4091816367265469,
+          "support": 501,
+          "false_positive": 429,
+          "false_negative": 296,
+          "true_positive": 205,
+          "true_negative": 3450,
+          "average_precision": 0.30600193699882
+        },
+        "전신쇠약": {
+          "f1": 0.5746180963572268,
+          "precision": 0.5403314917127072,
+          "recall": 0.6135508155583438,
+          "support": 797,
+          "false_positive": 416,
+          "false_negative": 308,
+          "true_positive": 489,
+          "true_negative": 3167,
+          "average_precision": 0.5987971606219132
+        },
+        "호흡곤란": {
+          "f1": 0.7086481947942905,
+          "precision": 0.7009966777408638,
+          "recall": 0.7164685908319185,
+          "support": 589,
+          "false_positive": 180,
+          "false_negative": 167,
+          "true_positive": 422,
+          "true_negative": 3611,
+          "average_precision": 0.7395996688600237
+        }
+      },
+      "macro_average_precision": 0.6699713293539973,
+      "average_precision_valid_labels": 9,
+      "nausea_f1": 0.36123348017621143,
+      "decision_rule": "independent logits >= 0 (sigmoid >= 0.5); zero ties are positive"
+    },
+    "control": {
+      "macro_f1": 0.6345984637314397,
+      "micro_f1": 0.6474551505804043,
+      "samples": 4380,
+      "per_symptom": {
+        "고열": {
+          "f1": 0.6593103448275862,
+          "precision": 0.7113095238095238,
+          "recall": 0.6143958868894601,
+          "support": 778,
+          "false_positive": 194,
+          "false_negative": 300,
+          "true_positive": 478,
+          "true_negative": 3408,
+          "average_precision": 0.723858084729682
+        },
+        "구토": {
+          "f1": 0.5721115537848606,
+          "precision": 0.6136752136752137,
+          "recall": 0.5358208955223881,
+          "support": 670,
+          "false_positive": 226,
+          "false_negative": 311,
+          "true_positive": 359,
+          "true_negative": 3484,
+          "average_precision": 0.5879882778734172
+        },
+        "두통": {
+          "f1": 0.5196451204055766,
+          "precision": 0.5807365439093485,
+          "recall": 0.4701834862385321,
+          "support": 436,
+          "false_positive": 148,
+          "false_negative": 231,
+          "true_positive": 205,
+          "true_negative": 3796,
+          "average_precision": 0.5103700343466026
+        },
+        "복통": {
+          "f1": 0.7907211296016137,
+          "precision": 0.8107549120992761,
+          "recall": 0.7716535433070866,
+          "support": 1016,
+          "false_positive": 183,
+          "false_negative": 232,
+          "true_positive": 784,
+          "true_negative": 3181,
+          "average_precision": 0.8588588933249786
+        },
+        "어지러움": {
+          "f1": 0.6704138988247317,
+          "precision": 0.6514399205561072,
+          "recall": 0.6905263157894737,
+          "support": 950,
+          "false_positive": 351,
+          "false_negative": 294,
+          "true_positive": 656,
+          "true_negative": 3079,
+          "average_precision": 0.7347362391544232
+        },
+        "열상": {
+          "f1": 0.8797061524334252,
+          "precision": 0.8418277680140598,
+          "recall": 0.9211538461538461,
+          "support": 520,
+          "false_positive": 90,
+          "false_negative": 41,
+          "true_positive": 479,
+          "true_negative": 3770,
+          "average_precision": 0.9392984983131615
+        },
+        "오심": {
+          "f1": 0.37378210806023027,
+          "precision": 0.3359872611464968,
+          "recall": 0.42115768463073855,
+          "support": 501,
+          "false_positive": 417,
+          "false_negative": 290,
+          "true_positive": 211,
+          "true_negative": 3462,
+          "average_precision": 0.3047404304477388
+        },
+        "전신쇠약": {
+          "f1": 0.5447368421052632,
+          "precision": 0.5726141078838174,
+          "recall": 0.5194479297365119,
+          "support": 797,
+          "false_positive": 309,
+          "false_negative": 383,
+          "true_positive": 414,
+          "true_negative": 3274,
+          "average_precision": 0.5771889788487794
+        },
+        "호흡곤란": {
+          "f1": 0.7009590235396687,
+          "precision": 0.7204301075268817,
+          "recall": 0.6825127334465195,
+          "support": 589,
+          "false_positive": 156,
+          "false_negative": 187,
+          "true_positive": 402,
+          "true_negative": 3635,
+          "average_precision": 0.7320945320625937
+        }
+      },
+      "macro_average_precision": 0.6632371076779308,
+      "average_precision_valid_labels": 9,
+      "nausea_f1": 0.37378210806023027,
+      "decision_rule": "independent logits >= 0 (sigmoid >= 0.5); zero ties are positive"
+    },
+    "ensemble": {
+      "macro_f1": 0.6461876722348602,
+      "micro_f1": 0.6596180640931071,
+      "samples": 4380,
+      "per_symptom": {
+        "고열": {
+          "f1": 0.6680299931833674,
+          "precision": 0.7111756168359942,
+          "recall": 0.6298200514138818,
+          "support": 778,
+          "false_positive": 199,
+          "false_negative": 288,
+          "true_positive": 490,
+          "true_negative": 3403,
+          "average_precision": 0.7473264818540047
+        },
+        "구토": {
+          "f1": 0.5821371610845295,
+          "precision": 0.625,
+          "recall": 0.5447761194029851,
+          "support": 670,
+          "false_positive": 219,
+          "false_negative": 305,
+          "true_positive": 365,
+          "true_negative": 3491,
+          "average_precision": 0.6143790447362684
+        },
+        "두통": {
+          "f1": 0.521978021978022,
+          "precision": 0.6506849315068494,
+          "recall": 0.43577981651376146,
+          "support": 436,
+          "false_positive": 102,
+          "false_negative": 246,
+          "true_positive": 190,
+          "true_negative": 3842,
+          "average_precision": 0.5126242459010771
+        },
+        "복통": {
+          "f1": 0.7991886409736308,
+          "precision": 0.8242677824267782,
+          "recall": 0.7755905511811023,
+          "support": 1016,
+          "false_positive": 168,
+          "false_negative": 228,
+          "true_positive": 788,
+          "true_negative": 3196,
+          "average_precision": 0.8750677142011821
+        },
+        "어지러움": {
+          "f1": 0.6826280623608018,
+          "precision": 0.7245862884160756,
+          "recall": 0.6452631578947369,
+          "support": 950,
+          "false_positive": 233,
+          "false_negative": 337,
+          "true_positive": 613,
+          "true_negative": 3197,
+          "average_precision": 0.7545674189215528
+        },
+        "열상": {
+          "f1": 0.8892921960072595,
+          "precision": 0.8419243986254296,
+          "recall": 0.9423076923076923,
+          "support": 520,
+          "false_positive": 92,
+          "false_negative": 30,
+          "true_positive": 490,
+          "true_negative": 3768,
+          "average_precision": 0.9521760861368227
+        },
+        "오심": {
+          "f1": 0.37609841827768015,
+          "precision": 0.3359497645211931,
+          "recall": 0.42714570858283435,
+          "support": 501,
+          "false_positive": 423,
+          "false_negative": 287,
+          "true_positive": 214,
+          "true_negative": 3456,
+          "average_precision": 0.3126001087144352
+        },
+        "전신쇠약": {
+          "f1": 0.5777218376337319,
+          "precision": 0.5795454545454546,
+          "recall": 0.5759096612296111,
+          "support": 797,
+          "false_positive": 333,
+          "false_negative": 338,
+          "true_positive": 459,
+          "true_negative": 3250,
+          "average_precision": 0.6050728594568433
+        },
+        "호흡곤란": {
+          "f1": 0.7186147186147186,
+          "precision": 0.7332155477031802,
+          "recall": 0.7045840407470289,
+          "support": 589,
+          "false_positive": 151,
+          "false_negative": 174,
+          "true_positive": 415,
+          "true_negative": 3640,
+          "average_precision": 0.7507821347689222
+        }
+      },
+      "macro_average_precision": 0.6805106771879009,
+      "average_precision_valid_labels": 9,
+      "nausea_f1": 0.37609841827768015,
+      "decision_rule": "independent logits >= 0 (sigmoid >= 0.5); zero ties are positive"
+    }
+  },
+  "matched_control_ensemble": {
+    "macro_f1": 0.6399200632594321,
+    "micro_f1": 0.654790247106149,
+    "samples": 4380,
+    "per_symptom": {
+      "고열": {
+        "f1": 0.6684931506849315,
+        "precision": 0.7155425219941349,
+        "recall": 0.6272493573264781,
+        "support": 778,
+        "false_positive": 194,
+        "false_negative": 290,
+        "true_positive": 488,
+        "true_negative": 3408,
+        "average_precision": 0.7446816120462324
+      },
+      "구토": {
+        "f1": 0.5813204508856683,
+        "precision": 0.6311188811188811,
+        "recall": 0.5388059701492537,
+        "support": 670,
+        "false_positive": 211,
+        "false_negative": 309,
+        "true_positive": 361,
+        "true_negative": 3499,
+        "average_precision": 0.6211008782316704
+      },
+      "두통": {
+        "f1": 0.5304010349288486,
+        "precision": 0.6083086053412463,
+        "recall": 0.4701834862385321,
+        "support": 436,
+        "false_positive": 132,
+        "false_negative": 231,
+        "true_positive": 205,
+        "true_negative": 3812,
+        "average_precision": 0.5147497405321788
+      },
+      "복통": {
+        "f1": 0.7906976744186046,
+        "precision": 0.8128898128898129,
+        "recall": 0.7696850393700787,
+        "support": 1016,
+        "false_positive": 180,
+        "false_negative": 234,
+        "true_positive": 782,
+        "true_negative": 3184,
+        "average_precision": 0.872195641900899
+      },
+      "어지러움": {
+        "f1": 0.6768100734522561,
+        "precision": 0.6746861924686193,
+        "recall": 0.6789473684210526,
+        "support": 950,
+        "false_positive": 311,
+        "false_negative": 305,
+        "true_positive": 645,
+        "true_negative": 3119,
+        "average_precision": 0.7446212281314655
+      },
+      "열상": {
+        "f1": 0.8909426987060998,
+        "precision": 0.8576512455516014,
+        "recall": 0.926923076923077,
+        "support": 520,
+        "false_positive": 80,
+        "false_negative": 38,
+        "true_positive": 482,
+        "true_negative": 3780,
+        "average_precision": 0.9499940532356983
+      },
+      "오심": {
+        "f1": 0.3493282149712092,
+        "precision": 0.3364140480591497,
+        "recall": 0.36327345309381237,
+        "support": 501,
+        "false_positive": 359,
+        "false_negative": 319,
+        "true_positive": 182,
+        "true_negative": 3520,
+        "average_precision": 0.3098045637144331
+      },
+      "전신쇠약": {
+        "f1": 0.564993564993565,
+        "precision": 0.5799207397622193,
+        "recall": 0.5508155583437893,
+        "support": 797,
+        "false_positive": 318,
+        "false_negative": 358,
+        "true_positive": 439,
+        "true_negative": 3265,
+        "average_precision": 0.6003700616181691
+      },
+      "호흡곤란": {
+        "f1": 0.7062937062937062,
+        "precision": 0.7279279279279279,
+        "recall": 0.6859083191850595,
+        "support": 589,
+        "false_positive": 151,
+        "false_negative": 185,
+        "true_positive": 404,
+        "true_negative": 3640,
+        "average_precision": 0.7436570918920905
+      }
+    },
+    "macro_average_precision": 0.6779083190336486,
+    "average_precision_valid_labels": 9,
+    "nausea_f1": 0.3493282149712092,
+    "decision_rule": "independent logits >= 0 (sigmoid >= 0.5); zero ties are positive"
+  },
+  "comparisons": {
+    "new_qwen_minus_ver26_qwen": {
+      "macro_f1_delta": -8.07683212236121e-05,
+      "macro_ap_delta": -0.0063215851377820265,
+      "nausea_f1_delta": -0.014619934359478337,
+      "per_symptom_f1_delta": {
+        "고열": -0.0009912000457208414,
+        "구토": 0.010895640307405086,
+        "두통": 0.029886263418787806,
+        "복통": -0.011972944785796247,
+        "어지러움": 0.006116763321063479,
+        "열상": 0.009026662383552875,
+        "오심": -0.014619934359478337,
+        "전신쇠약": -0.02340766805182648,
+        "호흡곤란": -0.005660497079000515
+      },
+      "paired_errors": {
+        "samples": 4380,
+        "per_symptom": {
+          "고열": {
+            "common_false_negative": 269,
+            "common_false_positive": 175,
+            "fixed_false_negative": 15,
+            "fixed_false_positive": 72,
+            "new_false_negative": 19,
+            "new_false_positive": 66,
+            "control_false_negative": 284,
+            "control_false_positive": 247,
+            "candidate_false_negative": 288,
+            "candidate_false_positive": 241
+          },
+          "구토": {
+            "common_false_negative": 268,
+            "common_false_positive": 172,
+            "fixed_false_negative": 23,
+            "fixed_false_positive": 105,
+            "new_false_negative": 35,
+            "new_false_positive": 51,
+            "control_false_negative": 291,
+            "control_false_positive": 277,
+            "candidate_false_negative": 303,
+            "candidate_false_positive": 223
+          },
+          "두통": {
+            "common_false_negative": 245,
+            "common_false_positive": 72,
+            "fixed_false_negative": 36,
+            "fixed_false_positive": 15,
+            "new_false_negative": 2,
+            "new_false_positive": 79,
+            "control_false_negative": 281,
+            "control_false_positive": 87,
+            "candidate_false_negative": 247,
+            "candidate_false_positive": 151
+          },
+          "복통": {
+            "common_false_negative": 203,
+            "common_false_positive": 157,
+            "fixed_false_negative": 29,
+            "fixed_false_positive": 34,
+            "new_false_negative": 32,
+            "new_false_positive": 60,
+            "control_false_negative": 232,
+            "control_false_positive": 191,
+            "candidate_false_negative": 235,
+            "candidate_false_positive": 217
+          },
+          "어지러움": {
+            "common_false_negative": 298,
+            "common_false_positive": 157,
+            "fixed_false_negative": 93,
+            "fixed_false_positive": 15,
+            "new_false_negative": 10,
+            "new_false_positive": 164,
+            "control_false_negative": 391,
+            "control_false_positive": 172,
+            "candidate_false_negative": 308,
+            "candidate_false_positive": 321
+          },
+          "열상": {
+            "common_false_negative": 24,
+            "common_false_positive": 87,
+            "fixed_false_negative": 2,
+            "fixed_false_positive": 31,
+            "new_false_negative": 11,
+            "new_false_positive": 8,
+            "control_false_negative": 26,
+            "control_false_positive": 118,
+            "candidate_false_negative": 35,
+            "candidate_false_positive": 95
+          },
+          "오심": {
+            "common_false_negative": 285,
+            "common_false_positive": 292,
+            "fixed_false_negative": 11,
+            "fixed_false_positive": 137,
+            "new_false_negative": 42,
+            "new_false_positive": 37,
+            "control_false_negative": 296,
+            "control_false_positive": 429,
+            "candidate_false_negative": 327,
+            "candidate_false_positive": 329
+          },
+          "전신쇠약": {
+            "common_false_negative": 294,
+            "common_false_positive": 305,
+            "fixed_false_negative": 14,
+            "fixed_false_positive": 111,
+            "new_false_negative": 59,
+            "new_false_positive": 65,
+            "control_false_negative": 308,
+            "control_false_positive": 416,
+            "candidate_false_negative": 353,
+            "candidate_false_positive": 370
+          },
+          "호흡곤란": {
+            "common_false_negative": 160,
+            "common_false_positive": 128,
+            "fixed_false_negative": 7,
+            "fixed_false_positive": 52,
+            "new_false_negative": 29,
+            "new_false_positive": 21,
+            "control_false_negative": 167,
+            "control_false_positive": 180,
+            "candidate_false_negative": 189,
+            "candidate_false_positive": 149
+          }
+        }
+      },
+      "paired_ci": {
+        "samples": 4380,
+        "iterations": 500,
+        "seed": 42,
+        "confidence": 0.95,
+        "unit": "call",
+        "comparison": "candidate minus control",
+        "method": "paired percentile bootstrap",
+        "macro_f1_delta": {
+          "estimate": -8.076832122368612e-05,
+          "lower": -0.005976077675379572,
+          "upper": 0.006142217621860149
+        },
+        "per_symptom_f1_delta": {
+          "고열": {
+            "estimate": -0.0009912000457208414,
+            "lower": -0.01566054412665343,
+            "upper": 0.013589722298209242
+          },
+          "구토": {
+            "estimate": 0.010895640307405086,
+            "lower": -0.007167299896337278,
+            "upper": 0.03125645771201187
+          },
+          "두통": {
+            "estimate": 0.029886263418787806,
+            "lower": 0.0030680500246195756,
+            "upper": 0.056511104536625195
+          },
+          "복통": {
+            "estimate": -0.011972944785796247,
+            "lower": -0.022436025229517445,
+            "upper": -0.000970220433802472
+          },
+          "어지러움": {
+            "estimate": 0.006116763321063479,
+            "lower": -0.010319416861161867,
+            "upper": 0.022962581921709305
+          },
+          "열상": {
+            "estimate": 0.009026662383552875,
+            "lower": -0.003666751170558157,
+            "upper": 0.0211662764642383
+          },
+          "오심": {
+            "estimate": -0.014619934359478337,
+            "lower": -0.03668617520534752,
+            "upper": 0.011225786232666802
+          },
+          "전신쇠약": {
+            "estimate": -0.02340766805182648,
+            "lower": -0.04149926235974324,
+            "upper": -0.0063618400749854975
+          },
+          "호흡곤란": {
+            "estimate": -0.005660497079000515,
+            "lower": -0.021441671259879294,
+            "upper": 0.01265454748181232
+          }
+        },
+        "limitations": "Conditional on trained models and this split; repeated selection and training-seed uncertainty are not included. Duplicate calls may still be statistically dependent."
+      }
+    },
+    "same_control_ensemble_minus_ver26_ensemble": {
+      "macro_f1_delta": -0.006267608975428107,
+      "macro_ap_delta": -0.00260235815425236,
+      "nausea_f1_delta": -0.026770203306470952,
+      "per_symptom_f1_delta": {
+        "고열": 0.0004631575015641154,
+        "구토": -0.0008167101988612036,
+        "두통": 0.008423012950826592,
+        "복통": -0.008490966555026236,
+        "어지러움": -0.005817988908545679,
+        "열상": 0.0016505026988402616,
+        "오심": -0.026770203306470952,
+        "전신쇠약": -0.012728272640166849,
+        "호흡곤란": -0.012321012321012348
+      },
+      "paired_errors": {
+        "samples": 4380,
+        "per_symptom": {
+          "고열": {
+            "common_false_negative": 277,
+            "common_false_positive": 171,
+            "fixed_false_negative": 11,
+            "fixed_false_positive": 28,
+            "new_false_negative": 13,
+            "new_false_positive": 23,
+            "control_false_negative": 288,
+            "control_false_positive": 199,
+            "candidate_false_negative": 290,
+            "candidate_false_positive": 194
+          },
+          "구토": {
+            "common_false_negative": 300,
+            "common_false_positive": 188,
+            "fixed_false_negative": 5,
+            "fixed_false_positive": 31,
+            "new_false_negative": 9,
+            "new_false_positive": 23,
+            "control_false_negative": 305,
+            "control_false_positive": 219,
+            "candidate_false_negative": 309,
+            "candidate_false_positive": 211
+          },
+          "두통": {
+            "common_false_negative": 229,
+            "common_false_positive": 98,
+            "fixed_false_negative": 17,
+            "fixed_false_positive": 4,
+            "new_false_negative": 2,
+            "new_false_positive": 34,
+            "control_false_negative": 246,
+            "control_false_positive": 102,
+            "candidate_false_negative": 231,
+            "candidate_false_positive": 132
+          },
+          "복통": {
+            "common_false_negative": 223,
+            "common_false_positive": 151,
+            "fixed_false_negative": 5,
+            "fixed_false_positive": 17,
+            "new_false_negative": 11,
+            "new_false_positive": 29,
+            "control_false_negative": 228,
+            "control_false_positive": 168,
+            "candidate_false_negative": 234,
+            "candidate_false_positive": 180
+          },
+          "어지러움": {
+            "common_false_negative": 297,
+            "common_false_positive": 224,
+            "fixed_false_negative": 40,
+            "fixed_false_positive": 9,
+            "new_false_negative": 8,
+            "new_false_positive": 87,
+            "control_false_negative": 337,
+            "control_false_positive": 233,
+            "candidate_false_negative": 305,
+            "candidate_false_positive": 311
+          },
+          "열상": {
+            "common_false_negative": 30,
+            "common_false_positive": 77,
+            "fixed_false_negative": 0,
+            "fixed_false_positive": 15,
+            "new_false_negative": 8,
+            "new_false_positive": 3,
+            "control_false_negative": 30,
+            "control_false_positive": 92,
+            "candidate_false_negative": 38,
+            "candidate_false_positive": 80
+          },
+          "오심": {
+            "common_false_negative": 285,
+            "common_false_positive": 340,
+            "fixed_false_negative": 2,
+            "fixed_false_positive": 83,
+            "new_false_negative": 34,
+            "new_false_positive": 19,
+            "control_false_negative": 287,
+            "control_false_positive": 423,
+            "candidate_false_negative": 319,
+            "candidate_false_positive": 359
+          },
+          "전신쇠약": {
+            "common_false_negative": 329,
+            "common_false_positive": 298,
+            "fixed_false_negative": 9,
+            "fixed_false_positive": 35,
+            "new_false_negative": 29,
+            "new_false_positive": 20,
+            "control_false_negative": 338,
+            "control_false_positive": 333,
+            "candidate_false_negative": 358,
+            "candidate_false_positive": 318
+          },
+          "호흡곤란": {
+            "common_false_negative": 170,
+            "common_false_positive": 137,
+            "fixed_false_negative": 4,
+            "fixed_false_positive": 14,
+            "new_false_negative": 15,
+            "new_false_positive": 14,
+            "control_false_negative": 174,
+            "control_false_positive": 151,
+            "candidate_false_negative": 185,
+            "candidate_false_positive": 151
+          }
+        }
+      },
+      "paired_ci": {
+        "samples": 4380,
+        "iterations": 500,
+        "seed": 42,
+        "confidence": 0.95,
+        "unit": "call",
+        "comparison": "candidate minus control",
+        "method": "paired percentile bootstrap",
+        "macro_f1_delta": {
+          "estimate": -0.0062676089754280335,
+          "lower": -0.010641194180455189,
+          "upper": -0.0015205266709728332
+        },
+        "per_symptom_f1_delta": {
+          "고열": {
+            "estimate": 0.0004631575015641154,
+            "lower": -0.01094686406368936,
+            "upper": 0.011061814965463745
+          },
+          "구토": {
+            "estimate": -0.0008167101988612036,
+            "lower": -0.012215585929749336,
+            "upper": 0.010816355836015873
+          },
+          "두통": {
+            "estimate": 0.008423012950826592,
+            "lower": -0.011066969005332945,
+            "upper": 0.026829194299570584
+          },
+          "복통": {
+            "estimate": -0.008490966555026236,
+            "lower": -0.01577897277021283,
+            "upper": -0.0015755265082399762
+          },
+          "어지러움": {
+            "estimate": -0.005817988908545679,
+            "lower": -0.01790556626996494,
+            "upper": 0.00640032974029548
+          },
+          "열상": {
+            "estimate": 0.0016505026988402616,
+            "lower": -0.008982134155743131,
+            "upper": 0.010974068583035014
+          },
+          "오심": {
+            "estimate": -0.026770203306470952,
+            "lower": -0.04521358488513971,
+            "upper": -0.009182902915424916
+          },
+          "전신쇠약": {
+            "estimate": -0.012728272640166849,
+            "lower": -0.024475350739428962,
+            "upper": -0.00010469410552305626
+          },
+          "호흡곤란": {
+            "estimate": -0.012321012321012348,
+            "lower": -0.023735488484253733,
+            "upper": -0.0020144468040953645
+          }
+        },
+        "limitations": "Conditional on trained models and this split; repeated selection and training-seed uncertainty are not included. Duplicate calls may still be statistically dependent."
+      }
+    },
+    "fresh_ensemble_minus_ver26_ensemble": {
+      "macro_f1_delta": -0.006156480837315792,
+      "macro_ap_delta": -0.00293198072954004,
+      "nausea_f1_delta": -0.014864938101468717,
+      "per_symptom_f1_delta": {
+        "고열": -0.0018368113651856532,
+        "구토": -0.008210293040014416,
+        "두통": -0.0025335775335775246,
+        "복통": -0.009822587803896665,
+        "어지러움": -0.0021829113274154377,
+        "열상": 0.0010303846379018378,
+        "오심": -0.014864938101468717,
+        "전신쇠약": -0.004857516025691622,
+        "호흡곤란": -0.012130076976493376
+      },
+      "paired_errors": {
+        "samples": 4380,
+        "per_symptom": {
+          "고열": {
+            "common_false_negative": 283,
+            "common_false_positive": 144,
+            "fixed_false_negative": 5,
+            "fixed_false_positive": 55,
+            "new_false_negative": 26,
+            "new_false_positive": 17,
+            "control_false_negative": 288,
+            "control_false_positive": 199,
+            "candidate_false_negative": 309,
+            "candidate_false_positive": 161
+          },
+          "구토": {
+            "common_false_negative": 297,
+            "common_false_positive": 195,
+            "fixed_false_negative": 8,
+            "fixed_false_positive": 24,
+            "new_false_negative": 12,
+            "new_false_positive": 32,
+            "control_false_negative": 305,
+            "control_false_positive": 219,
+            "candidate_false_negative": 309,
+            "candidate_false_positive": 227
+          },
+          "두통": {
+            "common_false_negative": 240,
+            "common_false_positive": 83,
+            "fixed_false_negative": 6,
+            "fixed_false_positive": 19,
+            "new_false_negative": 9,
+            "new_false_positive": 14,
+            "control_false_negative": 246,
+            "control_false_positive": 102,
+            "candidate_false_negative": 249,
+            "candidate_false_positive": 97
+          },
+          "복통": {
+            "common_false_negative": 222,
+            "common_false_positive": 144,
+            "fixed_false_negative": 6,
+            "fixed_false_positive": 24,
+            "new_false_negative": 22,
+            "new_false_positive": 24,
+            "control_false_negative": 228,
+            "control_false_positive": 168,
+            "candidate_false_negative": 244,
+            "candidate_false_positive": 168
+          },
+          "어지러움": {
+            "common_false_negative": 296,
+            "common_false_positive": 218,
+            "fixed_false_negative": 41,
+            "fixed_false_positive": 15,
+            "new_false_negative": 12,
+            "new_false_positive": 77,
+            "control_false_negative": 337,
+            "control_false_positive": 233,
+            "candidate_false_negative": 308,
+            "candidate_false_positive": 295
+          },
+          "열상": {
+            "common_false_negative": 29,
+            "common_false_positive": 78,
+            "fixed_false_negative": 1,
+            "fixed_false_positive": 14,
+            "new_false_negative": 8,
+            "new_false_positive": 4,
+            "control_false_negative": 30,
+            "control_false_positive": 92,
+            "candidate_false_negative": 37,
+            "candidate_false_positive": 82
+          },
+          "오심": {
+            "common_false_negative": 278,
+            "common_false_positive": 386,
+            "fixed_false_negative": 9,
+            "fixed_false_positive": 37,
+            "new_false_negative": 18,
+            "new_false_positive": 43,
+            "control_false_negative": 287,
+            "control_false_positive": 423,
+            "candidate_false_negative": 296,
+            "candidate_false_positive": 429
+          },
+          "전신쇠약": {
+            "common_false_negative": 319,
+            "common_false_positive": 299,
+            "fixed_false_negative": 19,
+            "fixed_false_positive": 34,
+            "new_false_negative": 22,
+            "new_false_positive": 40,
+            "control_false_negative": 338,
+            "control_false_positive": 333,
+            "candidate_false_negative": 341,
+            "candidate_false_positive": 339
+          },
+          "호흡곤란": {
+            "common_false_negative": 165,
+            "common_false_positive": 140,
+            "fixed_false_negative": 9,
+            "fixed_false_positive": 11,
+            "new_false_negative": 10,
+            "new_false_positive": 29,
+            "control_false_negative": 174,
+            "control_false_positive": 151,
+            "candidate_false_negative": 175,
+            "candidate_false_positive": 169
+          }
+        }
+      },
+      "paired_ci": {
+        "samples": 4380,
+        "iterations": 500,
+        "seed": 42,
+        "confidence": 0.95,
+        "unit": "call",
+        "comparison": "candidate minus control",
+        "method": "paired percentile bootstrap",
+        "macro_f1_delta": {
+          "estimate": -0.00615648083731573,
+          "lower": -0.010554668041001927,
+          "upper": -0.0018429173295259045
+        },
+        "per_symptom_f1_delta": {
+          "고열": {
+            "estimate": -0.0018368113651856532,
+            "lower": -0.015786042779333136,
+            "upper": 0.011573341654139951
+          },
+          "구토": {
+            "estimate": -0.008210293040014416,
+            "lower": -0.020517247017493613,
+            "upper": 0.0036849895363787414
+          },
+          "두통": {
+            "estimate": -0.0025335775335775246,
+            "lower": -0.019843821869572262,
+            "upper": 0.013943813305707074
+          },
+          "복통": {
+            "estimate": -0.009822587803896665,
+            "lower": -0.019328072400051376,
+            "upper": -0.001938078749541766
+          },
+          "어지러움": {
+            "estimate": -0.0021829113274154377,
+            "lower": -0.014331322874997585,
+            "upper": 0.010302701698847172
+          },
+          "열상": {
+            "estimate": 0.0010303846379018378,
+            "lower": -0.00826216928428254,
+            "upper": 0.010168920646002687
+          },
+          "오심": {
+            "estimate": -0.014864938101468717,
+            "lower": -0.030944996496664344,
+            "upper": 0.0013762634150172775
+          },
+          "전신쇠약": {
+            "estimate": -0.004857516025691622,
+            "lower": -0.017491910611449026,
+            "upper": 0.008600445021152153
+          },
+          "호흡곤란": {
+            "estimate": -0.012130076976493376,
+            "lower": -0.023106998316610988,
+            "upper": -0.00034382065596498654
+          }
+        },
+        "limitations": "Conditional on trained models and this split; repeated selection and training-seed uncertainty are not included. Duplicate calls may still be statistically dependent."
+      }
+    },
+    "fresh_control_minus_ver26_control": {
+      "macro_f1_delta": 0.00046304492833471045,
+      "macro_ap_delta": 0.0015024270200230117,
+      "nausea_f1_delta": -0.0009007521280268715,
+      "per_symptom_f1_delta": {
+        "고열": 0.0014435354384891852,
+        "구토": -0.009004757668355734,
+        "두통": -0.005857021711817567,
+        "복통": -0.009503379343615781,
+        "어지러움": 0.00170050362674945,
+        "열상": 0.007121305822604507,
+        "오심": -0.0009007521280268715,
+        "전신쇠약": 0.009052888946081583,
+        "호흡곤란": 0.010115081372904178
+      },
+      "paired_errors": {
+        "samples": 4380,
+        "per_symptom": {
+          "고열": {
+            "common_false_negative": 299,
+            "common_false_positive": 127,
+            "fixed_false_negative": 1,
+            "fixed_false_positive": 67,
+            "new_false_negative": 32,
+            "new_false_positive": 1,
+            "control_false_negative": 300,
+            "control_false_positive": 194,
+            "candidate_false_negative": 331,
+            "candidate_false_positive": 128
+          },
+          "구토": {
+            "common_false_negative": 290,
+            "common_false_positive": 213,
+            "fixed_false_negative": 21,
+            "fixed_false_positive": 13,
+            "new_false_negative": 3,
+            "new_false_positive": 79,
+            "control_false_negative": 311,
+            "control_false_positive": 226,
+            "candidate_false_negative": 293,
+            "candidate_false_positive": 292
+          },
+          "두통": {
+            "common_false_negative": 231,
+            "common_false_positive": 75,
+            "fixed_false_negative": 0,
+            "fixed_false_positive": 73,
+            "new_false_negative": 28,
+            "new_false_positive": 1,
+            "control_false_negative": 231,
+            "control_false_positive": 148,
+            "candidate_false_negative": 259,
+            "candidate_false_positive": 76
+          },
+          "복통": {
+            "common_false_negative": 231,
+            "common_false_positive": 152,
+            "fixed_false_negative": 1,
+            "fixed_false_positive": 31,
+            "new_false_negative": 28,
+            "new_false_positive": 13,
+            "control_false_negative": 232,
+            "control_false_positive": 183,
+            "candidate_false_negative": 259,
+            "candidate_false_positive": 165
+          },
+          "어지러움": {
+            "common_false_negative": 278,
+            "common_false_positive": 312,
+            "fixed_false_negative": 16,
+            "fixed_false_positive": 39,
+            "new_false_negative": 14,
+            "new_false_positive": 38,
+            "control_false_negative": 294,
+            "control_false_positive": 351,
+            "candidate_false_negative": 292,
+            "candidate_false_positive": 350
+          },
+          "열상": {
+            "common_false_negative": 34,
+            "common_false_positive": 73,
+            "fixed_false_negative": 7,
+            "fixed_false_positive": 17,
+            "new_false_negative": 8,
+            "new_false_positive": 7,
+            "control_false_negative": 41,
+            "control_false_positive": 90,
+            "candidate_false_negative": 42,
+            "candidate_false_positive": 80
+          },
+          "오심": {
+            "common_false_negative": 256,
+            "common_false_positive": 413,
+            "fixed_false_negative": 34,
+            "fixed_false_positive": 4,
+            "new_false_negative": 3,
+            "new_false_positive": 142,
+            "control_false_negative": 290,
+            "control_false_positive": 417,
+            "candidate_false_negative": 259,
+            "candidate_false_positive": 555
+          },
+          "전신쇠약": {
+            "common_false_negative": 339,
+            "common_false_positive": 299,
+            "fixed_false_negative": 44,
+            "fixed_false_positive": 10,
+            "new_false_negative": 5,
+            "new_false_positive": 87,
+            "control_false_negative": 383,
+            "control_false_positive": 309,
+            "candidate_false_negative": 344,
+            "candidate_false_positive": 386
+          },
+          "호흡곤란": {
+            "common_false_negative": 161,
+            "common_false_positive": 152,
+            "fixed_false_negative": 26,
+            "fixed_false_positive": 4,
+            "new_false_negative": 1,
+            "new_false_positive": 33,
+            "control_false_negative": 187,
+            "control_false_positive": 156,
+            "candidate_false_negative": 162,
+            "candidate_false_positive": 185
+          }
+        }
+      },
+      "paired_ci": {
+        "samples": 4380,
+        "iterations": 500,
+        "seed": 42,
+        "confidence": 0.95,
+        "unit": "call",
+        "comparison": "candidate minus control",
+        "method": "paired percentile bootstrap",
+        "macro_f1_delta": {
+          "estimate": 0.00046304492833477214,
+          "lower": -0.004390298441897928,
+          "upper": 0.005017550737770603
+        },
+        "per_symptom_f1_delta": {
+          "고열": {
+            "estimate": 0.0014435354384891852,
+            "lower": -0.012251432131530697,
+            "upper": 0.013155114615358919
+          },
+          "구토": {
+            "estimate": -0.009004757668355734,
+            "lower": -0.023490966542197417,
+            "upper": 0.0034424406548976584
+          },
+          "두통": {
+            "estimate": -0.005857021711817567,
+            "lower": -0.02803885831953555,
+            "upper": 0.016435959184921238
+          },
+          "복통": {
+            "estimate": -0.009503379343615781,
+            "lower": -0.018161354719589837,
+            "upper": -0.00034125971314844466
+          },
+          "어지러움": {
+            "estimate": 0.00170050362674945,
+            "lower": -0.007138494037561098,
+            "upper": 0.010224302811712754
+          },
+          "열상": {
+            "estimate": 0.007121305822604507,
+            "lower": -0.0036451534419772364,
+            "upper": 0.01834334991440514
+          },
+          "오심": {
+            "estimate": -0.0009007521280268715,
+            "lower": -0.018057044520568676,
+            "upper": 0.01792779067488281
+          },
+          "전신쇠약": {
+            "estimate": 0.009052888946081583,
+            "lower": -0.004608108068943108,
+            "upper": 0.023070698444663328
+          },
+          "호흡곤란": {
+            "estimate": 0.010115081372904178,
+            "lower": -0.0026541200724716414,
+            "upper": 0.02303463877188301
+          }
+        },
+        "limitations": "Conditional on trained models and this split; repeated selection and training-seed uncertainty are not included. Duplicate calls may still be statistically dependent."
+      }
+    }
+  },
+  "gate": {
+    "status": "no_clear_gain",
+    "primary_comparison": "same_control_ensemble_minus_ver26_ensemble",
+    "rule": "Predeclared Macro F1 gain >= 0.005 and descriptive paired 95% lower bound > 0",
+    "reference_macro_f1": 0.6461876722348602,
+    "candidate_macro_f1": 0.6399200632594321,
+    "macro_f1_delta": -0.006267608975428107,
+    "paired_ci": {
+      "estimate": -0.0062676089754280335,
+      "lower": -0.010641194180455189,
+      "upper": -0.0015205266709728332
+    },
+    "promising_macro_gain": 0.005,
+    "promising_for_larger_fit": false,
+    "automatic_full_training_recommended": false,
+    "full_training_authorized": false,
+    "submission_ready": false,
+    "official_validation_evaluated": false,
+    "official_validation_macro_f1": null,
+    "target_0_7_achieved_on_official_validation": null,
+    "selected_epoch_is_not_full_data_optimum": true,
+    "batch_settings_match_reference": {
+      "qwen_batch_size": true,
+      "qwen_gradient_accumulation": true,
+      "control_batch_size": true,
+      "control_gradient_accumulation": true
+    },
+    "matched_control_is_saved_predictions_only": true,
+    "next_step": "Review label-specific representation next; do not repeat longer training automatically.",
+    "limitation": "Development was reused for epoch/candidate selection. Bootstrap excludes selection bias, seed variance, and environment changes; this is a screening gate, not proof of generalization or a 0.7 score."
+  },
+  "selected_epochs": {
+    "control": 2,
+    "qwen": 3
+  },
+  "effective_settings_differences": {
+    "version": {
+      "ver26": "ver26",
+      "ver27": "ver27"
+    },
+    "baseline_run": {
+      "ver26": null,
+      "ver27": "/content/drive/MyDrive/DCC_AIdeas/results/mission3/ver26/20261011T133609Z_f22b4e55"
+    },
+    "output_dir": {
+      "ver26": "/content/drive/MyDrive/DCC_AIdeas/results/mission3/ver26",
+      "ver27": "/content/drive/MyDrive/DCC_AIdeas/results/mission3/ver27"
+    },
+    "work_dir": {
+      "ver26": "/content/mission3_ver26",
+      "ver27": "/content/mission3_ver27"
+    },
+    "lora_lr": {
+      "ver26": 0.0001,
+      "ver27": 3e-05
+    },
+    "head_lr": {
+      "ver26": 0.0003,
+      "ver27": 9e-05
+    },
+    "deadline_monotonic": {
+      "ver26": 29077.771327215,
+      "ver27": 33191.040810309
+    },
+    "invocation_started_monotonic": {
+      "ver26": 277.771327215,
+      "ver27": 4391.040810309
+    },
+    "base_store_dir": {
+      "ver26": "/content/drive/MyDrive/DCC_AIdeas/results/mission3/ver26/20261011T133609Z_f22b4e55/shared_base",
+      "ver27": "/content/drive/MyDrive/DCC_AIdeas/results/mission3/ver27/20261012T013918Z_e9ca9fac/shared_base"
+    }
+  },
+  "hardware": {
+    "device": "cuda",
+    "torch_version": "2.11.0+cu130",
+    "cuda_version": "13.0",
+    "gpu_name": "NVIDIA L4",
+    "vram_bytes": 23659151360,
+    "bf16_supported": true
+  },
+  "derived_ensemble_max_roundoff_differences": {
+    "same_control_ensemble_logits": 8.881784197001252e-16,
+    "fresh_ensemble_logits": 1.7763568394002505e-15
+  },
+  "portable_verification_reported_by_colab": {
+    "qwen": {
+      "samples": 16,
+      "decisions_equal": true,
+      "local_files_only": true,
+      "max_abs_logit_difference": 0.0
+    },
+    "control": {
+      "samples": 16,
+      "decisions_equal": true,
+      "local_files_only": true,
+      "max_abs_logit_difference": 0.0
+    }
+  },
+  "checkpoint_reinference_performed_locally": false,
+  "time_projections_not_measured": {
+    "qwen_8000_three_epochs_and_three_development_evals_seconds": 16801.920422665004,
+    "qwen_20440_two_epochs_and_two_development_evals_seconds": 26333.43869505839,
+    "qwen_29200_two_epochs_training_only_seconds": 35519.214281979606,
+    "limitations": "Linear estimates exclude setup, saving, reload, safety margin and length or architecture changes."
+  },
+  "limitations": [
+    "Internal development only, official Validation unmeasured.",
+    "Repeated selection and training seed variance not represented by bootstrap.",
+    "Partial local artifact copy; model weights remain on Drive."
+  ]
+}

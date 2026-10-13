@@ -1,0 +1,15 @@
+{
+  "medical": {
+    "model_id": "silber2258/bi-KM-BERT",
+    "revision": "f7f66bb5b1c1a3e7b71afc9deefe80e7c123c5e5",
+    "source": "https://github.com/KU-RIAS/bi-medical-bert",
+    "model_card": "https://huggingface.co/silber2258/bi-KM-BERT",
+    "license_note": "No explicit weight license in the inspected model card; public access is not a redistribution license."
+  },
+  "control": {
+    "model_id": "klue/roberta-base",
+    "revision": "02f94ba5e3fcb7e2a58a390b8639b0fac974a8da",
+    "source": "https://huggingface.co/klue/roberta-base",
+    "license_note": "CC-BY-SA-4.0 per upstream model card."
+  }
+}

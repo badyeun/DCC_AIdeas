@@ -1,0 +1,98 @@
+{
+  "format": "mission3_record_manifest_v1",
+  "date": "2026-10-13",
+  "purpose": "Aggregate experiment records; no model weights or patient transcripts.",
+  "local_deletion_performed": false,
+  "records": [
+    {
+      "record": "ver24_verified_analysis.json",
+      "original_local_path": "outputs/mission3_ver24_analysis/verified_analysis.json",
+      "bytes": 25207,
+      "sha256": "3c98c34389b429b5828c7a17e4faeb151e33fee9f72359e96f0491dc934da3dc"
+    },
+    {
+      "record": "ver25_pilot_verified_analysis.json",
+      "original_local_path": "outputs/mission3_ver25_analysis/verified_analysis.json",
+      "bytes": 19264,
+      "sha256": "f05209c2cf2312d4213a35bfd517be666b002d1b756669cca8f0aa17bf7103f2"
+    },
+    {
+      "record": "ver25_full_verified_analysis.json",
+      "original_local_path": "outputs/mission3_ver25_full_analysis/verified_analysis.json",
+      "bytes": 104222,
+      "sha256": "1e8a8a765602865f1bd6cd0742a113c2337ddba57e84b9159c7df789186c0ad8"
+    },
+    {
+      "record": "ver25_full_result_analysis.txt",
+      "original_local_path": "outputs/mission3_ver25_full_analysis/ver25_full_result_analysis.txt",
+      "bytes": 7842,
+      "sha256": "b7f0766cb43f303a1863f1c30a6ec963c8aa28e68f6eacf8bc95c879236b179a"
+    },
+    {
+      "record": "ver26_verified_analysis.json",
+      "original_local_path": "outputs/mission3_ver26_analysis/verified_analysis.json",
+      "bytes": 69460,
+      "sha256": "15a434393b814b0e259a062e5a4adcea9dd09acf19ddaea41e40f66a88a87940"
+    },
+    {
+      "record": "ver26_result_analysis.txt",
+      "original_local_path": "outputs/mission3_ver26_analysis/ver26_result_analysis.txt",
+      "bytes": 6977,
+      "sha256": "679c6671693a688869e7263709f3691612164755de521dc053664d83823996e0"
+    },
+    {
+      "record": "ver27_verified_analysis.json",
+      "original_local_path": "outputs/mission3_ver27_analysis/verified_analysis.json",
+      "bytes": 88374,
+      "sha256": "ef6db328f5f7c369f4b5082ad48af0008e6aba3ed778b7be976cf8295ab25a65"
+    },
+    {
+      "record": "ver27_result_analysis.txt",
+      "original_local_path": "outputs/mission3_ver27_analysis/ver27_result_analysis.txt",
+      "bytes": 9662,
+      "sha256": "0f61a0e08e5ffad2b67a218bb950b94e81d3215beebb6dbe524312a145571d77"
+    },
+    {
+      "record": "ver28_verified_analysis.json",
+      "original_local_path": "outputs/mission3_ver28_analysis/verified_analysis_20261013T005822Z_1de5c4ec.json",
+      "bytes": 98707,
+      "sha256": "4f7c5d0569d932bf9fb0ef6e077ff35851270f16c7136db8c85def0bcdc4d674"
+    },
+    {
+      "record": "ver28_completed_result_analysis.txt",
+      "original_local_path": "outputs/mission3_ver28_analysis/ver28_completed_result_analysis.txt",
+      "bytes": 7595,
+      "sha256": "6ffad413be9a0434e9f5852c58fb51531adc004dcee4b8007607bb985ab2f25f"
+    },
+    {
+      "record": "ver29_verified_analysis.json",
+      "original_local_path": "outputs/mission3_ver29_analysis/verified_analysis_20261013T075454Z_b1ba90f9.json",
+      "bytes": 57238,
+      "sha256": "f6d546f2a643842cf0c99767c6172349d6c155611eb0bb8ab9c4c5bf71f49622"
+    },
+    {
+      "record": "ver29_result_analysis.txt",
+      "original_local_path": "outputs/mission3_ver29_analysis/ver29_result_analysis.txt",
+      "bytes": 9533,
+      "sha256": "7cf1e491841b8503a2cc199f6cf6b9aa6f00b285e41c964d1a6d3b3952f0affd"
+    },
+    {
+      "record": "ver28_delivery_verification.json",
+      "original_local_path": "outputs/mission3_ver28/verification.json",
+      "bytes": 684,
+      "sha256": "251bc9c63c9a99631c8091057f408a88ef90aa208ec59045ceb0abda98d5686d"
+    },
+    {
+      "record": "ver29_delivery_verification.json",
+      "original_local_path": "outputs/mission3_ver29/verification.json",
+      "bytes": 1433,
+      "sha256": "be6ffe6fd4260cf2aa93fdd702cd467929545ff43da4362d3efc80306faae010"
+    },
+    {
+      "record": "ver29_modal_delivery_verification.json",
+      "original_local_path": "outputs/mission3_ver29_modal/verification.json",
+      "bytes": 1054,
+      "sha256": "c70da89ea9c7c5b126f5eecff5c1d5442210858521383f72d9ffa01f72a7ecbe"
+    }
+  ]
+}

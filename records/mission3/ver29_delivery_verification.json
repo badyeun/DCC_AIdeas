@@ -1,0 +1,36 @@
+{
+  "verified_at_utc": "2026-10-13T06:28:34.124985+00:00",
+  "tests_run": 41,
+  "tests_passed": true,
+  "notebook_code_cells_compiled": 4,
+  "embedded_source_files": 16,
+  "embedded_sources_match_tested_disk": true,
+  "notebook_sha256": "d3f13ab7d7ec9cda8137d22ea23e88973c051c892dbe8da735ad41038e615e19",
+  "input_archive_bytes": 67664405,
+  "input_archive_sha256": "cfa2f2e0a63a5788848e175f92b685ac7b36ca62b99142664a3b589d2986f7ff",
+  "original_label_jsons_byte_identical": 32840,
+  "reference_zip_byte_identical": true,
+  "reference_zip_sha256": "b051ee23f64a7e2d0faf7b591c7c459ad8f4da80ec65cd85e2f3362913717a57",
+  "real_data_reference_integration": {
+    "training_rows": 29200,
+    "split_sizes": [
+      20440,
+      4380,
+      4380
+    ],
+    "data_digest": "71b751de9931f10a6d5e2b17d38bf36d0f986baef82e47f7d98159a30348aa6f",
+    "split_digest": "deac9096788901eb8652169e8f97c98f35b21b08f307f73751a253646b75efa7",
+    "reference_verified_artifacts": 31,
+    "raw_and_expanded_reference_equal": true,
+    "baseline_epochs": {
+      "control": 3,
+      "kure": 2
+    },
+    "reference_manifest_sha256": "97d5ea739790354e4cc73c2a0643945dc7ff2595522c7829ef9e012024e3ceaf",
+    "no_gpu_or_training": true
+  },
+  "ver28_source_and_notebook_unchanged": true,
+  "real_pretrained_gpu_training_verified": false,
+  "kaggle_upload_and_execution_verified": false,
+  "f1_at_least_0_7_verified": false
+}

@@ -1,0 +1,556 @@
+MISSION 3 — ver1부터 ver24까지의 실험 기록과 다른 AI를 위한 인계 문서
+작성 기준: 2026-10-10 / UTF-8
+
+이 문서의 목적
+사용자와 Codex가 진행한 실험, 업로드된 결과, 오류 분석, 멘토링, 구현상의 교훈을 한 파일에 모았다. 다른 AI가 앞선 대화나 저장소 없이도 상황을 이해할 수 있도록 핵심 수치와 조건을 본문에 포함했다. 저장소가 있다면 마지막의 경로 목록으로 원본을 확인할 수 있다.
+대화의 축어록이나 모델 가중치 묶음은 아니다. 실제 데이터 원문, 환자 정보, 원래 환자 파일 식별자는 넣지 않았다. 새 GPU 학습이나 임상 재판정을 수행한 문서도 아니다. 이번 작성에서는 저장된 결과·코드·기존 재계산/무결성 보고서를 교차 확인했다. 모든 구버전 체크포인트를 이번에 다시 추론한 것은 아니다.
+
+======================================================================
+1. 먼저 읽을 핵심 상태
+======================================================================
+
+목표: 한국어 119 신고 대화의 전사 텍스트만으로 9개 증상을 동시에 예측하고, 증상별 F1의 평균인 Macro F1을 높이는 것. 가장 어려운 증상은 오심이다.
+
+현재 구분해야 하는 성능:
+
+구성                                      | 공식 제공 Validation Macro F1 | 오심 F1
+------------------------------------------|--------------------------------|----------
+친구의 11개 KLUE 계열 모델 + TF-IDF 앙상블 | 0.656584587                    | 0.414605418
+자체 ver24 최종: 새로 학습한 KLUE 대조군   | 0.645924483                    | 0.375168691
+자체 ver19 및 이를 유지한 ver21~23         | 0.644691544                    | 0.383720930
+자체 ver18: 발화 evidence 모델             | 0.643579117                    | 0.388505747
+구버전 ver9: 보정된 ver4 구성 재사용        | 0.656765674                    | 0.403114187
+
+- 친구의 점수는 저장 CSV를 원본 Validation 3,640개와 대조하여 재계산했다. 다만 친구의 전체 가중치를 확보해 11개 모델을 다시 추론하지는 않았다. 가중치 재현까지 완료한 최고 모델이라고 말하면 안 된다.
+- ver9의 수치가 더 높아 보여도 사후 threshold 보정이 포함됐다. 현재 적용하는 'threshold 튜닝 금지' 조건의 비교 기준으로 가져오면 안 된다.
+- ver24의 최종 모델은 의료 모델이 아니다. 의료 후보가 내부 비교에서 지면서 일반 한국어 KLUE-RoBERTa-base가 선택됐다.
+- ver21, ver22, ver23의 최종 점수가 같은 이유는 새 방법들이 개선되지 않아 ver19의 전체 Training 학습 모델을 그대로 보존했기 때문이다.
+- ver20은 전체 Training 재학습 모델이 아니라 fit 23,360개만 학습한 진단용 모델이다.
+- 자체 ver10~24의 전체 Training 완료 결과 중 전체 Macro F1은 ver24가 가장 높지만, 오심은 ver18보다 낮다. 친구 모델까지 포함하면 두 지표 모두 친구 앙상블이 앞선다.
+- 현재까지 확인한 것은 제공 Validation 성능이다. 비공개 Test/최종 대회 성적이나 독립적인 새로운 평가셋 성능은 없다.
+
+핵심 결론: 양성 가중 학습은 초기 오심 과소예측을 크게 줄였지만, 이후 구조·추가학습·의료 사전학습만 바꾸는 시도는 큰 상승으로 이어지지 않았다. 오심과 구토/어지러움의 문맥 구분, 텍스트와 제공 라벨의 기준 차이 가능성, 일반화와 검증 설계를 함께 다뤄야 한다. '데이터가 틀렸으니 버리면 된다'거나 '더 큰 모델이면 해결된다'는 결론은 아직 근거가 없다.
+
+======================================================================
+2. 사용자 요청과 의사결정이 바뀐 과정
+======================================================================
+
+1) 사용자는 Google Drive 공용 계정의 데이터 크리에이터 캠프 Mission 3 자료와 문제 파일을 바탕으로, ver9 이후 실행만 하면 되는 Colab ipynb를 요청했다. 파일명은 mission3_ver10.ipynb, ver11, ver12처럼 순서대로 유지해 왔다.
+2) 최초 멘토링은 '점수가 낮은 오심 사례를 직접 읽고 왜 실패하는지 분석하라', '현재 threshold를 쓰면 안 된다'였다. 'co로 시작하는 모델'이라는 힌트도 있었지만 정확한 이름은 확인되지 않았다. ComplementNB, contrastive, CorNet, Co-teaching 등과 혼동하지 말아야 한다. CorNet은 실제 ver16에서 실험했고 Co-teaching은 구현하지 않았다.
+3) 이에 ver10~13에서는 사후 threshold 탐색/보정 없이 예측하도록 바꿨다. 낮은 오심 recall을 확인한 뒤 ver14에서 양성 가중치를 비교했다.
+4) ver14가 약 7시간 33분 걸리자 사용자는 Colab 리소스 부족 때문에 이후 실행을 3시간 이내로 제한해 달라고 요청했다. 이후에는 후보 수를 줄이고 전체 재학습·저장 시간까지 예산에 포함했다.
+5) 사용자는 반복해서 '틀린 오심을 모두 직접 봐 달라', '기본 로직 문제인지 뜯어 달라', '전체 F1도 극적으로 올려 달라'고 요청했다. 이에 단순 키워드 집계뿐 아니라 제한된 안전 문맥을 읽는 사례 검토, 파서·정답·분할·길이·체크포인트 검증을 진행했다.
+6) ver15~19는 양성 가중치, 증상 관계, TAPT, 발화 evidence, 강건 손실을 순서대로 시험했다. ver20은 더 큰 encoder, ver21~23은 ver19의 일부 모듈 또는 공유 표현을 추가 학습했다.
+7) ver21에서는 준비 셀 변수 누락과 하위 프로세스 실패를 겪었다. 준비 상태 검사, 원인 진단 파일 저장, 이전 결과 파일 발견·검증을 보강했다. 최종 정상 실행은 성공했지만 모델 성능은 개선되지 않았다.
+8) 친구가 F1 0.65 이상 결과를 Git에 올렸다고 하여 코드와 CSV를 별도로 확인했다. 이는 자체 구버전 ver4/9와 다른 11개 KLUE-base 계열 앙상블이었다.
+9) 사용자는 최고 모델 설명, 현재 손실 함수, '11개 모델 비율 변경과 손실 변경 중 무엇을 우선할지'를 멘토에게 질문하는 표현도 요청했다. 친구 모델의 BCE와 자체 ver19의 CE/GCE를 구분해야 하는 배경이다.
+10) 다음 멘토링은 '일반적인 의료 모델을 활용하고, 아주 이상한 오심 사례는 제외하는 방향도 생각해 보라'였다. 멘토는 AI 박사이며 대회 운영진이 아니다. 이 조언이 데이터 삭제나 상용 API 사용에 대한 대회 허가를 의미하지 않는다.
+11) ver24에서는 한국어·영어 의료 사전학습 모델과 일반 한국어 모델을 같은 내부 분할/분류 학습 설정으로 비교했다. 원본 라벨이나 샘플을 자동 삭제·수정하지 않았다. 의료 후보가 이기지 못했다.
+12) 마지막에는 Vertex AI가 도움이 될지 논의했다. 학습용 GPU 환경을 바꾸는 것과 Gemini 같은 다른 모델/API를 쓰는 것을 구분했다. 실제 Vertex 프로젝트, 유료 리소스, API 호출, Gemini 실험은 만들거나 실행하지 않았다.
+
+사용자가 기대하는 작업 방식:
+- 한국어로 설명하고 실제 업로드 파일부터 확인한다. 모델 이름만 보고 효과를 추정하지 않는다.
+- 실행 가능한 단일 ipynb, Drive 저장, 실행 오류 진단, 3시간 예산이 중요하다.
+- 기존 코드·데이터·결과를 덮어쓰거나 지우지 않는다. 새 버전은 다음 번호를 사용한다.
+- 큰 상승을 원하지만, 검증하지 않은 개선을 보장하거나 실패한 실험을 성공으로 포장해서는 안 된다.
+
+======================================================================
+3. 문제 정의, 데이터, 규정과 추가 제약
+======================================================================
+
+프로젝트 루트:
+C:/Users/JooSeong/WorkSpace/03_Dev/21_데이터크리에이트캠프/DCC_AIdeas
+
+원본 문제: docs/0820_DCC 대학부_예선_출제문제.pdf
+데이터:
+- DATA/대학부 데이터/Training/2.라벨링데이터/TL_서울_구급 : 29,200개
+- DATA/대학부 데이터/Validation/2.라벨링데이터/VL_서울_구급 : 3,640개
+- 입력: 신고자와 119대원의 utterances[].text. 과거 철자 utterences도 코드에서 지원한다.
+- 출력 순서: 고열, 구토, 두통, 복통, 어지러움, 열상, 오심, 전신쇠약, 호흡곤란.
+- 다중 레이블 분류다. 전체 9개 중 단 하나를 고르는 9-class 분류가 아니다. 한 통화에 0~9개의 증상을 출력할 수 있다.
+- 9개 이외의 symptom은 target에서 제외하되 샘플 자체를 삭제하지 않는다.
+- 오심 양성: 전체 Training 3,341개, 공통 내부 holdout 668개, 공식 Validation 429개.
+- 주요 후반 실험은 seed42의 Training 내부 fit 23,360 / holdout 5,840 분할을 사용했다. 동일 정규화 텍스트 그룹이 양쪽에 나뉘지 않게 했다. 각 실행의 실제 split과 데이터 digest를 확인해야 한다.
+- 친구 실험의 내부 split은 seed2026으로 달라, 친구 내부 점수와 자체 내부 점수를 그대로 순위 비교하면 안 된다.
+
+PDF에서 확인한 조건:
+- p5: AI-hub 제공 데이터만 사용하며 외부 데이터 추가 금지.
+- p5, p9: Mission 3 입력은 전사 텍스트만. 지정되지 않은 라벨/환자/진단/화자 메타데이터를 특징으로 사용하지 않는다.
+- p5: 공개 오픈소스 사전학습 라이브러리는 허용하되 '별도의 개발이 없는 상용 AI API (Google Vision, GPT-4o 등)는 사용 금지'.
+- p5: Training은 서울 데이터만, Validation 폴더 데이터는 학습 금지.
+- p5: 샘플별 label에 따른 상이한 전처리 금지, 평가 데이터에서만 유리한 특별 전처리 금지.
+- p9: 각 증상의 F1을 따로 구해 9개 평균을 평가한다.
+- p11~12: 학습 모델·추론 코드·학습 로그가 포함된 ipynb·가중치·모델 코드·requirements·결과 PPT 제출. 지정 단일 추론 명령으로 CSV를 생성해야 한다.
+
+멘토 전달을 따라 추가한 현재 제약:
+- 사후 threshold 탐색, 증상별 threshold 조정, calibration, 점수 이동/logit offset을 적용하지 않는다.
+- threshold 금지가 PDF에 직접 쓰여 있다고 확인된 것은 아니다. 사용자가 전달한 멘토 지침을 프로젝트 조건으로 받아들였다.
+- 2-class head의 raw argmax 또는 sigmoid의 고정 0.5 판정을 사용한다. 이를 '수학적 결정경계 자체가 전혀 없다'고 설명하면 틀린다. 금지한 것은 평가 결과에 맞춘 사후 기준 튜닝이다.
+- 학습 손실의 양성 가중치는 사후 threshold 조정과 다르다. 기존 실험에서는 Training에 근거한 가중 학습을 사용했다.
+- 앙상블 비율 탐색 전체가 PDF상 금지됐다고 단정하지 않는다. 후반 실험은 비교를 해석하기 쉽게 고정 비율을 사용했다. 공식 Validation으로 비율을 고르면 안 된다.
+- 의료 모델을 통한 라벨 수정/제외, 외부 LLM 생성 학습 데이터, fine-tuned 상용 API의 허용 여부는 확인되지 않았다. 허용됐다고 가정하지 않는다.
+- PDF에서 전면적인 인터넷 금지/오프라인 전용 조항을 확인한 것은 아니다. 다만 가중치와 단일 실행 추론 제출 조건은 충족해야 한다.
+
+평가 원칙:
+- 후보·epoch 선택은 Training 내부 holdout에서 하고, 선택된 설정으로 전체 Training을 새로 학습한 뒤 공식 Validation을 평가한다.
+- fit-only 모델, 전체 Training refit, 기존 모델 fallback, 최종 Test를 반드시 구분한다.
+- 과거 공식 Validation 결과를 반복적으로 읽어 다음 연구 방향을 정해 왔다. 따라서 공식 Validation도 완전히 손대지 않은 최종 일반화 평가처럼 말해서는 안 된다. 내부 holdout 역시 오래 재사용했다.
+- 새 논리의 평가에는 사전에 고정한 비교 조건이나 OOF/새로운 Training 내부 검증 설계가 필요하다. 기존 전체 Training 모델로 그 Training holdout을 평가하면 누수가 생긴다.
+
+======================================================================
+4. 버전별 실험 연대기
+======================================================================
+
+아래는 공식 제공 Validation의 저장 결과다. 소수점은 반올림했다. '내부'라고 표시한 값만 Training holdout 점수다. v1~9와 v10 이후는 사후 결정 정책이 달라 직접적인 순위 비교 대상으로 삼지 않는다.
+
+4-1. ver1~9: baseline에서 큰 모델/앙상블로, 이후 정체
+
+버전 | 주된 시도 | Macro F1 / 오심 F1 | 실제 해석
+-----|-----------|--------------------|-----------
+ver1 | 문자 TF-IDF + 증상별 Logistic Regression 모듈형 baseline | 별도 실행 기록 없음 | results/ver1을 ver1·ver2 두 결과로 중복 집계하지 말 것.
+ver2 | 같은 baseline을 Colab 단일 notebook으로 통합. balanced LR, char 2~5gram, 증상별 threshold 탐색 | 0.600122958 / 0.337546468 | 실제 결과는 results/mission3/ver1에 보관됨.
+ver3 | KLUE-RoBERTa-base, 첫 토큰 표현+9개 sigmoid 출력, 최대384토큰, 양성가중 BCE | 0.626014811 / 0.400365631 | 내부15epoch 중3 선택, 전체 Training3epoch. threshold 탐색 포함.
+ver4 | KLUE-RoBERTa-large 5-fold + 문자/단어 TF-IDF LR. 512토큰 overlap64 전체window, weighted BCE, 증상별 혼합/보정 | 0.656648948 / 0.403114187 | 큰 개선. 크기·window·앙상블·보정을 동시에 바꿔 각각의 기여는 분리되지 않음.
+ver5 | ver4 fold1에 token attention, head 및 상위4층 추가학습, 확률/logit혼합 비교 | 0.656717758 / 0.409523810 | 최적 후보는 추가학습 전 epoch0. 작은 차이를 학습 개선으로 해석하면 안 됨.
+ver6 | 같은 동결특징 위 ASL, DB Loss, soft-F1, LAAT, R-Drop, 증상관계 후보 비교 | 0.656669718 / 0.403114187 | D head는 학습됐지만 최종 앙상블에 미채택. 최종은 ver4 유지.
+ver7 | KoELECTRA-base-v3 + 증상 attention, 전체3epoch 중2선택 | 0.656669718 / 0.403114187 | 새 후보 단독 Macro0.638109662. 최종은 ver4 유지.
+ver8 | RoBERTa-large + 직접 token attention, 전체3epoch | 0.656669718 / 0.403114187 | 새 후보 단독 Macro0.645292165. 최종은 ver4 유지. 후보 가중치와 기록의 epoch/해시 불일치 문제도 있음.
+ver9 | 한국어 DeBERTa-v3-base 2-fold + NB-LR, neural75%/sparse25%, unweighted BCE | 0.656765674 / 0.403114187 | 새 후보 단독 Macro0.603570283. 최종 새 후보 비중0, ver4 유지. 보정 포함.
+
+ver6의 A~F는 서로 다른 encoder 6개가 아니라 같은 동결 encoder 위의 분류기/손실 비교였다. ASL=Asymmetric Loss, DB=Distribution-Balanced Loss, LAAT=label-wise attention이다. ver9의 희소 분류기는 SVM이 아니라 NB log-count-ratio 특징을 사용한 Logistic Regression이다.
+ver9와 ver8 최종 차이는 전신쇠약 FP 2건 감소였다. 같은 기존 구성을 재추론한 차이이며 DeBERTa의 개선이라고 말할 수 없다. ver8은 후보 CSV 성능과 후보 체크포인트 재현성을 따로 취급해야 한다.
+
+4-2. ver10~14: 사후 threshold 제거와 오심 과소예측 발견
+
+버전 | 주된 시도 | Macro F1 / 오심 F1 | 실제 해석
+-----|-----------|--------------------|-----------
+ver10 | TF-IDF + LinearSVC C1/C4 및 ComplementNB. C1선택, predict그대로 | 0.523437911 / 0.168918919 | 빠른 보정 없는 baseline. 문맥/희소 증상 처리 부족.
+ver11 | KLUE-base, CLS+mean 기반 window표현, 9개의2-class head, unweighted CE, argmax | 0.614242920 / 0.213381555 | 4epoch 전체 refit. 오심 recall이 매우 낮음.
+ver12 | KLUE + 증상attention + 두dropout view, CE+supervised contrastive0.1 | 아래 3회 기록 | ver11보다 뚜렷한 개선 없음. attention과 손실을 함께 바꿔 기여 분리 어려움.
+ver13 | beomi/KcELECTRA-base v2022 + ver12식 attention/대조학습 | 0.610803240 / 0.197440585 | 구어체 encoder로 바꾸는 것만으로 해결되지 않음.
+ver14 | KLUE에서 오심 양성 CE가중1/2/3, attention/대조학습을 단계적으로 비교 | 0.631178319 / 0.370445344 | 최종 오심가중3+attention+SupCon0.1,4epoch. 양성 가중의 효과가 컸으나 매우 느림.
+
+ver12의 완료 실행 3개:
+- 20261005T064046Z_9a038355: Macro0.614138686 / 오심0.207650273
+- 20261006T002239Z_981e58dc: Macro0.613260738 / 오심0.214156080
+- 20261006T011618Z_09e3a612: Macro0.612815941 / 오심0.209764919
+같은 설정/seed42의 기록이다. 작은 차이가 생긴 원인을 이 파일만으로 확정하지 않는다. 가장 높은 숫자 하나를 의도된 새 실험처럼 뽑지 않는다.
+
+ver11 분석:
+- 오심 TP59 / FP65 / FN370, P0.4758 / R0.1375. 429개 양성 중59개만 찾았다.
+- 정답은 통화당 평균1.4385개 증상인데 예측은 약1.0681개여서 전반적인 과소예측이 있었다.
+- '오심을 구토로 바꾸어 예측한다'만으로 설명되지 않았다. 두 증상 모두 놓치는 경우도 컸다.
+- CSV 재계산과 최종 가중치 샘플4개 재추론 일치를 확인한 기록이 있다.
+
+ver14 내부 비교의 핵심:
+- attention없는 CE에서 오심 양성가중1→2→3: 내부 Macro0.611389→0.628418→0.631175, 오심0.180072→0.337708→0.375267.
+- 최종 attention+SupCon 후보는 내부 Macro0.631672 / 오심0.361430. 오심만 가장 높은 후보는 아니었다. weight1기준을 모두 넘긴 후보 중 Macro우선으로 선택했다.
+- 공식 Validation은 TP183 / FP376 / FN246. ver11보다 TP가124 늘었지만 FP도311 늘었다. '오심 recall을 올리면 끝'이 아니라 precision과의 균형이 필요해졌다.
+- 실제 worker시간27,199.529초 = 약7시간33분20초. 이후 3시간 예산 요구의 직접적인 계기다.
+
+4-3. ver15~20: 학습 균형, 상관관계, 도메인, 발화 근거, 강건 손실
+
+버전 | 주된 시도 | Macro F1 / 오심 F1 | 모델 범위 / worker시간
+-----|-----------|--------------------|-----------------------
+ver15 | 여러 증상 양성 CE가중 비교, recall_moderate선택 | 0.643544204 / 0.379661017 | 전체29,200개3epoch /120.93분
+ver16 | CorNet 방식 증상 간 상관관계 잔차층 | 0.642051862 / 0.378190255 | 전체3epoch /105.36분
+ver17 | Training텍스트 TAPT: masked language modeling 추가학습 | 0.637594526 / 0.376777251 | MLM800업데이트 완료+전체분류3epoch /116.51분
+ver18 | 오심 발화 evidence branch, 이전/현재/다음 발화 문맥 반영 | 0.643579117 / 0.388505747 | 전체3epoch /113.30분
+ver19 | ver18구조 + 오심 CE/GCE 혼합, q0.7 | 0.644691544 / 0.383720930 | 전체3epoch /115.74분
+ver20 | RoBERTa-large의 상위8층 학습 | 0.639238064 / 0.381057269 | fit23,360개만 학습한 진단 /35.49분
+
+- ver15: 더 강한 양성 가중치보다 중간 수준이 나았다. complete_budget_limited지만 전체 Training 재학습을 완료했다. fit-only가 아니다.
+- ver16: 내부 Macro는 baseline0.638226→CorNet0.641920, 오심은0.371448→0.366142. 당시 Macro우선 규칙으로 선택됐으나 공식 Validation은 ver15보다 낮았다. 'co'라는 힌트의 정답이 CorNet이었다고 확정한 것은 아니다.
+- ver17: 짧은 TAPT를 실제 수행했다. 내부 개선이 공식 Validation에 이어지지 않았다. 미실행/중단 탓이라고 말하면 틀린다.
+- ver18: 자체 후반 단일 모델 중 오심 최고지만 ver15대비 전체 Macro 증가는 약0.0000349에 그쳤다.
+- ver19: CE대비 GCE후보의 내부 Macro0.641006792→0.641275583, 오심0.368257905→0.370852310으로 작은 개선. 공식 Macro는 ver18보다 높고 오심은 낮았다. 라벨 노이즈가 원인임을 입증한 실험은 아니다.
+- ver20: 내부 Macro0.636989209 / 오심0.362686567로 ver19 기준0.641275583 /0.370852310을 못 넘었다. 성능 gate 실패로 전체 재학습을 생략했으며 시간 부족 때문이 아니다. 따라서 공식 점수도 진단용이다.
+
+4-4. ver21~23: ver19의 어디를 바꿔야 하는가?
+
+공통 절차: 검증된 ver19 fit 모델로 내부 holdout을 비교하고, 실패하면 별도의 ver19 전체 Training 모델을 유지했다. ver21/22는 Macro와 오심 F1이 모두 증가해야 채택했고, ver23은 Macro 증가와 오심 비감소를 요구했다.
+
+버전 | 학습 대상과 후보 | 가장 관련 있는 내부 결과 | 최종 결과
+-----|------------------|--------------------------|----------
+ver21 | encoder/evidence고정, 오심 최종선형head514개파라미터. CE 또는 CE+soft-F1 | head_ce0.639955811/0.358974359, head_ce_soft_f1 0.640700501/0.365676568 | 둘다기준미달, ver19유지. worker9.11분
+ver22 | encoder고정, evidence모듈328,195개파라미터. CE 또는 CE/GCE | evidence_ce0.639285457/0.352941176, evidence_ce_gce0.639952133/0.358941252 | 둘다기준미달, ver19유지. worker10.94분
+ver23 | encoder마지막4층+공유projection+9head+evidence. GCE 또는 R-Drop, 원본과고정1:1확률평균도비교 | 최고새후보 continue_rdrop_mean 0.640445821/0.363636364 | 모든선택지기준미달, ver19유지. worker39.90분
+
+ver21~23 최종 공식 점수는 모두 Macro0.644691544 / 오심0.383720930이다. 동일 점수에 새 이름이 붙었다고 개선 횟수로 세면 안 된다.
+ver23은 두 recipe 각각 설정한2epoch, 성공optimizer step2,920개를 완료했고 skipped step은0이다. 단일/평균과 epoch를 조합한8개 선택지가 모두 기준보다 낮았다. 설치 등을 포함한 공유예산 소비는 약40.25분이었다. '더 오래 돌렸으면 되었을 것'이라는 근거는 없다.
+손실이 내려가는데 holdout F1/AP가 악화되는 기록은 과적합 또는 학습 목표와 평가 목표의 불일치와 양립한다. 어느 하나를 확정적으로 원인이라고 말할 수는 없다.
+
+======================================================================
+5. 서로 혼동하면 안 되는 세 가지 모델·손실 설명
+======================================================================
+
+5-1. 자체 ver19 및 ver21~23에서 보존된 모델
+
+- encoder: klue/roberta-base, revision 02f94ba5e3fcb7e2a58a390b8639b0fac974a8da.
+- 입력을512토큰, overlap64의 전체 window로 처리한다.
+- 각window CLS와 masked token mean을 결합한1536차원→256차원GELU 표현, window집계.
+- 증상마다 음성/양성2개 logit을 내는9개 head. 각head argmax로 독립 판정한다.
+- 오심에는 이전/현재/다음 발화 표현과 전역 표현을 반영하는 evidence residual branch가 추가된다. 별도의 정답 증상/화자 메타데이터를 입력으로 넣지 않는다.
+- label_attention=False, contrastive=False, utterance_evidence=True인 최종 구성이다. ver14와 동일한 attention+SupCon 모델로 설명하면 틀린다.
+- 양성 CE가중치는 라벨 순서대로 [1.4,1.8,2.0,1.2,1.3,1.0,3.0,1.5,1.3].
+- 전체9개에 weighted Cross Entropy. 오심은 epoch1에 CE, epoch2~3에 0.5*CE+0.5*GCE(q=0.7).
+- 정답에 할당한 확률p에 대해 GCE=(1-p^q)/q. 강하게 모순되는 정답의 영향이 줄지만, 정말 어려운 올바른 사례의 학습도 약화될 수 있다. 이 실험은 데이터를 삭제/교정하지 않았다.
+- 최종 전체 Training3epoch 새학습. 최종 가중치 SHA256: 7e7776cd08294f71b97f348526b47da6f943f370f5a928e33624b3ccd4f28b2c.
+
+설명용 한 문장:
+“한국어 사전학습 언어모델로 통화 전체와 개별 발화 문맥을 표현하고, 9개 증상의 유무를 각각 예측합니다. 희소 증상을 덜 놓치도록 양성 손실을 키우고 오심에는 CE/GCE 혼합 손실을 사용했습니다.”
+
+5-2. 친구의 현재 확인된 최고 앙상블
+
+저장소: https://github.com/badyeun/DCC_AIdeas
+확인한 branch/commit: origin/inho / 9e73fef650de94c793510126f2e7afddb15d6702.
+이 문서의 '친구 최신'은 이 스냅샷 기준이다. 이후 새 push 존재를 확인한 것은 아니다.
+
+11개 구성 이름:
+1. roberta-base_raw_s42_FINAL
+2. roberta-base_raw_s1_FINAL
+3. roberta-base_attn_raw_s42_FINAL
+4. roberta-base_attn_raw_s1_FINAL
+5. roberta-base_raw_s11_D3
+6. roberta-base_attn_raw_s13_D4
+7. roberta-base_synonym+filler_s15_D5
+8. roberta-base_synonym+filler_s16_D5
+9. domain_adapted_full_raw_s17_D6
+10. domain_adapted_full_attn_raw_s18_D6
+11. roberta-base_cls_raw_s19_D7
+
+모두 KLUE-RoBERTa-base 계열이다. 11종의 전혀 다른 대형 모델이 아니다. seed, mean/attention/CLS pooling, synonym+filler 정규화, Training텍스트 domain-adaptive pretraining을 달리한다. D3/D4는 학습률3e-5, 다른 구성은2e-5, 전체 Training3epoch로 보관된 기록이다. 입력은 최대512토큰의 앞부분이며 자체 ver19의 모든 overflow window 구조와 다르다.
+
+손실은 11개 모두 BCEWithLogitsLoss(pos_weight=...)로 확인했다.
+양성수pos, 학습표본수N에 대해 대략 w=clip(sqrt((N-pos)/pos),1,5); 구현은 pos0의 분모보호와 비율하한을 둔다. 가중치는 학습subset에서 계산한다. 친구 최고 구성에 Focal/ASL/GCE/R-Drop이 적용됐다고 설명하면 안 된다.
+
+추론:
+- 11개 모델의 sigmoid확률을 동일가중 평균.
+- sparse모델 파일이 있으면 0.9*신경망평균 + 0.1*TF-IDF확률.
+- TF-IDF는 char2~5gram + word1~2gram, balanced LogisticRegression C4/liblinear/max_iter1500.
+- 최종 고정0.5 판정. 증상별 threshold/offset검색이나 무조건1개증상출력은 없다.
+
+검증된 점수: Macro0.6565845872468634, Micro0.6712836519703472, 오심0.41460541813898705.
+오심 TP176/FP244/FN253, P0.41905/R0.41026.
+CSV SHA256: 82376e25dd4da60a5b0a4b95a060b38dc8809f550428524cfc331c5cf57af6cf.
+
+재현의 남은 문제:
+- 약4.6GB의 전체 가중치를 로컬에서 확보하여 ensemble재추론하지 않았다.
+- assembly/inference는 일부checkpoint나sparse파일이 없을 때 진행할 수 있는 경로가 있으므로, 실제 제출 환경에11개와TF-IDF가 모두 있는지 확인해야 한다.
+- 내부 best확률 저장과 모델 마지막state저장이 엇갈릴 수 있는 코드 경로가 있어 fit단계의 best모델 재현을 별도 확인해야 한다. 전체 Training 고정3epoch결과와 혼동하지 않는다.
+- 친구 full-Training 학습 중의 내부점수는 학습에 포함된 데이터일 수 있다. 공식 Validation이나 누수 없는 holdout으로 바꿔 부르면 안 된다.
+
+설명용 한 문장:
+“같은 한국어 RoBERTa 계열을 초기값과 문장 요약 방식 등을 달리해 11번 학습하고, 예측 확률을 평균한 뒤 문자·단어 기반 분류기를 10% 결합했습니다. 각 모델의 다른 오류를 줄이는 앙상블이며, 최종 판정 기준은 0.5로 고정했습니다.”
+
+5-3. ver24의 학습 방식
+
+ver19 추가 학습이나 친구의 11개 ensemble 재현이 아니다. 의료 encoder와 일반 encoder를 각각 새로 학습한 비교다. 9개 출력의 weighted BCE, mean pooling, 고정 0.5 판정으로 친구 구조의 일부와 유사하지만 단일 모델이다.
+
+======================================================================
+6. ver24 의료 모델 실험과 결과 상세
+======================================================================
+
+후보:
+- medical: silber2258/bi-KM-BERT, revision f7f66bb5b1c1a3e7b71afc9deefe80e7c123c5e5.
+- control: klue/roberta-base, revision 02f94ba5e3fcb7e2a58a390b8639b0fac974a8da.
+- 의료 후보는 한국어·영어 의료 corpus로 사전학습한 BERT이다. 이 과제의 9개 증상을 이미 파인튜닝한 완성 분류기가 아니다.
+- 서로 architecture/tokenizer까지 달라 '의료 corpus만 추가했을 때의 순수한 인과효과'를 분리한 실험은 아니다.
+
+공통 설정:
+- 원본 Training과 정답 유지, seed42의 fit 23,360 / holdout 5,840.
+- 앞부분 512토큰, mean pooling, dropout 0.1, 9개 linear 출력, encoder 전체 학습.
+- BCEWithLogitsLoss, 양성 가중 clip(sqrt(negative/positive),1,5). 내부 비교는 fit 기준, 전체 refit은 전체 Training 기준으로 재계산.
+- lr 2e-5, batch 8, gradient_accumulation 2, weight_decay 0.01, warmup 0.1, 최대 3epoch.
+- 최종 판정 logit>=0 = sigmoid>=0.5. threshold/offset/calibration 없음.
+- 두 후보의 공통 학습 예산을 실제 pilot으로 추정한다. 안전 계수 1.35, 최종 20분 예약. 후보 가중치와 속도 측정 pilot 가중치를 섞지 않는다.
+- 후보별 내부 Macro가 가장 높은 epoch를 고른다. 의료 후보는 control보다 Macro가 높고 오심은 낮지 않을 때만 선택한다.
+- 이번에는 두 후보 모두 3epoch 완료, 둘 다 best epoch는 2였다. 선택된 control을 전체 29,200개로 2epoch 새로 학습했다. LR schedule horizon은 공통 3epoch를 유지했다.
+- Drive 쓰기 절약으로 fit용 두 후보 가중치는 보관하지 않고 logits/지표를 보관했다. 최종 전체 refit 가중치는 control만 있다. 의료 ensemble을 만들려면 의료 가중치가 이미 저장돼 있다고 가정하면 안 된다.
+
+같은 내부 holdout 5,840개에서:
+
+모델             | Macro F1          | 오심 F1           | TP | FP | FN
+-----------------|-------------------|-------------------|----|----|----
+medical          | 0.6345121286662234| 0.3680682510664229 |302 |671 |366
+control          | 0.6472810352644117| 0.3707729468599034 |307 |681 |361
+고정1:1확률평균  | 0.6470145680149392| 0.3813611281422440 |311 |652 |357
+
+마지막 평균 행은 실행 후 저장된 예측으로 계산한 진단이다. 실제 최종 모델로 채택하거나 전체 refit/공식 Validation 평가를 한 결과가 아니다. 비율이나 threshold를 검색한 것은 아니다.
+
+의료후보 해석:
+- control 대비 Macro -0.012768907(-1.277%p), 오심 -0.002704696(-0.270%p).
+- 9개 증상 F1이 모두 control보다 낮았다. 오심 AP도 0.306977로 control 0.323085보다 낮았고, AUC도 0.771042 대 0.774433이었다.
+- control이 놓친 오심 34개를 찾았지만 기존 정답 39개를 놓쳤다. FP 139개를 제거하면서 129개를 새로 만들었다. 오심 F1 개선으로 이어지지 않았다.
+- 두 모델 공통 FN 327개, 공통 FP 542개. 의료 지식이 기존의 어려운 사례를 일괄 해결하지 못했다.
+- 저장 예측에 대한 paired bootstrap에서 Macro 차이의 95% 구간은 약 [-0.01809,-0.00745], 오심 차이 구간은 [-0.02010,0.01586]. 이는 한 split/seed의 저장 예측에 조건부인 진단이며 모델 계열 전체의 열등성을 증명하지 않는다.
+- 3epoch에서 두 후보 모두 best인 2epoch보다 F1이 내렸다. 시간 제한으로 학습을 못 끝내서 생긴 결과가 아니다.
+- 1:1 평균은 오심 +0.010588(+1.059%p)이지만 Macro -0.000266으로 control을 못 넘었다. 보완성의 작은 신호는 있으나 전체 개선은 확인되지 않았다.
+
+최종 공식 Validation: 선택된 KLUE-control만 전체 refit하여 평가했다.
+- Macro0.6459244826277071, Micro0.6655412115193644.
+- 오심F1 0.37516869095816463, P0.4455128205, R0.3240093240.
+- 오심TP139 / FP173 / FN290.
+- ver19 대비 Macro +0.001232939, 오심 -0.008552239. 저장 예측에 대한 bootstrap에서 두 차이의 95% 구간 모두 0을 포함했다. 작은 차이를 반복 가능한 개선으로 확정하지 않는다.
+- 친구 대비 Macro -0.010660105, 오심 -0.039436727.
+- 의료 후보의 전체 Training refit 공식 Validation 점수는 없다. 최종 점수를 의료 모델 성적으로 소개하면 안 된다.
+- worker 시간 2,797.346초 = 46분37초. 설치/Drive 인증 등을 포함한 총사용 시간과 동일하다고 보장하지 않는다.
+
+9개 증상별 최종 F1:
+고열0.689328063 / 구토0.601005025 / 두통0.547400612 / 복통0.816696915 /
+어지러움0.649025070 / 열상0.877338877 / 오심0.375168691 / 전신쇠약0.594936709 / 호흡곤란0.662420382.
+
+의료 tokenizer가 더 많이 잘라서 실패했는가?
+- 전체 Training 29,200개에서 512토큰 초과: medical 479개(1.64%), KLUE 788개(2.70%).
+- 오심 양성 3,341개에서 초과: medical 42개(1.26%), KLUE 67개(2.01%).
+- medical이 더 많이 문맥을 잘랐다는 설명을 지지하지 않는다. 그렇다고 모든 증상 근거가 앞 512토큰에 있다고 보장되는 것도 아니다.
+
+ver24 결과 검증 수준:
+- 원본 Training/Validation 정답, split, CSV/NPZ와 저장 metrics 일치.
+- 완료 manifest 해시 44/44 일치, 실행 소스 11개 로컬과 일치(개행 정규화 후).
+- 저장 모델/tokenizer 오프라인 재로딩 성공, 학습 범위 전체 29,200개 및 2epoch 확인.
+- 로컬 CPU 대표 24통화의 216개 이진 판정 중 213개 일치, 오심 24/24 일치. 다른 증상 3개가 0 근처에서 CPU FP32와 CUDA 혼합정밀도 간 판정이 달랐다. 완전 동일 재추론이라고 과장하면 안 된다.
+- 원래 Colab 실행의 동일 GPU 환경 저장/재로딩 16샘플은 동일했다는 보고가 있다.
+- 전체 3,640개를 새 GPU에서 재추론하지 않았다.
+- 최종 가중치 SHA256: 82c9ee07aab4434f0ced0d25b79c5428f274e9a7fa44061cbc435cb8b29c3e2b.
+- CSV SHA256: dca1c88df56f9e1175b6fd1bcdbb34b36892a72ade8d022278d22691adcf1eff.
+
+======================================================================
+7. 오심 오류 분석에서 실제로 확인한 것
+======================================================================
+
+7-1. 기본 파싱/순서/누수 오류가 주원인인가?
+
+전체 Training 감사에서 29,200개 target은 모두 list였고, 빈 텍스트/중복 target/오심 문자열 불일치/NFC로 달라진 target/완전 동일 전사 중복 그룹은 각 0건으로 기록됐다. 주요 버전은 split의 정답 순서와 저장 예측도 대조했다. 따라서 단순 라벨 인덱스 뒤집힘이나 누락된 utterances 파서만으로 전체 문제를 설명하는 증거는 없다. 모든 가능한 버그를 영구적으로 배제했다는 뜻은 아니다.
+
+7-2. 길이가 짧아서/잘려서 못 보는가?
+
+ver13 내부 오심 FN 575개 중 567개(98.6%)가 단일 512토큰 window였다. ver11은 맞고 ver13은 틀린 16개도 두 tokenizer에서 단일 window였다. 더 긴 입력만으로 대다수 실패가 해결될 근거는 약했다. 이후 ver18/19에서 발화 근거 모델을 추가했지만 개선은 작았다.
+
+7-3. 표현과 제공 라벨 사이의 경계가 일관적인가?
+
+초기 76개 서로 다른 Training 통화 검토와 이후 ver20 중심 심층 검토에서 다음 두 상황을 모두 봤다.
+- 현재 오심을 긍정하는 것처럼 보이는 텍스트인데 제공 오심 label은 0.
+- 제공 오심 label은 1이지만 보이는 문맥은 어지러움/통증/기력 저하/구토 등이고 오심 직접 표현은 불명확.
+
+이는 텍스트와 라벨 정의가 다를 가능성을 제기한다. 전사에 생략된 정보, 라벨링 지침, 임상적 추론, 검토자의 해석, 필터링 영향 등을 배제하지 못했다. '명백한 오라벨 수백 개'나 '데이터 노이즈율 몇 %'로 바꿔 말하면 안 된다.
+
+검토 범위와 한계:
+- ver20의 Training 내부 오심 FN 425개와 FP 429개, 공식 Validation FN 256개와 FP 306개, 합계 1,416개 오심 오류의 안전하게 필터링된 임상/응답 문맥을 에이전트가 읽어 분류한 기록이 있다.
+- 원본 전체 대화의 모든 문장을 읽은 것은 아니다. 개인정보/비임상 발화를 제외했다. 현재 필터 기준 Training FN에서 보이는 임상+응답 문자 비율은 약 33%였다.
+- 의료인/운영진이 독립적으로 재판정한 라벨이 아니다. AI 1회 문맥 검토다. Validation 검토는 원인 설명용이며 그 사례에 맞춘 규칙/가중치/threshold를 학습시키면 안 된다.
+
+Training FN 425개의 검토 분류:
+- 현재 오심 긍정 8, 구토만 42, 다른 간접 증상 323, 과거/불확실 4, 보이는 근거 없음 4, 가려진 문맥 44.
+- 명시적 8개만 모두 복구하고 다른 판정이 같다고 가정하면 오심 F1 약 +0.00972, 전체 Macro 약 +0.00108이다. 단순 산술 예시이며 실제 달성 점수/성능 상한이 아니다. 눈에 띄는 몇 문장 수정으로 극적 전체 상승을 기대하기 어렵다는 뜻이다.
+
+Training FP 429개의 검토 분류:
+- 구토만 162, 다른 증상이며 오심 근거 불명 116, 현재 오심 긍정처럼 보이는 73, 간접 위장관 44, 문맥 불충분 20, 기타 14.
+- 73개는 오심 gold 0인데 명시적 긍정으로 읽힌 불일치 검토 후보다. 전체 데이터의 확정 오류 73개가 아니다.
+- 이 73개는 ver19에서도 FP였고 ver21/22에서도 남았다. 이미 같은 라벨 경계를 학습한 표현 위에서 head만 바꾸는 방식의 한계를 의심하게 했다.
+
+7-4. 구토, 오심, 질문, 부정을 혼동하는가?
+
+구토는 실제로 토하는 행동이고 오심은 메스꺼움/토할 것 같은 주관적 느낌이다. 동반할 수 있지만 서로 같은 label은 아니다. 질문 문장만 있어도 양성이라고 보면 안 되고, 답변과 시점도 봐야 한다. 반대로 실제 구토를 부정하면서 오심은 긍정할 수 있다.
+설명용으로 새로 만든 예시(실제 환자 원문 아님): '토한 건 아닌데 계속 토할 것 같아요.' 여기서 '아니다'만 보고 전부 음성으로 만들면 증상 근거를 버릴 수 있다.
+넓은 구토/어지러움 문맥은 양성/음성 오심 양쪽에 많아 키워드 확장만으로 정답을 결정하기 어렵다. 에이전트 분류 빈도는 모델의 실제 인과적 의사결정 근거를 증명하지 않는다.
+
+7-5. ver24에서의 추가 오류 집계
+
+이 단계는 5,840개 holdout 및 변경된 341개 오심 판정 전체에 대한 정규식/인접 발화 자동 집계다. 새 수작업 임상 검토는 0건이다.
+- 오심 표현 검출 205통화에서 오심 F1: control 0.66904 → medical 0.68182. 작은 일부 층에서 개선.
+- 구토 표현만 519통화: 0.42920 → 0.44820.
+- 두 표현 모두 미검출 5,116통화: 0.25135 → 0.23451로 악화.
+- 공통 FN 327개 중 299개는 추적한 오심/구토 표현 미검출.
+- review 후보 200개는 두 모델이 함께 틀린 FN 137/FP 63이며 '오라벨 200개'가 아니다.
+- 표현 검출은 질문/부정까지 포함할 수 있다. 미검출은 오심 부재나 오라벨의 증거가 아니다.
+
+현재 원인 가설의 신뢰도:
+- 강한 근거: 초기 과소예측 관찰과 양성 가중 학습의 개선 효과, 양성 가중 확대 시 FP 증가, 일부 명시적 표현과 label의 불일치 관찰, 단순 길이 문제가 대다수 FN을 설명하지 못함.
+- 중간 수준 가설: 구어체 상태/시점/문답/구토와 오심의 경계 표현을 충분히 구분하지 못함; 저장된 라벨의 정의와 텍스트에서 추론 가능한 증상 간 차이; 반복 holdout 선택의 일반화 한계.
+- 미확정: 실제 라벨 오류율, 임상 정답, 도달 가능 F1 상한, 특정 강건 손실/의료 LLM이 극적으로 해결할지 여부.
+
+======================================================================
+8. 별도 탐색과 '이미 해 본 것 / 아직 안 한 것'
+======================================================================
+
+이미 해 본 탐색:
+- Training-only 희소 분류기: balanced lexical SVM 내부 Macro 0.573575/오심 0.270833.
+- 기존 ver11~19 판정의 일부 고정 majority voting: 최고 측정 내부 Macro 0.644791/오심 0.369551. 이 옛 진단은 soft 확률 평균이 아니다.
+- 증상별로 잘하는 옛 모델 선택: 선택에 쓴 holdout에서 0.646483이지만 cross-half 확인에서는 0.641218로 하락. 같은 검증셋 맞춤 선택의 문제.
+- ver23 설계 전 NB-LR 내부 0.550117/0.197211, 신경망 특징+sparse balanced SVM 결합 0.622519/0.301611로 배제.
+- 기존 ver11~19 모든 모델이 함께 놓친 내부 오심 양성 287/668개가 있었다. 그 모델들의 기존 음성 판정을 단순 투표한다고 해당 사례를 새로 찾을 수는 없다.
+- ver24 고정 의료/control 평균은 오심에 작은 보완성이 있지만 전체 Macro는 개선되지 않음. 전체 refit ensemble은 미실행.
+
+아직 하지 않은 것:
+- 친구 11개 최종 가중치 전체를 확보한 재추론/완전한 제출 패키지 재현.
+- 운영진/의료인의 독립적인 오심 label 정의 확인과 대표 사례 다중 검토.
+- OOF 기반 노이즈 의심 순위(Cleanlab 등)를 새로 생성해 검토하는 실험. 의심 순위는 정답 오류 확정과 다름.
+- Co-teaching 구현. 두 네트워크의 low-loss 사례 선택은 희소하지만 진짜 어려운 양성을 버릴 수 있어 자동 해결책이 아님.
+- MedGemma/MediKo/Gemini를 실제 분류/미세조정에 사용한 실험.
+- 의료 LLM으로 원본 정답을 가린 대표 표본을 blind 평가한 실험.
+- 원래 sample/label 자동 삭제, 재라벨링, 의심 label 마스킹. ver24에서도 적용하지 않음.
+- Vertex AI GPU/유료 API 실행.
+
+다시 그대로 반복할 근거가 약한 것:
+- 구버전 threshold 보정 결과로 fallback하기.
+- ver21의 동결 표현+작은 head, ver22의 동결 encoder+evidence를 단순히 더 오래 학습하기.
+- ver23의 동일 상위층 continuation/R-Drop을 이유 없이 반복하기.
+- ver20의 동일 large 구성을 '크기만 늘리면 된다'며 반복하기.
+- 키워드 미검출 또는 의료 모델 불일치만으로 오심 정답을 삭제하기.
+- 공식 Validation에서 잘 보이는 증상별 모델/확률 비율/키워드 규칙을 선택하기.
+
+======================================================================
+9. 의료 모델 조사와 Vertex AI 논의의 현재 상태
+======================================================================
+
+실제 사용: silber2258/bi-KM-BERT.
+- 출처: https://github.com/KU-RIAS/bi-medical-bert
+- 모델: https://huggingface.co/silber2258/bi-KM-BERT
+- 공개 다운로드와 사전학습 가중치 로딩/학습/재저장은 확인했다.
+- 확인 당시 model card에 가중치의 명시적 라이선스가 없었다. 공개 접근 가능을 재배포 허가로 바꿔 말하면 안 된다. 최종 ver24 선택 모델은 KLUE이다.
+
+검토만 한 후보:
+- google/medgemma-1.5-4b-it: 의료 생성 모델. 이용 조건 동의 및 실행 자원이 필요하고 한국어 119 분류 우위는 미검증.
+- MediKo/MediKo-4B-A1B-inst: 한국어 의료 MoE. 총/활성 파라미터와 커스텀 코드 조건을 확인해야 하며 이 프로젝트에서 학습하지 않았다.
+- 원래 KM-BERT 연구가 다른 의료 NLP 과제에서 유용해도 이번 구어체 증상 label의 성능을 보장하지 않는다.
+
+Vertex AI에 대한 판단:
+- 학습 인프라로 사용: 현재 PyTorch 모델을 더 안정적인 GPU에서 돌리거나 더 많은 실험을 할 수는 있지만, 같은 모델/데이터/학습을 옮긴 것만으로 F1이 자동 상승하지 않는다. ver24는 시간이 모자라서 후보가 진 것도 아니다.
+- 새로운 Gemini 모델/API 사용: 모델 표현/추론 능력을 바꾸는 새 가설이다. 기존 의료 BERT 실패만으로 무용하다고 단정할 수 없지만 성능 보장도 없다.
+- 규정: 상용 API 금지 문구와 가중치/단일 추론 제출 조건을 운영진에게 확인해야 한다. 'fine-tuning했으니 자동으로 허용'이라고 말하면 안 된다. 멘토는 운영진이 아니다.
+- 허용 확인 후 검토할 순서: 틀린 사례만이 아닌 대표 Training holdout을 정해 gold를 가리고 출력 평가 → Macro/오심 및 FP/FN 비교 → 유의미할 때만 fit 데이터로 학습 실험. 이 순서는 제안이며 아직 실행하지 않았다.
+- 과거 조사 출처: https://cloud.google.com/vertex-ai/docs/training-overview 및 Google Cloud supervised tuning 문서. 서비스명/지원 모델/가격은 바뀔 수 있으므로 실행 시 공식 문서를 새로 확인해야 한다. 이 문서는 최신 가격표가 아니다.
+
+======================================================================
+10. 실행 오류, 저장, 재현에서 얻은 교훈
+======================================================================
+
+pip 출력 0:
+subprocess.check_call(...)의 반환값 0은 정상 종료 코드다. 그 숫자만으로 오류가 아니다. 패키지 설치 성공과 모델 학습 성공은 별개다.
+
+ver21 NameError:
+runtime_dir가 정의되지 않은 상태에서 학습 셀을 실행하고 finally의 release_gpu도 정의되지 않아 두 번째 NameError가 첫 오류를 가렸다. 런타임 리셋 후 처음부터 모두 실행해야 한다. 이후 준비 상태 검사와 안전한 GPU 반환 호출을 추가했다.
+
+ver21 CalledProcessError:
+이것은 worker가 exit 1로 끝났다는 외부 신호일 뿐 원인이 아니다. 업로드된 3개 실패 실행은 FileNotFoundError였다. 그중 20261009T080502Z_41fce0ec는 완전한 ver19 결과 폴더/ZIP을 발견하지 못한 원인이 진단 파일로 확인됐다. 앞선 2개도 동일 원인이라고 확정할 상세 자료는 없다. 이후 20261009T081322Z_b134054a는 정상 완료했다.
+
+운영 원칙:
+- 설치 후 새 Python 프로세스로 실행하여 이미 로드된 Colab 패키지와 새 설치를 섞지 않는다.
+- GPU 반환 전에 Drive에 실패 단계/오류 종류/코드 위치를 남긴다. 원문 대화나 환자 식별자를 오류 로그에 덤프하지 않는다.
+- 180분 공유 예산은 Drive 로그인 후 설치 전부터 시작한다. 설치/다운로드/데이터 준비/학습/최종 저장을 포함하도록 설계한다. 모든 GPU에서 모든 후보 완료가 보장되는 것은 아니다.
+- fit 선택용 모델과 전체 Training 최종 모델을 별도로 보관하고 사용한다.
+- run_complete.json, 최종 CSV, 참조된 가중치/tokenizer/소스가 없으면 완료된 제출 결과로 취급하지 않는다. complete_not_improved는 ver21~23에서는 기존 모델 유지, ver20에서는 개선 gate를 못 넘은 새 fit-only 진단 모델 보존이었다. 상태 이름만 보지 말고 학습 범위와 선택 이유를 읽는다.
+- mission3_verXX_model.ckpt는 실제 가중치가 아닌 JSON manifest일 수 있다. 파일 하나만 옮기지 말고 참조 상대경로를 유지한 실행 폴더 전체를 보관한다.
+- ver21~23은 완전한 ver19 결과가 필요했다. ver24는 이전 모델 없이 기존 입력 ZIP과 공개 사전학습 가중치만으로 시작한다.
+- ver24는 중단된 학습 자동 재개를 지원하지 않는다. 재실행은 새 시간/리소스를 쓴다.
+- 혼합정밀도/장치 차이로 0 근처 판정이 달라질 수 있다. 저장 CSV 검증과 체크포인트 재추론의 차이를 기록한다.
+- 최종 제출용 CLI는 PDF의 --audio_dir, --label_dir, --ckpt_path, --output 규격을 별도로 대조해야 한다. ver24 개별 runtime 예제의 --checkpoint 인자만으로 주최 측 규격 호환이 확인됐다고 말하면 안 된다.
+
+Colab 기본 경로:
+입력 /content/drive/MyDrive/mission3_ver5_inputs.zip
+ver24 출력 /content/drive/MyDrive/DCC_AIdeas/results/mission3/ver24/<run_id>/
+사용자는 입력 ZIP이 있는 공용 Drive 계정으로 연결했다.
+
+의존성은 기존 프로젝트 버전을 유지했다. ver24 대표 요구사항은 torch>=2.6,<3; transformers4.57.1; numpy2.1.3; scikit-learn1.6.1; scipy>=1.11,<2; iterative-stratification0.1.9. 정확한 환경은 각 실행의 requirements/runtime을 따른다. 새 양자화/추론 의존성이나 유료 서비스를 이미 설치/승인된 것으로 가정하지 않는다.
+
+======================================================================
+11. 다음 AI에게 요청할 작업 — 그대로 전달 가능한 지시
+======================================================================
+
+이 문서를 읽고 Mission 3의 다음 실험을 설계해줘. 목표는 오심과 전체 Macro F1을 함께 올리는 것이고, 이미 실패한 실험을 단순 반복하지 않았으면 해.
+
+우선 다음을 해줘:
+1. 이 기록의 사실/가설/검증 한계를 구분하고, 현재 가장 큰 정보 부족이 무엇인지 말해줘. 새로운 자료가 필요하면 파일 종류와 확인 목적을 구체적으로 요청해줘. 확인하지 않은 파일을 봤다고 말하지 마.
+2. 현재 검증된 친구 앙상블 0.656584587/오심 0.414605418과 자체 ver19·ver24를 정확히 구분해줘. 제출 가능성을 중시한다면 친구의 전체 가중치와 추론 재현을 먼저 확보하는 방안도 검토해줘.
+3. 오심 개선 가설을 최대 3개로 좁히고, 각각 무엇을 고정하고 무엇만 바꿀지, 실패했다고 판단할 기준, 필요 시간/메모리를 써줘. 단순 의료 모델 이름 나열보다 이번 실패 사례와 연결된 근거가 필요해.
+4. 모든 샘플/원래 정답을 유지하고, Training 내부에서 선택해줘. 자동 라벨 삭제/수정, Validation 학습, 사후 threshold/offset/calibration은 하지 마. 외부 데이터/상용 API/의료 모델 재배포 규정이 필요하면 이미 허가됐다고 가정하지 마.
+5. 오래 재사용한 holdout에서의 과적합과 모델 선택 편향을 줄일 방법을 제시해줘. 기존 전체 Training 모델을 그 Training 내부 holdout 평가에 쓰지 마. 새 검증 분할을 만들었다면 기존 점수와 동일 조건이라고 하지 마.
+6. 새 실험을 구현한다면 다음 번호 mission3_ver25.ipynb부터 사용하고 기존 파일을 덮어쓰지 마. Colab에서 모두 실행할 수 있게 하고 Drive 결과 저장, 실제 속도 측정, 180분 공유 예산, 원인 로그, 최종 refit/저장/재로딩 검증을 포함해줘. 큰 상승을 보장하지 마.
+7. 보고는 전체 Macro/9개 F1/오심 P·R·TP·FP·FN/동일 표본 paired 변경/시간/최종 학습 범위를 포함해줘. 후보가 실패해 baseline을 유지하면 분명히 표시해줘. 전체 의료 refit이나 ensemble을 실행하지 않았다면 진단 점수로만 표시해줘.
+
+현재 검토할 만한 질문(확정 해법 아님):
+- 원래 라벨을 보지 않은 독립 문맥 검토에서 오심 판정 기준이 얼마나 일치하는가? '구토만', '현재 오심 긍정', '질문만', '부정/과거', '판단 불가'를 구분하고 원문 필터가 숨긴 근거도 확인할 필요가 있는가?
+- 실제 성능이 앞선 친구 앙상블의 이득은 어느 구성의 보완성에서 오는가? 같은 누수 없는 분할과 고정 판정에서 재현 가능한가? 전체 11개 재학습이 3시간을 넘는다면 기존 완료 가중치 활용과 새 학습을 구분해야 한다.
+- 의료/control 평균의 작은 오심 이득은 독립적인 Training 검증에서도 유지되는가? 전체 Macro 손해와 추론 비용까지 고려하면 추가 학습할 가치가 있는가?
+- 더 좋은 한국어 구어체 문맥 표현이나 증상 경계 학습이 기존의 단순 head/evidence continuation보다 다른 정보를 제공하는가? 새 모델/새 목표를 시험할 경우 가장 작은 비교로 이를 확인할 수 있는가?
+
+오심만 올리는 효과의 규모도 기억해줘. 다른 8개 F1이 고정되면 오심 F1 +0.09는 전체 Macro +0.01이다. 오심만 조금 개선해서 전체가 극적으로 오른다고 약속할 수 없다. 반대로 오심 한 증상이 낮다고 전체 개선 가능성이 없다고 단정할 근거도 없다.
+
+======================================================================
+12. 근거 파일 안내 — 저장소가 있을 때의 확인 순서
+======================================================================
+
+아래는 프로젝트 루트 기준 상대경로다. outputs는 Git에서 제외될 수 있고, 로컬의 후반 버전 파일도 아직 커밋되지 않은 것이 많다. Git 저장소만 받으면 이 자료가 전부 있다고 가정하지 말아야 한다. 이 문서에 핵심 수치를 넣은 이유다.
+
+먼저 볼 문서/코드:
+[S01] docs/0820_DCC 대학부_예선_출제문제.pdf
+[S02] src/mission3/experiment_log.md
+[S03] docs/mission3_mentoring_ver1_ver9.md
+[S04] docs/mission3_ver14_nausea_review.md
+[S05] src/mission3/mission3_threshold_free/README.md
+[S06] src/mission3/mission3_ver19/README.md
+[S07] src/mission3/mission3_ver23/README.md
+[S08] src/mission3/mission3_ver24/README.md
+[S09] src/mission3/mission3_ver24/model_specs.json
+[S10] src/mission3/mission3_ver24.ipynb
+
+실제 결과 폴더/파일:
+[R02] results/mission3/ver1/mission3_metrics.json  (실제ver2실행)
+[R03] results/mission3/ver3/mission3_ver3_metrics.json
+[R04] results/mission3/ver4/validation_metrics.json
+[R05] results/mission3/ver5/predictions/20260915_171404_d6d25c/validation_metrics.json
+[R06] results/mission3/ver6/predictions/20260915_193433_ae85f5/validation_metrics.json
+[R07] results/mission3/ver7/predictions/20260917_103114_36af68/validation_metrics.json
+[R08] results/mission3/ver8/predictions/20260917_145217_a443ea/validation_metrics.json
+[R09] results/mission3/ver9/validation_metrics.json
+[R10] results/mission3/ver10/20261004T145846Z_09dcf3d0/
+[R11] results/mission3/ver11-20261005T015838Z-1-001/ver11/20261004T152326Z_8d4c9a93/
+[R12A] results/mission3/ver12/20261005T064046Z_9a038355/
+[R12B] results/mission3/ver12/20261006T002239Z_981e58dc/
+[R12C] results/mission3/ver12/20261006T011618Z_09e3a612/
+[R13] results/mission3/ver13-20261006T095414Z-1-001/ver13/20261006T054011Z_722cf947/
+[R14] results/mission3/ver14/20261006T140658Z_e06feb5e/
+[R15] results/mission3/ver15-20261007T043838Z-1-001/ver15/20261007T022513Z_5c0bfde1/
+[R16] results/mission3/ver16-20261007T103849Z-1-001/ver16/20261007T074624Z_b0cdfc28/
+[R17] results/mission3/ver17-20261007T133058Z-1-001/ver17/20261007T103831Z_60e3e36e/
+[R18] outputs/mission3_ver18_analysis/extracted/ver18/20261008T023124Z_df3fbb0e/
+[R19] results/mission3/ver19-20261008T093153Z-1-001/ver19/20261008T072419Z_07dc5385/
+[R20] results/mission3/ver20-20261009T034704Z-1-001/ver20/20261008T162439Z_e13305dd/
+[R21] results/mission3/ver21-20261009T084146Z-1-001/ver21/20261009T081322Z_b134054a/
+[R22] results/mission3/ver22-20261009T164054Z-1-001/ver22/20261009T153325Z_59a5548c/
+[R23] results/mission3/ver23-20261010T060533Z-1-001/ver23/20261010T045923Z_53f9968b/
+[R24] results/mission3/ver24-20261010T113242Z-1-001/ver24/20261010T104058Z_a7746135/
+
+R10 이후 각 폴더에서는 validation_metrics.json, training_metrics.json, runtime.json, selection_history 또는 candidate_summary, final_selection, mission3.csv, checkpoint manifest를 같이 읽는다. run_complete.json이 없는 실패 실행과 구분한다. 오래된 형식에는 없는 파일이 있다.
+
+오심 감사/이전 검증:
+[A01] outputs/mission3_ver14_analysis/analysis_20261007.json
+[A02] outputs/mission3_ver14_analysis/checkpoint_sample_20261007.json
+[A03] outputs/mission3_ver15_nausea_audit/aggregate.json
+[A04] outputs/mission3_nausea_root_cause_20261008/data_diagnosis.json
+[A05] outputs/mission3_deep_audit/input_audit.json
+[A06] outputs/mission3_deep_audit/coverage_verification.json
+[A07] outputs/mission3_deep_audit/training_fn/summary.json
+[A08] outputs/mission3_deep_audit/training_fp_semantic_review.json
+[A09] outputs/mission3_deep_audit/validation_summary.json
+[A10] outputs/mission3_urgent_strategy/ensemble_agent/training_ensemble_probe.json
+[A11] outputs/mission3_urgent_strategy/ensemble_agent/label_model_selection_probe.json
+[A12] outputs/mission3_ver21_analysis/integrity_analysis.json
+[A13] outputs/mission3_ver23_design/history_audit.json
+[A14] outputs/mission3_ver23_design/probe/fusion_results.json
+[A15] outputs/mission3_ver23_analysis/history_analysis.json
+
+친구/의료 최신 분석:
+[F01] outputs/mission3_friend_push_analysis/verified_comparison.json
+[F02] outputs/mission3_friend_push_analysis/snapshot/results/mission3/ver4_eval/pred_mine.csv
+[F03] outputs/mission3_friend_push_analysis/snapshot/src/mission3/local/inference.py
+[V01] outputs/mission3_ver24_analysis/verified_analysis.json
+[V02] outputs/mission3_ver24_analysis/semantic_review.json
+[V03] outputs/mission3_ver24_analysis/checkpoint/verification.json
+[V04] outputs/mission3_ver24_verification/model_probe/pretrained_compatibility_report.json
+[V05] outputs/mission3_ver24_verification/model_probe/token_length_report.json
+
+ver24 노트북 구현 시 CPU 검증 37개 테스트가 통과한 기록이 있다. 이는 실행 로직 검증이며 Colab 학습 성능의 증명과 구분한다. 이 인계 문서 작성 과정에서 해당 테스트나 GPU 학습을 다시 실행하지는 않았다.
+
+이 문서를 읽는 다음 AI에게: 모르는 수치를 만들어 채우지 말고, 기존 실패에서 새로운 가설을 세우며, 실제로 측정한 결과만 개선으로 보고할 것.

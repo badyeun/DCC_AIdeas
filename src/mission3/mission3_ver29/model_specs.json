@@ -1,0 +1,36 @@
+{
+  "kure": {
+    "model_id": "nlpai-lab/KURE-v1",
+    "revision": "main",
+    "revision_policy": "Resolve once to an immutable commit before training, then preserve for resume and refit.",
+    "license": "MIT",
+    "source": "https://huggingface.co/nlpai-lab/KURE-v1",
+    "model_card": "https://huggingface.co/nlpai-lab/KURE-v1",
+    "license_note": "KURE-v1 derives from BAAI/bge-m3. Preserve upstream model cards and license notices."
+  },
+  "control": {
+    "model_id": "klue/roberta-base",
+    "revision": "02f94ba5e3fcb7e2a58a390b8639b0fac974a8da",
+    "license": "CC-BY-SA-4.0",
+    "source": "https://huggingface.co/klue/roberta-base",
+    "model_card": "https://huggingface.co/klue/roberta-base",
+    "license_note": "Preserve attribution and share-alike terms when redistributing fine-tuned weights."
+  },
+  "klue_asl": {
+    "model_id": "klue/roberta-base",
+    "revision": "02f94ba5e3fcb7e2a58a390b8639b0fac974a8da",
+    "license": "CC-BY-SA-4.0",
+    "source": "https://huggingface.co/klue/roberta-base",
+    "model_card": "https://huggingface.co/klue/roberta-base",
+    "license_note": "Same public encoder as control; a new full-encoder weighted asymmetric-loss experiment. Preserve attribution and share-alike terms."
+  },
+  "qwen_embedding": {
+    "model_id": "Qwen/Qwen3-Embedding-0.6B",
+    "revision": "main",
+    "revision_policy": "Resolve once to an immutable commit before training, then preserve for resume and refit.",
+    "license": "Apache-2.0",
+    "source": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
+    "model_card": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
+    "license_note": "Preserve upstream license and model card. Fixed English task instruction and last-token pooling are used; retrieval scores are not symptom F1."
+  }
+}

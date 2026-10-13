@@ -32,3 +32,19 @@ venv/
 
 # Reusable raw inference probabilities (regenerated when absent)
 /results/mission3/prediction_cache/
+
+# New raw run folders stay local; reviewed aggregate records live in records/.
+# Existing tracked historical records are not removed by this rule.
+/results/
+/local_records/
+
+# Credentials and private runtime configuration
+.env
+.env.*
+!.env.example
+.modal.toml
+.huggingface/
+.hf_token
+
+# Test caches
+.pytest_cache/
