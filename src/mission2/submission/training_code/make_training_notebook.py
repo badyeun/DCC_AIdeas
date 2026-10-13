@@ -90,7 +90,7 @@ print("원래 로그:", original)
 print("재실행  :", again)
 print("loss·holdout 정확도 일치:", original.split(" (")[0] == again.split(" (")[0])"""),
     ("md", """## 3. 최종 10개 학습 로그 (원래 실행 로그 파일)
-로컬 PC(CPU 16코어)에서 `train_call_model.py`로 학습했다(모델당 1~2시간, 합계 약 13시간). 아래는 실행 때 저장된 로그 파일을 그대로 읽은 것이다.
+로컬 PC CPU(Intel Core i5-1340P, 16스레드 중 14개 사용)에서 `train_call_model.py`로 학습했다(모델당 1~2시간, 합계 약 13시간). 아래는 실행 때 저장된 로그 파일을 그대로 읽은 것이다.
 Train 전체 학습 2개(F0, F1)는 holdout 실험에서 정한 20 epoch를 그대로 학습하고 마지막 epoch를 썼다."""),
     ("code", """sweep = {json.loads(l)["name"]: json.loads(l) for l in (RUNS / "sweep.jsonl").read_text(encoding="utf-8").splitlines()}
 for name in FINAL:

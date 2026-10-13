@@ -38,7 +38,7 @@
 
 최종 0.9277은 이 폴더 그대로 아래 공식 명령을 실행해 Validation WAV 전체를 다시 추론해 얻은 값이다(Colab T4 GPU, 111,947행, 1시간 16분). 학습 때 저장한 확률로 계산한 값과 같다.
 
-검증 환경: Python 3.13, torch 2.11.0+cu130, torchaudio 2.11.0+cu130, speechbrain 1.1.1, librosa 0.11.0, numpy 2.1.3, soundfile 0.14.0, joblib 1.6.0, ruamel.yaml 0.18.6 (`pip install -r requirements.txt` 후)
+검증 환경: Python 3.13, torch 2.11.0+cu130, torchaudio 2.11.0+cu130, speechbrain 1.1.1, librosa 0.11.0, numpy 2.1.3, soundfile 0.14.0, joblib 1.6.0, ruamel.yaml 0.18.6 (`requirements.txt`는 이 버전으로 고정)
 
 ## 실행
 
@@ -99,4 +99,4 @@ python training_code/pack_model.py --models A0_base.pt A1_seed7.pt ... F1_full_p
 
 - 선택 epoch: Train holdout 정확도가 가장 높은 epoch. `--holdout 0`(Train 전체 학습)인 두 모델은 holdout 실험에서 정한 20 epoch를 그대로 학습했다.
 - Validation 열은 학습이 끝난 뒤 한 번 계산한 값이다. 앙상블은 10개를 가중치 없이 평균했다(가중치나 부분 조합을 Validation으로 고르지 않음).
-- 학습은 로컬 PC(CPU 16코어)에서 했다. 특징 캐시는 Colab GPU에서 만들었다.
+- 학습은 로컬 PC CPU(Intel Core i5-1340P, 16스레드 중 14개 사용, GPU 없음)에서 했다. 특징 캐시는 Colab(ECAPA는 T4 GPU, MFCC는 CPU)에서 만들었다.
