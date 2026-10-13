@@ -1,14 +1,14 @@
 """
 Mission 1: 119 신고자 성별 분류 (M/F).
 
-최종 모델 = 예은 WavLM 3모델 앙상블(Attention+F0 40%, Stats+F0 40%, Stats No-F0 20%)
-          과 ECAPA 화자 임베딩 + 로지스틱 회귀를 25:75로 섞은 확률 (EXP-012).
+최종 모델 = WavLM 3모델 앙상블(Attention+F0 40%, Stats+F0 40%, Stats No-F0 20%)
+          과 ECAPA 화자 임베딩 + 로지스틱 회귀를 25:75로 섞은 확률.
 
 Usage:
     python inference.py \
         --audio_dir AUDIO_DIR \
         --label_dir LABEL_DIR \
-        --ckpt_path CHECKPOINT \
+        --ckpt_path ./ecapa_gender/ecapa_lr.pt \
         --output outputs/mission1.csv
 """
 

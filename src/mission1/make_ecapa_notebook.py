@@ -1,9 +1,13 @@
-"""Mission 1 ECAPA 학습 노트북(학습 로그 포함)을 만들고 실행해 출력까지 저장한다.
+"""Mission 1 제출용 학습 노트북(학습 로그 포함)을 만든다.
 
-제출 규칙상 학습 코드는 실행 로그가 남은 .ipynb여야 한다. 노트북 셀은 src/mission1의 학습 코드를
-그대로 불러 실행하므로, 노트북과 .py가 서로 다른 계산을 할 일이 없다.
+- Part A: WavLM 3모델 학습 기록. 팀원(예은)이 Colab에서 실행한 정리본 노트북의 셀과 실행 출력을 그대로 옮긴다.
+- Part B: ECAPA 모델 학습·섞는 비율 선택·재현 검증. 여기서 실제로 실행해 출력을 남긴다.
+  셀은 src/mission1의 학습 코드를 그대로 불러 실행하므로 노트북과 .py가 서로 다른 계산을 할 일이 없다.
+- 마지막: 최종 추론 명령과 결과 표.
 
-사용: python make_ecapa_notebook.py --out Mission1_ecapa_training.ipynb
+제출 규칙상 학습 코드는 실행 로그가 남은 .ipynb여야 하고, 참가자 매뉴얼은 ipynb 파일 하나를 받으므로 한 파일로 합친다.
+
+사용: python make_ecapa_notebook.py --part_a .../Mission1_final.ipynb --submission .../최종폴더 --out Mission1_training.ipynb
 """
 
 from __future__ import annotations
@@ -15,16 +19,16 @@ import nbformat
 from nbconvert.preprocessors import ExecutePreprocessor
 
 CELLS = [
-    ("md", """# Mission 1 — ECAPA 화자 임베딩 성별 모델 학습 기록 (EXP-012)
+    ("md", """# Part B. ECAPA 화자 임베딩 성별 모델 (학습: 로컬 CPU)
 
-최종 제출 모델 = **예은 WavLM 3모델 앙상블 25% + ECAPA 로지스틱 회귀 75%** (확률 가중 평균).
-WavLM 3모델의 학습 기록은 `Mission1_final.ipynb`에 있고, 이 노트북은 **ECAPA 쪽 학습과 섞는 비율 선택**을 기록한다.
+Part A의 3모델은 모두 WavLM 입력이라 오류가 많이 겹친다(앙상블 오류 77개 중 52개를 세 모델이 모두 틀림).
+그래서 **다른 방식으로 학습된 화자 인식 임베딩(ECAPA-TDNN)**으로 성별 모델을 따로 만들고, 내부 holdout으로 고른 비율로 섞는다.
 
 **규칙 준수**
 - 학습 데이터: 서울 Training 29,200통화만 사용. Validation 3,640통화는 학습(역전파·적합)에 쓰지 않고 마지막 확인에만 사용.
 - annotation: 입력에는 `startAt`, `endAt`, `speaker`만 사용(신고자 구간 선택). `gender`는 학습 정답과 채점에만 사용.
 - 사전학습 모델: `speechbrain/spkrec-ecapa-voxceleb`(공개 모델, 가중치 고정, 미세조정 없음). 상용 API 없음.
-- 모델 선택(C, 섞는 비율)은 Training 내부 holdout 2,920통화로만 했다(예은 앙상블을 고른 것과 같은 holdout).
+- 모델 선택(C, 섞는 비율)은 Training 내부 holdout 2,920통화로만 했다(Part A 앙상블을 고른 것과 같은 holdout).
 
 **특징 캐시**: 발화별 ECAPA 192차원 임베딩과 MFCC 통계는 Mission 2 때 Colab GPU에서
 `training_code/mission2_ecapa_cache/train_speaker_embed.py`, `train_mfcc_rf.py`로 만든 캐시를 그대로 쓴다
@@ -36,15 +40,15 @@ import numpy as np
 
 SRC = Path(r"C:/유니짜장/DCC_Aideas/DCC_AIdeas/src/mission1")
 M2_LOCAL = Path(r"C:/유니짜장/DCC_Aideas/mission2_local")          # Mission 2 발화별 캐시 (memmap)
-EXPORT = Path(r"C:/유니짜장/DCC_Aideas/mission1_local/export_raw/mission1_export")  # 통화별 gender·stem, 예은 확률
+EXPORT = Path(r"C:/유니짜장/DCC_Aideas/mission1_local/export_raw/mission1_export")  # 통화별 gender·stem, Part A 3모델 확률
 WORK = Path(r"C:/유니짜장/DCC_Aideas/mission1_local/notebook_run")
 WORK.mkdir(parents=True, exist_ok=True)
 sys.path.insert(0, str(SRC))
 from gender_data import load_split, yeeun_holdout_mask, pooled_features"""),
     ("md", """## 1. 데이터 정렬 검증
 JSON에서 센 통화별 발화 수가 캐시의 통화 경계와 **모든 통화에서** 같아야 한다(다르면 `load_split`이 멈춘다).
-예은 holdout은 stem 오름차순 + `train_test_split(test_size=0.1, random_state=42, stratify=gender)`로 재현하고,
-예은이 저장한 split 파일과 같은지 확인한다."""),
+Part A의 내부 holdout은 stem 오름차순 + `train_test_split(test_size=0.1, random_state=42, stratify=gender)`로 재현하고,
+Part A에서 저장한 split 파일과 같은지 확인한다."""),
     ("code", """train = load_split(M2_LOCAL, EXPORT, "train")
 val = load_split(M2_LOCAL, EXPORT, "val")
 for name, d in (("Train", train), ("Validation", val)):
@@ -71,24 +75,23 @@ for blocks in (["caller_ecapa"], ["caller_mfcc"], ["caller_ecapa", "caller_mfcc"
                              "--export_dir", str(EXPORT), "--pooled_dir", str(WORK), "--blocks", *blocks,
                              "--out", str(RUNS / ("pooled_" + "+".join(blocks)))], capture_output=True, text=True, encoding="utf-8")
     print(result.stdout.strip() or result.stderr[-2000:])"""),
-    ("md", """## 4. 예은 3모델 앙상블과 섞는 비율 선택
-예은 3모델(40:40:20)의 내부 holdout·공식 Validation 확률(예은이 저장한 파일)과 같은 통화끼리 맞춰
-`P(F) = (1-w)·예은 + w·ECAPA`의 오류를 계산한다. **w는 holdout 오류가 최소인 구간의 가운데로 고른다.**
+    ("md", """## 4. WavLM 3모델 앙상블과 섞는 비율 선택
+Part A 3모델(40:40:20)의 내부 holdout·공식 Validation 확률(Part A에서 저장한 파일)과 같은 통화끼리 맞춰
+`P(F) = (1-w)·WavLM 3모델 + w·ECAPA`의 오류를 계산한다(아래 출력의 '예은'은 Part A 3모델 앙상블). **w는 holdout 오류가 최소인 구간의 가운데로 고른다.**
 Validation 열은 참고로만 출력하며 선택에 쓰지 않았다."""),
     ("code", """result = subprocess.run([sys.executable, str(SRC / "blend_with_yeeun.py"), "--export_dir", str(EXPORT),
                          "--runs", str(RUNS / "pooled_caller_ecapa.npz")], capture_output=True, text=True, encoding="utf-8")
 print(result.stdout.strip() or result.stderr[-2000:])"""),
     ("md", """## 5. 제출용 가중치와 재현 확인
-제출 폴더의 `ecapa_gender/ecapa_lr.npz`에는 표준화 평균·표준편차, 로지스틱 회귀 계수·절편과 섞는 비율(0.75)만
-numpy 배열로 들어 있다(sklearn 버전과 무관). 제출 코드(`ecapa_gender.py`)의 특징·확률 계산이 학습 때와 같은지 확인한다."""),
-    ("code", """SUB = Path(r"C:/유니짜장/DCC_Aideas/mission1_local/mission1_submission_v2")
+제출 폴더의 `ecapa_gender/ecapa_lr.pt`에는 표준화 평균·표준편차, 로지스틱 회귀 계수·절편과 섞는 비율(0.75)만
+텐서·숫자로 들어 있다(sklearn 버전과 무관). 제출 코드(`ecapa_gender.py`)의 특징·확률 계산이 학습 때와 같은지 확인한다."""),
+    ("code", """SUB = Path(r"__SUBMISSION__")
 sys.path.insert(0, str(SUB))
-from ecapa_gender import EcapaGender, caller_feature
-model = EcapaGender.__new__(EcapaGender)   # 인코더 없이 숫자만 불러 계산 확인
-with np.load(SUB / "ecapa_gender" / "ecapa_lr.npz") as z:
-    model.mean, model.scale = z["scaler_mean"].astype(float), z["scaler_scale"].astype(float)
-    model.coef, model.intercept, model.blend = z["coef"].astype(float), float(z["intercept"][0]), float(z["blend"])
-    print("C =", float(z["C"]), "/ ECAPA 비율 =", model.blend)
+import torch
+from ecapa_gender import EcapaGender, caller_feature, load_lr_weights
+model = EcapaGender.__new__(EcapaGender)   # 인코더 없이 가중치만 불러 계산 확인
+model.mean, model.scale, model.coef, model.intercept, model.blend = load_lr_weights(SUB / "ecapa_gender" / "ecapa_lr.pt")
+print("C =", torch.load(SUB / "ecapa_gender" / "ecapa_lr.pt", weights_only=True)["C"], "/ ECAPA 비율 =", model.blend)
 trained = np.load(RUNS / "pooled_caller_ecapa.npz")
 probs = []
 for c in range(len(val["counts"])):
@@ -99,8 +102,9 @@ probs = np.array(probs)
 print("제출 코드 확률 vs 학습 확률 최대 차이:", np.abs(probs - trained["val_prob"]).max(),
       "/ 판정이 다른 통화:", int(((probs >= .5) != (trained["val_prob"] >= .5)).sum()))"""),
     ("md", """## 6. 실데이터 추론 검증 (Colab T4)
-제출 폴더 v2를 공식 명령 그대로 Validation WAV 3,640개에 실행한 결과(`outputs` CSV와 파일별 확률)를 채점한다.
-예은 3모델 확률이 예은 저장값과, ECAPA 확률이 위 학습 값과 같은지도 비교한다."""),
+최종 제출 폴더를 공식 명령 그대로 Validation WAV 3,640개에 실행한 결과(출력 CSV와 파일별 확률)를 채점한다.
+WavLM 3모델 확률이 Part A에서 저장한 값과, ECAPA 확률이 위 학습 값과 같은지도 비교한다.
+(이 실행 뒤 추론 코드에서 쓰지 않는 함수만 정리하고 가중치 파일 형식을 .pt로 바꿨으며, 정리 전후 출력이 같음을 로컬에서 확인했다.)"""),
     ("code", """import csv
 RESULT = Path(r"C:/유니짜장/DCC_Aideas/mission1_local/colab_full_result")
 with open(RESULT / "mission1.csv", encoding="utf-8") as f:
@@ -114,8 +118,8 @@ ref = np.load(Path(r"C:/유니짜장/DCC_Aideas/mission1_local/colab_v2/verify/v
 got = np.load(RESULT / "probs.npz")
 index = np.array([{str(s): i for i, s in enumerate(ref["stems"])}[Path(str(n)).stem] for n in got["names"]])
 w = np.array([.4, .4, .2])
-print("예은 3모델 확률 최대 차이:", np.abs(got["yeeun"] - ref["yeeun"][index]).max(axis=0),
-      "/ 예은 앙상블 단독 오류:", int(((got["yeeun"] @ w >= .5) != ref["y"][index]).sum()))
+print("WavLM 3모델 확률 최대 차이:", np.abs(got["yeeun"] - ref["yeeun"][index]).max(axis=0),
+      "/ WavLM 3모델 앙상블 단독 오류:", int(((got["yeeun"] @ w >= .5) != ref["y"][index]).sum()))
 print("ECAPA 확률 최대 차이:", float(np.abs(got["ecapa"] - ref["ecapa"][index]).max()),
       "/ ECAPA 단독 오류:", int(((got["ecapa"] >= .5) != ref["y"][index]).sum()))
 print("최종 판정이 로컬 계산과 다른 통화:", int(((got["final"] >= .5) != (ref["final"][index] >= .5)).sum()))"""),
@@ -123,27 +127,92 @@ print("최종 판정이 로컬 계산과 다른 통화:", int(((got["final"] >= 
 
 | 모델 | 내부 holdout 오류 (2,920) | Validation 오류 (3,640) | Validation Accuracy |
 | --- | ---: | ---: | ---: |
-| 예은 WavLM 3모델 40:40:20 | 61 | 77 | 0.9788 |
-| ECAPA + 로지스틱 회귀 | 54 | 72 | 0.9802 |
-| **최종: 예은 25% + ECAPA 75%** | **49** | **63** | **0.9827** |
+| WavLM 3모델 40:40:20 (Part A) | 61 | 77 | 0.9788 |
+| ECAPA + 로지스틱 회귀 (Part B) | 54 | 72 | 0.9802 |
+| **최종: WavLM 3모델 25% + ECAPA 75%** | **49** | **63** | **0.9827** |
 
-두 모델은 서로 다른 통화에서 틀린다(Validation: 둘 다 오류 37, 예은만 40, ECAPA만 35). 그래서 섞으면 오류가 줄어든다.
-통화 단위 트랜스포머(신고자·대원 발화 전체 입력)도 시험했지만 holdout 기준 이득이 없어 쓰지 않았다
-(`experiment_log.md` EXP-012)."""),
+두 모델은 서로 다른 통화에서 틀린다(Validation: 둘 다 오류 37, WavLM만 40, ECAPA만 35). 그래서 섞으면 오류가 줄어든다.
+통화 단위 트랜스포머(신고자·대원 발화 전체를 넣는 모델)도 시험했지만 holdout 오류 59개로 이득이 없어 쓰지 않았다."""),
 ]
+
+
+HEADER = """# Mission 1 — 119 신고자 성별 분류 (M/F) 학습 기록
+
+**최종 모델**: WavLM 3모델 앙상블 25% + ECAPA 로지스틱 회귀 75% (여성 확률 가중 평균, 0.5 이상이면 F)
+**서울 Validation 3,640통화**: Accuracy **0.9827** (오류 63) — 공식 추론 명령으로 WAV 전체를 다시 추론한 값
+
+| 구성 | 내용 | 실행 환경 |
+| --- | --- | --- |
+| Part A | WavLM-base-plus(고정) 임베딩 → Attention+F0 / Stats+F0 / Stats 3모델, 40:40:20 앙상블 | Colab (원본 실행 로그) |
+| Part B | ECAPA-TDNN(고정) 화자 임베딩 → 로지스틱 회귀, 내부 holdout으로 섞는 비율 선택 | 로컬 CPU (이 파일에서 실행) |
+| 최종 | 공식 명령 1회 실행 추론과 Validation 재추론 검증 | Colab T4 |
+
+**규칙 준수**: 서울 Training만 학습, Validation은 학습에 쓰지 않음. 입력에는 annotation의 `startAt`·`endAt`·`speaker`만
+사용(신고자 구간), `gender`는 정답으로만 사용. 공개 사전학습 모델만 사용, 상용 API 없음.
+모델·가중치·비율 선택은 Training 내부 holdout(2,920통화)으로 했다."""
+
+FOOTER = """# 최종 추론 및 제출
+
+```bash
+python inference.py --audio_dir {wav folder} --label_dir {json folder} \\
+    --ckpt_path ./ecapa_gender/ecapa_lr.pt --output ./outputs/mission1.csv
+```
+
+- `inference.py` → `inference_ecapa_blend.py`: 통화마다 WavLM 3모델 확률과 ECAPA 확률을 구해 25:75로 섞는다.
+- 모델 코드: `wavlm_3model.py`(WavLM 3모델), `common.py`(신고자 음성·F0), `ecapa_gender.py`(ECAPA 특징·로지스틱 회귀).
+- 가중치: `attention_f0/`, `stats_f0/`, `stats_no_f0/`(.pt), `ecapa_gender/ecapa_lr.pt`, 사전학습 모델 `pretrained/`, `ecapa_gender/encoder/`.
+- 출력: `audio file name,gender` CSV (통화당 한 행, M/F).
+
+| 모델 | 내부 holdout 오류 (2,920) | Validation 오류 (3,640) | Validation Accuracy |
+| --- | ---: | ---: | ---: |
+| Log-Mel CNN (기준선) | – | 220 | 0.9396 |
+| MFCC+F0 RandomForest (기준선) | – | 210 | 0.9423 |
+| WavLM 3모델 앙상블 (Part A) | 61 | 77 | 0.9788 |
+| ECAPA 로지스틱 회귀 (Part B) | 54 | 72 | 0.9802 |
+| **최종 (25:75)** | **49** | **63** | **0.9827** |"""
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--part_a", type=Path, required=True, help="WavLM 3모델 학습 정리본 노트북 (Colab 실행 출력 포함)")
+    parser.add_argument("--submission", type=Path, required=True, help="최종 제출 폴더 (5절에서 가중치를 읽음)")
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
-    notebook = nbformat.v4.new_notebook()
-    notebook.metadata["kernelspec"] = {"name": "python3", "display_name": "Python 3", "language": "python"}
-    notebook.cells = [nbformat.v4.new_markdown_cell(text) if kind == "md" else nbformat.v4.new_code_cell(text)
-                      for kind, text in CELLS]
-    ExecutePreprocessor(timeout=3600, kernel_name="python3").preprocess(notebook, {"metadata": {"path": str(args.out.parent)}})
-    nbformat.write(notebook, args.out)
-    print("저장:", args.out)
+    part_b = nbformat.v4.new_notebook()
+    part_b.metadata["kernelspec"] = {"name": "python3", "display_name": "Python 3", "language": "python"}
+    part_b.cells = [nbformat.v4.new_markdown_cell(text) if kind == "md"
+                    else nbformat.v4.new_code_cell(text.replace("__SUBMISSION__", args.submission.as_posix()))
+                    for kind, text in CELLS]
+    ExecutePreprocessor(timeout=3600, kernel_name="python3").preprocess(part_b, {"metadata": {"path": str(args.out.parent)}})
+
+    part_a = nbformat.read(args.part_a, as_version=4)
+    cells_a = []
+    for cell in part_a.cells:
+        text = cell.source
+        if text.startswith("## 08. 추론 및 제출"):
+            continue  # 3모델 단독 제출 안내는 최종 구성과 달라 빼고, 맨 끝 '최종 추론 및 제출'로 대신한다.
+        if text.startswith("# Mission 1 — 신고자 성별 분류"):
+            text = text.replace("# Mission 1 — 신고자 성별 분류", "# Part A. WavLM-base-plus 3모델 (학습: Colab)", 1)
+            text = text.replace("최종 후보는 WavLM-base-plus 기반 세 분류기의 확률 가중 앙상블이다.",
+                                "WavLM-base-plus 기반 세 분류기의 확률 가중 앙상블이다(최종 모델에서 25% 비중).")
+        if text.startswith("## 07. 성능 평가"):
+            text += ("\n\n> 최종 제출 폴더로 Validation WAV 전체를 다시 추론했을 때도 이 3모델 앙상블의 확률은 저장값과 "
+                     "최대 3e-5 차이로 같았고 오류도 77개였다(Part B 6절).")
+        if text.startswith("## 09. 한계 및 향후 개선"):
+            text = "\n".join(line for line in text.splitlines() if "SUBMISSION_AUDIT" not in line).rstrip()
+            text += "\n\n→ 첫 번째 한계(세 모델이 함께 틀리는 샘플)를 줄이기 위해 Part B에서 다른 정보원(ECAPA)을 더한다."
+        cell.source = text
+        cells_a.append(cell)
+
+    combined = nbformat.v4.new_notebook()
+    combined.metadata = part_a.metadata
+    combined.cells = [nbformat.v4.new_markdown_cell(HEADER)] + cells_a + part_b.cells + [nbformat.v4.new_markdown_cell(FOOTER)]
+    combined.nbformat, combined.nbformat_minor = 4, 5
+    for number, cell in enumerate(combined.cells):
+        cell["id"] = f"cell-{number:03d}"  # Part A 원본(nbformat 4.0)에는 셀 id가 없어 새로 붙인다.
+    nbformat.validate(combined)
+    nbformat.write(combined, args.out)
+    print("저장:", args.out, f"(Part A {len(cells_a)}셀 + Part B {len(part_b.cells)}셀)")
 
 
 if __name__ == "__main__":

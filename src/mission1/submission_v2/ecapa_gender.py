@@ -167,17 +167,24 @@ def caller_feature(caller_ecapa: np.ndarray, caller_log_seconds: np.ndarray) -> 
     return np.concatenate([(ecapa * weight[:, None]).sum(0), ecapa.std(0)]).astype(np.float32)
 
 
+def load_lr_weights(path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray, float, float]:
+    """로지스틱 회귀 가중치(.pt): 표준화 평균·표준편차, 계수, 절편, 그리고 WavLM 3모델과 섞는 ECAPA 비율.
+
+    텐서(float64)와 숫자만 담겨 있어 `weights_only=True`로 안전하게 읽는다.
+    """
+    import torch
+
+    data = torch.load(path, map_location="cpu", weights_only=True)
+    return (data["scaler_mean"].numpy(), data["scaler_scale"].numpy(), data["coef"].numpy(),
+            float(data["intercept"]), float(data["blend"]))
+
+
 class EcapaGender:
-    """`folder/encoder/`(ECAPA 파일)와 `folder/ecapa_lr.npz`(로지스틱 회귀 숫자)를 읽는다."""
+    """`folder/encoder/`(ECAPA 파일)와 `folder/ecapa_lr.pt`(로지스틱 회귀 가중치)를 읽는다."""
 
     def __init__(self, folder: Path, device: str) -> None:
         folder = Path(folder)
-        with np.load(folder / "ecapa_lr.npz") as data:
-            self.mean = data["scaler_mean"].astype(np.float64)
-            self.scale = data["scaler_scale"].astype(np.float64)
-            self.coef = data["coef"].astype(np.float64)
-            self.intercept = float(data["intercept"][0])
-            self.blend = float(data["blend"])
+        self.mean, self.scale, self.coef, self.intercept, self.blend = load_lr_weights(folder / "ecapa_lr.pt")
         self.encoder = load_encoder(folder / "encoder", device)
 
     def probability_from_feature(self, feature: np.ndarray) -> float:

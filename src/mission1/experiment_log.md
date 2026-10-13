@@ -490,3 +490,15 @@ Colab에서 `export_labels_for_local.py`로 통화별 stem·gender·발화 수�
 | ECAPA 확률 vs 로컬 캐시 계산 | 최대 차이 2e-5 |
 | 최종 판정 vs 로컬 계산 | 차이 0, 실패 0, CSV 3,640행 |
 | 소요 | 30통화 시험 1분 32초 기준 전체 약 2시간대 (T4) |
+
+### 제출 규정 맞춤 정리 (2026-10-13)
+
+출제문제 p11·p12 대조 후 세 가지를 고쳤다. 추론 계산은 바뀌지 않는다.
+
+| 항목 | 변경 | 확인 |
+| --- | --- | --- |
+| 가중치 형식 (.pt/.pth/.ckpt) | ECAPA 로지스틱 회귀 `ecapa_lr.npz` → `ecapa_lr.pt` (float64 텐서, `weights_only=True`) | 값이 검증본 npz와 비트 단위로 같음 |
+| 불필요 코드 삭제 | 예은 `inference_3model_final.py`·`common.py`에서 최종 추론에 쓰는 함수만 `ast`로 그대로 옮겨 `wavlm_3model.py`·`common.py`로, `model.py`(미사용) 제외 | 합성 음성 5개(1구간·3구간·실패 경우 포함): 정리 전 코드 2회차와 정리 후 코드의 확률이 완전히 같음(차이 0.0). 정리 전 코드끼리도 1·2회차가 9e-8 다른 것은 CPU 실행 간 차이 |
+| ipynb 하나로 | `Mission1_training.ipynb` = Part A(WavLM 3모델, 저장소의 정리본 `mission1_submission/Mission1_final.ipynb` 실행 출력 그대로) + Part B(ECAPA, 로컬 실행) + 최종 추론 | 실행 오류 없음. 예은 Drive 제출 폴더의 `Mission1_final.ipynb`는 3모델 학습 로그가 없는 예전판이라 쓰지 않음 |
+
+가중치·사전학습 모델·requirements는 Colab 검증본과 해시가 같다. 최종 폴더: `mission1_submission_final/` (zip).

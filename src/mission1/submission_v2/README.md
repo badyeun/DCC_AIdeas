@@ -36,7 +36,7 @@ pip install -r requirements.txt
 python inference.py \
   --audio_dir "/path/to/wav_folder" \
   --label_dir "/path/to/json_folder" \
-  --ckpt_path "./ecapa_gender/ecapa_lr.npz" \
+  --ckpt_path "./ecapa_gender/ecapa_lr.pt" \
   --output "./outputs/mission1.csv"
 ```
 
@@ -51,15 +51,14 @@ python inference.py \
 ```text
 inference.py                  공식 진입점 → inference_ecapa_blend.py 실행
 inference_ecapa_blend.py      최종 추론 (WavLM 3모델 + ECAPA 섞기)
-inference_3model_final.py     WavLM 3모델 모델·특징 코드
-common.py, model.py           WavLM 쪽 공통 코드
+wavlm_3model.py               WavLM 3모델 모델 정의·체크포인트 로딩·특징 추출
+common.py                     신고자 음성 추출, F0 특징
 ecapa_gender.py               ECAPA 쪽 모델 코드 (음성 자르기, 임베딩, 특징, 로지스틱 회귀)
 attention_f0/ stats_f0/ stats_no_f0/   WavLM 3모델 가중치
 pretrained/wavlm-base-plus/   WavLM 사전학습 모델
 ecapa_gender/encoder/         ECAPA 사전학습 모델
-ecapa_gender/ecapa_lr.npz     로지스틱 회귀 가중치(표준화 평균·표준편차, 계수, 절편)와 섞는 비율
+ecapa_gender/ecapa_lr.pt      로지스틱 회귀 가중치(표준화 평균·표준편차, 계수, 절편)와 섞는 비율
 requirements.txt
-Mission1_final.ipynb          WavLM 3모델 학습 기록 (학습 로그 포함)
-Mission1_ecapa_training.ipynb ECAPA 모델 학습·비율 선택·재현 검증 기록 (학습 로그 포함)
+Mission1_training.ipynb       학습 기록 전체 (학습 로그 포함): WavLM 3모델 학습 → ECAPA 모델 학습 → 섞는 비율 선택 → 실데이터 추론 검증
 training_code/                ECAPA 쪽 학습 코드 (.py)와 특징 캐시 생성 코드
 ```

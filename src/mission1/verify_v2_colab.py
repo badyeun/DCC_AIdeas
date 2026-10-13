@@ -77,7 +77,9 @@ def main() -> None:
     wrong = sum(predicted[stem] != truth[stem] for stem in predicted)
     print(f"\n[채점] CSV {len(rows) - 1}행, 정확도 {1 - wrong / len(predicted):.4f} (오류 {wrong}/{len(predicted)})")
 
-    with np.load(args.reference) as ref, np.load(probs) as got:
+    with np.load(args.reference) as ref, np.load(probs) as saved:
+        got = {key: saved[key] for key in saved.files}
+        got.setdefault("yeeun", got.get("wavlm"))  # 추론 코드 정리 후 키 이름이 wavlm로 바뀜
         lookup = {str(stem): i for i, stem in enumerate(ref["stems"])}
         index = np.array([lookup[Path(str(name)).stem] for name in got["names"]])
         yeeun_diff = np.nanmax(np.abs(got["yeeun"] - ref["yeeun"][index]), axis=0)
