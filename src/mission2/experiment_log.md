@@ -811,6 +811,28 @@ self-attention으로 참고하며 **비교 방식 자체를 학습**하게 했�
   5e-7 이하. 실데이터 첫 epoch holdout 0.8753. 팀 결정으로 학습은 중단했고, 주최 측 답이 "금지"면 다시 학습한다.
 - 팀은 B(통화 비교, 0.9277)로 제출하기로 결정(2026-10-13).
 
+### 제출 코드 정리 (2026-10-13)
+
+문제 p12 "코드 내 불필요부분 삭제, 주석 필수"에 맞춰, 제출본을 최종 모델 경로만 남긴 코드로 다시 썼다
+(`src/mission2/submission/`). 연구용 코드(`src/mission2/*.py`)는 그대로 둔다.
+
+| 제출 파일 | 원래 코드 | 정리 내용 |
+| --- | --- | --- |
+| `inference.py` | `inference.py` | 예전 모델 2종(RandomForest, 2단계 파이프라인)·기존 파이프라인 섞기·WavLM 경로 삭제 |
+| `features.py` | `common.py` + `speaker_embed.py` 일부 | annotation·음성·MFCC·ECAPA만 (799+353줄 → 약 200줄) |
+| `model.py` | `call_model.py` | 독립 판정 MLP·1단계 쌓기·WavLM 입력 삭제. 같은 화자 보조 과제 투영은 가중치 호환을 위해 유지 |
+| `training_code/make_feature_cache.py` | `train_mfcc_rf.py`·`train_speaker_embed.py`의 캐시 단계 | 두 캐시를 한 번에 만드는 형태로 |
+| `training_code/train_call_model.py` | `train_call_model.py` | 1단계·WavLM·MLP·기존 예측 섞기 옵션 삭제, `--run_epochs`(동작 확인용) 추가 |
+| `training_code/pack_model.py` | `pack_call_model.py` | 기존 체크포인트 없이 ECAPA 폴더에서 바로 묶기 |
+
+동일성 확인:
+- 추론: 가짜 통화 9개(발화 130개; 밀리초·초 단위, 하위 폴더, `utterences` 키, 스테레오, 8kHz, 거꾸로 된 구간, 음성 밖 구간,
+  20초 넘는 발화, 발화 1개 통화, JSON 없는 WAV)로 원래 코드와 새 코드를 같은 체크포인트로 돌려 **발화별 확률이 비트 단위로 같고 CSV 파일이 같음**.
+- 특징 캐시: 가짜 데이터로 만든 캐시의 MFCC·ECAPA가 추론 경로 값과 비트 단위로 같음.
+- 학습: 정리한 학습 코드로 A0_base 설정 첫 epoch를 다시 돌려 원래 로그와 같은 값(loss 0.2590, holdout 0.9080).
+- 체크포인트: `pack_model.py`로 로컬에서 다시 묶음(`mission2_final10.ckpt`, sha256 `df8689fe…`). 인코더 파일은 Mission 1과 같은 ECAPA 파일.
+- 실데이터: 정리한 추론 파일 + 새 체크포인트로 Colab 재검증 (결과 아래).
+
 ## 다음 실험 계획
 
 현재 기준선은 **EXP-005 (Validation Accuracy 0.9067, LightGBM 1단계 + 2단계 v2)** 입니다.
